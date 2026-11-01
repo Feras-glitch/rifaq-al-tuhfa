@@ -99,7 +99,7 @@ function createWindow(startUrl) {
       contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false
     }
   });
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { if (!process.env.RIFAQ_SMOKE_OUT) win.show(); });
   win.webContents.on('did-navigate', () => { hostReady = false; });
 
   // روابط خارجية تفتح في المتصفح؛ لا نوافذ جديدة داخل البرنامج
@@ -164,3 +164,39 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { app.quit(); });
+
+/* فحص ذاتي يُشغَّل في CI على البرنامج المبني فعلًا: RIFAQ_SMOKE_OUT=مسار ملف النتائج */
+if (process.env.RIFAQ_SMOKE_OUT) {
+  const out = process.env.RIFAQ_SMOKE_OUT;
+  const res = { checks: [], csp: [] };
+  const ok = (name, pass, detail) => res.checks.push({ name, pass: !!pass, detail: String(detail || '').slice(0, 200) });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const load = (url) => new Promise((r) => { win.webContents.once('did-finish-load', r); win.loadURL(url); });
+  const js = (code) => win.webContents.executeJavaScript(code, true);
+  app.whenReady().then(async () => {
+    try {
+      while (!win) await wait(100);
+      win.webContents.on('console-message', (...a) => {
+        const m = a[0] && a[0].message !== undefined ? a[0].message : a[2];
+        if (/Content Security Policy|Refused to/i.test(String(m))) res.csp.push(String(m).slice(0, 200));
+      });
+      await load(HOME); await wait(800);
+      const hrefs = await js("Array.from(document.querySelectorAll('a.card')).map(a=>a.getAttribute('href'))");
+      ok('launcher: 4 cards routed through host', hrefs.length === 4 && hrefs.every((h) => h.startsWith('./open.html')), JSON.stringify(hrefs));
+      await load(HOST + '?src=app'); await wait(3000);
+      const app1 = await js("(function(){var w=document.getElementById('frame').contentWindow;return {pd:typeof w.PACK_DATA, st:typeof w.STATE, v:w.APP_VERSION, secs:(w.CURRICULUM||[]).length};})()");
+      ok('app runs inside host (blob frame, CSP ok)', app1.pd === 'object' && app1.st === 'object' && app1.secs === 16, JSON.stringify(app1));
+      const trial = fs.readFileSync(path.join(SITE, 'trial', 'index.html'), 'utf8');
+      await js('window.RIFAQ_HOST.openText("trial.html", ' + JSON.stringify(trial) + ')'); await wait(3000);
+      const app2 = await js("(function(){var w=document.getElementById('frame').contentWindow;return {id:w.PACK_DATA&&w.PACK_DATA.packageId, title:document.getElementById('cur-title').textContent};})()");
+      ok('open pack file via host', app2.id === 'pack_kids_stage1', JSON.stringify(app2));
+      const mic = await js("navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function'");
+      ok('getUserMedia available (secure context)', mic, mic);
+      const idb = await js("new Promise(r=>{var q=indexedDB.open('smoke',1);q.onsuccess=()=>r(true);q.onerror=()=>r(false);})");
+      ok('IndexedDB works on rifaq://', idb, idb);
+      ok('no CSP violations', res.csp.length === 0, res.csp.join(' | '));
+    } catch (e) { ok('smoke exception', false, e && e.stack); }
+    fs.writeFileSync(out, JSON.stringify(res, null, 2));
+    app.exit(res.checks.every((c) => c.pass) ? 0 : 1);
+  });
+}

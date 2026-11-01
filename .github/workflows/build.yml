@@ -6,6 +6,15 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'إنشاء إصدار GitHub بالملفات (وسم v + رقم الإصدار)'
+        type: boolean
+        default: true
+      emulator:
+        description: 'تشغيل اختبار APK على محاكي أندرويد'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -37,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '21' }
       - name: بناء الموقع داخل غلاف أندرويد
         run: python3 tools/build_web.py native/android/www
@@ -72,11 +81,49 @@ jobs:
           V=$(node -p "require('../package.json').version")
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/Rifaq-al-Tuhfa-$V.apk"
           ls -la "$GITHUB_WORKSPACE/out"
+      - name: فحص APK (التوقيع والصلاحيات وفتح الملفات)
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          APK=$(ls out/*.apk)
+          "$BT/aapt" dump badging "$APK" | grep -E "package:|application-label|uses-permission|sdkVersion|launchable" | tee badging.txt
+          "$BT/apksigner" verify --print-certs "$APK" | head -5
+          grep -q "android.permission.RECORD_AUDIO" badging.txt
+          "$BT/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -A3 "android.intent.action.VIEW" | head -12
+          "$BT/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -q "text/html"
+          unzip -l "$APK" | grep -E "assets/public/(index.html|open.html|host.js|app/template.txt)" 
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
           path: out/*.apk
           if-no-files-found: error
+
+  android-emulator:
+    name: أندرويد — تشغيل على المحاكي
+    needs: android
+    if: github.event_name != 'workflow_dispatch' || inputs.emulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: android-apk, path: apk }
+      - name: تفعيل KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash native/android/scripts/emulator-test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-emulator-screens
+          path: '*.png'
+          if-no-files-found: ignore
 
   windows:
     name: ويندوز (EXE)
@@ -100,6 +147,14 @@ jobs:
           npm install --no-audit --no-fund
           npx electron-builder --win --x64 --publish never
           Get-ChildItem dist -Filter *.exe | Format-Table Name, Length
+      - name: فحص ذاتي للبرنامج المبني (تشغيل فعلي)
+        working-directory: native/windows
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'smoke.json'
+          $env:RIFAQ_SMOKE_OUT = $out
+          $p = Start-Process -FilePath 'dist\win-unpacked\RifaqAlTuhfa.exe' -PassThru -Wait
+          if (Test-Path $out) { Get-Content $out -Encoding UTF8 } else { Write-Host 'لا يوجد ملف نتائج' }
+          if ($p.ExitCode -ne 0) { throw "الفحص الذاتي فشل: $($p.ExitCode)" }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-exe
@@ -108,19 +163,26 @@ jobs:
 
   release:
     name: إصدار GitHub
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release)
     needs: [web, android, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "tag=v$(node -p "require('./native/android/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
-        with: { path: dist, merge-multiple: true }
+        with: { name: android-apk, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: windows-exe, path: dist }
       - run: ls -la dist
       - uses: softprops/action-gh-release@v2
         with:
-          name: رفاق التحفة ${{ github.ref_name }}
+          tag_name: ${{ steps.v.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: رفاق التحفة ${{ steps.v.outputs.tag }}
           files: dist/*
           body: |
-            ## رفاق التحفة ${{ github.ref_name }}
+            ## رفاق التحفة ${{ steps.v.outputs.tag }}
 
             | المنصة | الملف |
             |---|---|
