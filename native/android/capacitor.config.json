@@ -1,0 +1,11 @@
+{
+  "appId": "org.rifaq.tuhfa",
+  "appName": "رفاق التحفة",
+  "webDir": "www",
+  "backgroundColor": "#eef1fa",
+  "server": { "androidScheme": "https" },
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

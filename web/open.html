@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- 'unsafe-inline' هنا ضروري: المستند المفتوح داخل الإطار (blob:) يرث سياسة هذه الصفحة إضافةً إلى سياسته الصارمة.
+     الحماية الفعلية: كود الملف المفتوح لا يُشغَّل؛ تُستخرج بياناته فقط وتُحقن في قالب التطبيق الموثوق. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; frame-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>رفاق التحفة</title>
+<meta name="theme-color" content="#283593">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/favicon.ico" sizes="any">
+<link rel="stylesheet" href="./host.css">
+</head>
+<body>
+<header class="bar">
+  <a class="bar-btn" href="./index.html" id="go-home" title="الصفحة الرئيسية">⌂ <span>الرئيسية</span></a>
+  <button class="bar-btn" type="button" id="open-btn" title="فتح ملف">📂 <span>فتح ملف</span></button>
+  <div class="bar-title" id="cur-title">رفاق التحفة</div>
+</header>
+
+<section class="panel" id="panel">
+  <h1>فتح ملف رفاق التحفة</h1>
+  <p class="lead">افتح الملف الذي وصلك (عبر واتساب أو البريد أو التخزين) ليعمل هنا مباشرة. يبقى كل شيء على جهازك.</p>
+
+  <div class="kinds">
+    <div class="kind"><b>📨 ملف إرسال للمراجعة</b><span>للمعلم: يستمع ويعتمد أو يرفض.</span></div>
+    <div class="kind"><b>🔄 ملف معاد للتعديل</b><span>للطالب: يرى ملاحظات المعلم ويعيد التسجيل.</span></div>
+    <div class="kind"><b>🎁 ملف إهداء معتمد</b><span>لطالب جديد يبدأ رحلته.</span></div>
+    <div class="kind"><b>🎓 ملف إعداد المشرف</b><span>الملف الذي صدّره الاستوديو للطلاب.</span></div>
+  </div>
+
+  <button class="big" type="button" id="pick-btn">📂 اختيار ملف من الجهاز</button>
+  <div class="drop" id="drop">أو اسحب الملف وأفلته هنا</div>
+  <input type="file" id="file-in" accept=".html,.htm,text/html" hidden>
+
+  <div class="err" id="err" hidden></div>
+
+  <div class="recent" id="recent-box" hidden>
+    <h2>الملفات المفتوحة مؤخرًا</h2>
+    <p class="hint">محفوظة على هذا الجهاز فقط، لتفتحها مرة أخرى دون البحث عنها.</p>
+    <ul id="recent"></ul>
+  </div>
+</section>
+
+<div class="loading" id="loading" hidden>⏳ جارٍ الفتح…</div>
+<iframe id="frame" title="رفاق التحفة" allow="microphone; autoplay; clipboard-write" hidden></iframe>
+<div class="toast" id="toast" hidden></div>
+
+<script src="./host.js"></script>
+</body>
+</html>

@@ -5,3 +5,4 @@ node_modules/
 t_*.html
 out_*.html
 /tmp/
+_site/

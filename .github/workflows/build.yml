@@ -1,0 +1,132 @@
+name: بناء الويب وأندرويد وويندوز
+
+# يُشغَّل عند دفع وسم إصدار (v9.39.0 مثلًا) فينشر الموقع ويبني APK وبرنامج ويندوز ويرفقها بإصدار GitHub.
+# ويمكن تشغيله يدويًا من تبويب Actions (دون إنشاء إصدار).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  web:
+    name: الويب (GitHub Pages)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: بناء الموقع
+        run: python3 tools/build_web.py _site
+      - name: نشر على فرع gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          force_orphan: true
+          commit_message: 'نشر الموقع ${{ github.ref_name }}'
+
+  android:
+    name: أندرويد (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - name: بناء الموقع داخل غلاف أندرويد
+        run: python3 tools/build_web.py native/android/www
+      - name: توليد مشروع أندرويد وترقيعه
+        working-directory: native/android
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          node scripts/patch-android.mjs
+          npx cap sync android
+      - name: مفتاح التوقيع (إن وُجد في الأسرار)
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/rifaq.keystore"
+            echo "RIFAQ_KEYSTORE_PATH=$RUNNER_TEMP/rifaq.keystore" >> "$GITHUB_ENV"
+            echo "توقيع بمفتاح الإصدار الثابت"
+          else
+            echo "::warning::لا يوجد مفتاح توقيع في الأسرار؛ سيُوقَّع APK بمفتاح تصحيح مؤقت (التحديث يتطلب إزالة النسخة السابقة)."
+          fi
+      - name: بناء APK
+        working-directory: native/android/android
+        env:
+          RIFAQ_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RIFAQ_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RIFAQ_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          V=$(node -p "require('../package.json').version")
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/Rifaq-al-Tuhfa-$V.apk"
+          ls -la "$GITHUB_WORKSPACE/out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+  windows:
+    name: ويندوز (EXE)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: بناء الموقع داخل برنامج ويندوز
+        run: |
+          python tools/build_web.py native/windows/site
+          New-Item -ItemType Directory -Force native/windows/build | Out-Null
+          Copy-Item web/icons/icon-512.png native/windows/build/icon.png
+      - name: بناء المثبّت والنسخة المحمولة
+        working-directory: native/windows
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm install --no-audit --no-fund
+          npx electron-builder --win --x64 --publish never
+          Get-ChildItem dist -Filter *.exe | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: native/windows/dist/*.exe
+          if-no-files-found: error
+
+  release:
+    name: إصدار GitHub
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [web, android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - run: ls -la dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: رفاق التحفة ${{ github.ref_name }}
+          files: dist/*
+          body: |
+            ## رفاق التحفة ${{ github.ref_name }}
+
+            | المنصة | الملف |
+            |---|---|
+            | أندرويد (هاتف وتابلت) | `Rifaq-al-Tuhfa-*.apk` |
+            | ويندوز — مثبّت | `Rifaq-al-Tuhfa-Setup-*.exe` |
+            | ويندوز — نسخة محمولة بلا تثبيت | `Rifaq-al-Tuhfa-Portable-*.exe` |
+            | الويب | https://feras-glitch.github.io/rifaq-al-tuhfa/ |
+
+            سجل التغييرات: `docs/CHANGELOG_9.39.md`. المنهج لم يُعتمد علميًا بعد؛ الاستخدام الحالي للتجربة داخل الأسرة.
