@@ -9,7 +9,7 @@ const PRECACHE = __PRECACHE__;
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      .then((c) => c.addAll(PRECACHE))
+      .then((c) => c.addAll(PRECACHE.map((u) => new Request(u, { cache: 'reload' }))))  // 9.39.2: لا نسخ قديمة من ذاكرة HTTP
       .then(() => self.skipWaiting())
   );
 });

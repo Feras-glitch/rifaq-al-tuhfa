@@ -23,7 +23,7 @@ PAGES = {
 }
 
 STATIC = ["index.html", "launcher.css", "launcher.js", "manifest.webmanifest",
-          "open.html", "host.js", "host.css"]
+          "open.html", "host.js", "host.css", "trusted-teachers.json"]
 
 
 def app_version():

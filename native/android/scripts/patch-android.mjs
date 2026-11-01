@@ -1,5 +1,5 @@
 // يعدّل مشروع أندرويد الذي يولّده `npx cap add android`:
-// الصلاحيات (الميكروفون والتخزين القديم)، «فتح باستخدام» لملفات HTML، الاسم، الأيقونات، رقم الإصدار، والتوقيع.
+// الصلاحيات (الميكروفون فقط؛ لا تخزين عام منذ 9.39.2)، «فتح باستخدام» لملفات HTML، الاسم، الأيقونات، رقم الإصدار، والتوقيع.
 // يفشل بصوت عالٍ إن تغيّر شكل القالب، حتى لا يخرج APK ناقص بصمت.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,12 +31,9 @@ edit(manifest, (s) => {
   const perms = [
     '<uses-permission android:name="android.permission.RECORD_AUDIO" />',
     '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />',
-    '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />',
-    '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />',
     '<uses-feature android:name="android.hardware.microphone" android:required="false" />'
   ].filter((p) => !s.includes(p.split('"')[1])).join('\n    ');
   s = s.replace(/(<manifest[^>]*>)/, `$1\n    ${perms}`);
-  s = s.replace('<application', '<application\n        android:requestLegacyExternalStorage="true"');
   // «فتح باستخدام رفاق التحفة» لملفات HTML من واتساب ومدير الملفات والبريد
   const openWith = `
             <intent-filter>

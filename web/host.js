@@ -83,10 +83,20 @@
     if (typeof text !== 'string' || text.indexOf('===PACK_DATA_START===') < 0) {
       throw new Error('هذا ليس ملفًا من ملفات رفاق التحفة.\nافتح ملفًا صدر من التطبيق أو الاستوديو (إرسال للمراجعة، أو معاد للتعديل، أو إهداء، أو إعداد المشرف).');
     }
-    var m = PACK_RE.exec(text);
-    if (!m) throw new Error('الملف ناقص أو تالف: لم تُعثر على بيانات الحزمة كاملة.');
-    var pack;
-    try { pack = JSON.parse(m[1]); } catch (e) { throw new Error('بيانات الحزمة في الملف تالفة ولا يمكن قراءتها.'); }
+    // 9.39.2: بحث خطي بالعلامات بدل تعبير نمطي (كان ملف 1.5 ميغابايت مصنوع يجمّد الصفحة 6 ثوانٍ).
+    // JSON لا يحوي سطرًا جديدًا خامًا، فأول «;\n/* ===PACK_DATA_END» بعد البداية هو النهاية الحقيقية.
+    var S0 = '/* ===PACK_DATA_START=== */', V0 = 'var PACK_DATA = ', E0 = '/* ===PACK_DATA_END=== */';
+    var a = text.indexOf(S0), v = a < 0 ? -1 : text.indexOf(V0, a), e = v < 0 ? -1 : text.indexOf(E0, v);
+    if (a < 0 || v < 0 || v - (a + S0.length) > 4 || e < 0) throw new Error('الملف ناقص أو تالف: لم تُعثر على بيانات الحزمة كاملة.');
+    var body = text.slice(v + V0.length, e).replace(/\s+$/, '');
+    if (body.charAt(body.length - 1) !== ';') throw new Error('الملف ناقص أو تالف: لم تُعثر على بيانات الحزمة كاملة.');
+    var m = [null, body.slice(0, -1)];
+    var pack, proto = 0;
+    // 9.39.2: نعيد كتابة البيانات نصًا حرفيًا في JavaScript، وفيه يصير "__proto__" نموذجًا أوليًا خفيًا
+    // يخفي بيانات عن التعقيم وعن بيان التوقيع. لا ينتجه التطبيق أبدًا، فوجوده دليل تعديل: نرفض الملف.
+    try { pack = JSON.parse(m[1], function (k, v) { if (k === '__proto__') { proto++; return undefined; } return v; }); }
+    catch (e) { throw new Error('بيانات الحزمة في الملف تالفة ولا يمكن قراءتها.'); }
+    if (proto) throw new Error('هذا الملف معدَّل بطريقة غير صالحة ولا يمكن فتحه.\nاطلب من المرسل إعادة تصديره من التطبيق.');
     if (!pack || typeof pack !== 'object' || Array.isArray(pack)) throw new Error('بيانات الحزمة في الملف غير صالحة.');
     return pack;
   }
@@ -97,7 +107,41 @@
     return { kind: kind, who: String(who).slice(0, 60) };
   }
 
-  /* يحقن البيانات في القالب ويعيد حساب تجزئة السكربت في CSP (بالطريقة نفسها التي يصدّر بها التطبيق) */
+  /* 9.39.2: مرساة الثقة — مفاتيح المعلمين المسجَّلين في هذا التطبيق المثبَّت (لا في الملف المفتوح) */
+  var pinnedPromise = null;
+  function validJwk(k) {
+    return k && typeof k === 'object' && k.kty === 'EC' && k.crv === 'P-256' &&
+      /^[A-Za-z0-9_-]{43}$/.test(String(k.x)) && /^[A-Za-z0-9_-]{43}$/.test(String(k.y));
+  }
+  function getPinned() {
+    if (!pinnedPromise) {
+      pinnedPromise = fetch('./trusted-teachers.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : { keys: [] }; })
+        .then(function (j) {
+          var ks = (j && Array.isArray(j.keys) ? j.keys : []).filter(validJwk)
+            .map(function (k) { return { kty: 'EC', crv: 'P-256', x: k.x, y: k.y }; });
+          return ks;
+        })
+        .catch(function () { return []; });
+    }
+    return pinnedPromise;
+  }
+  var PIN_RE = /var PINNED_TEACHER_KEYS = [^\n]*?; \/\* RIFAQ_PINNED_KEYS \*\//;
+  /* يحقن مرساة الثقة ويعيد حساب تجزئة السكربت في CSP (بالطريقة نفسها التي يصدّر بها التطبيق) */
+  function finalizeHtml(html) {
+    return getPinned().then(function (keys) {
+      if (!PIN_RE.test(html)) throw new Error('template has no trust anchor slot');
+      var pinned = JSON.stringify(keys).replace(/<\//g, '<\\/');
+      html = html.replace(PIN_RE, function () { return 'var PINNED_TEACHER_KEYS = ' + pinned + '; /* RIFAQ_PINNED_KEYS */'; });
+      var a = html.indexOf('<script>'), b = html.lastIndexOf('</script>');
+      if (a < 0 || b < a) throw new Error('template script not found');
+      return sha256b64(html.substring(a + 8, b)).then(function (h) {
+        return html.replace(/script-src 'sha256-[A-Za-z0-9+\/=_-]+';/, "script-src 'sha256-" + h + "';");
+      });
+    });
+  }
+
+  /* يحقن البيانات في القالب */
   function buildHtml(pack) {
     return getTemplate().then(function (tpl) {
       var json = JSON.stringify(pack).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--')
@@ -105,11 +149,7 @@
       var html = tpl.replace(PACK_RE, function () {
         return '/* ===PACK_DATA_START=== */\nvar PACK_DATA = ' + json + ';\n/* ===PACK_DATA_END=== */';
       });
-      var a = html.indexOf('<script>'), b = html.lastIndexOf('</script>');
-      if (a < 0 || b < a) throw new Error('template script not found');
-      return sha256b64(html.substring(a + 8, b)).then(function (h) {
-        return html.replace(/script-src 'sha256-[A-Za-z0-9+\/=_-]+';/, "script-src 'sha256-" + h + "';");
-      });
+      return finalizeHtml(html);
     });
   }
 
@@ -150,7 +190,7 @@
       return;
     }
     loading.hidden = false; panel.hidden = true;
-    getTemplate().then(function (tpl) { showHtml(tpl, 'تطبيق الطالب والمعلم'); })
+    getTemplate().then(finalizeHtml).then(function (html) { showHtml(html, 'تطبيق الطالب والمعلم'); })
       .catch(function (e) { showError('تعذّر فتح التطبيق: ' + (e && e.message || e)); });
   }
 
@@ -179,6 +219,8 @@
 
   /* ---------- الملفات الأخيرة (IndexedDB على هذا الجهاز) ---------- */
   var DB = 'rifaq_host_v1', STORE = 'recent', MAX_RECENT = 12;
+  // DECISION-003: تسجيلات الطلاب لا تبقى على جهاز المعلم أكثر من 30 يومًا؛ نسخ «الملفات الأخيرة» تُحذف تلقائيًا بعدها
+  var RECENT_TTL_MS = 30 * 24 * 3600 * 1000;
   function db() {
     return new Promise(function (res, rej) {
       if (!window.indexedDB) { rej(new Error('no idb')); return; }
@@ -200,15 +242,21 @@
   }
   function listRecent() {
     return tx('readonly', function (s) { return s.getAll(); }).then(function (all) {
-      return (all || []).sort(function (a, b) { return b.savedAt - a.savedAt; });
+      var now = Date.now(), keep = [], old = [];
+      (all || []).forEach(function (r) { ((now - (r.firstAt || r.savedAt)) > RECENT_TTL_MS ? old : keep).push(r); });
+      var done = old.length ? tx('readwrite', function (s) { old.forEach(function (r) { s.delete(r.id); }); }).catch(function () { }) : Promise.resolve();
+      return done.then(function () { return keep.sort(function (a, b) { return b.savedAt - a.savedAt; }); });
     });
   }
   function saveRecent(name, pack) {
     var json = JSON.stringify(pack);
     return sha256hex(json).then(function (h) {
       var lab = packLabel(pack);
-      var rec = { id: h.slice(0, 24), name: String(name || 'ملف').slice(0, 120), kind: lab.kind, who: lab.who, savedAt: Date.now(), size: json.length, json: json };
-      return tx('readwrite', function (s) { s.put(rec); }).then(function () {
+      var id = h.slice(0, 24);
+      return getRecent(id).catch(function () { return null; }).then(function (prev) {
+        var rec = { id: id, name: String(name || 'ملف').slice(0, 120), kind: lab.kind, who: lab.who, savedAt: Date.now(), firstAt: (prev && prev.firstAt) || Date.now(), size: json.length, json: json };
+        return tx('readwrite', function (s) { s.put(rec); });
+      }).then(function () {
         return listRecent().then(function (all) {
           var extra = all.slice(MAX_RECENT);
           if (!extra.length) return;
@@ -216,6 +264,16 @@
         });
       });
     });
+  }
+  /* 9.39.2: يستدعيه التطبيق عند «حذف بيانات الطالب» وعند «تم الحذف» لدى المعلم */
+  function forgetPack(packageId, studentId) {
+    return listRecent().then(function (all) {
+      var gone = all.filter(function (r) {
+        try { var p = JSON.parse(r.json); return (packageId && p.packageId === packageId) || (studentId && p.studentId === studentId); } catch (e) { return false; }
+      });
+      if (!gone.length) return 0;
+      return tx('readwrite', function (s) { gone.forEach(function (r) { s.delete(r.id); }); }).then(function () { return gone.length; });
+    }).catch(function () { return 0; });
   }
   function getRecent(id) { return tx('readonly', function (s) { return s.get(id); }); }
   function delRecent(id) { return tx('readwrite', function (s) { s.delete(id); }); }
@@ -229,12 +287,13 @@
         var b = document.createElement('button'); b.type = 'button'; b.className = 'r-open';
         var n = document.createElement('span'); n.className = 'r-name'; n.textContent = r.kind + (r.who ? ' — ' + r.who : '');
         var m = document.createElement('span'); m.className = 'r-meta';
-        m.textContent = r.name + ' · ' + new Date(r.savedAt).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + Math.max(1, Math.round(r.size / 1024)) + ' ك.ب';
+        var left = Math.max(1, Math.ceil(((r.firstAt || r.savedAt) + RECENT_TTL_MS - Date.now()) / 86400000));
+        m.textContent = r.name + ' · ' + new Date(r.savedAt).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + Math.max(1, Math.round(r.size / 1024)) + ' ك.ب · يُحذف تلقائيًا بعد ' + left + ' يومًا';
         b.appendChild(n); b.appendChild(m);
         b.addEventListener('click', function () { openRecent(r.id); });
         var d = document.createElement('button'); d.type = 'button'; d.className = 'r-del'; d.textContent = 'حذف'; d.title = 'حذف من هذه القائمة';
         d.addEventListener('click', function () {
-          if (!confirm('حذف هذا الملف من قائمة الملفات الأخيرة على هذا الجهاز؟\n(لا يحذف تقدّم الطالب ولا الملف الأصلي)')) return;
+          if (!confirm('حذف هذه النسخة المحفوظة على هذا الجهاز (وفيها تسجيلات الطالب)؟\nلا يحذف تقدّم الطالب في التطبيق ولا الملف الأصلي الذي وصلك.')) return;
           delRecent(r.id).then(renderRecent);
         });
         li.appendChild(b); li.appendChild(d); ul.appendChild(li);
@@ -283,17 +342,17 @@
   function nativeSave(blob, name) {
     var safe = String(name).replace(/[\\/:*?"<>|]/g, '_') || 'ملف';
     toast('⏳ جارٍ تجهيز الملف…', 20000);
+    // 9.39.2: لا نسخ في التخزين العام (المستندات): ملفات الإرسال فيها تسجيلات الأطفال وبيانات الموافقة،
+    // وتبقى بعد إزالة التطبيق ويقرؤها أي تطبيق آخر. نكتب في الذاكرة المؤقتة الخاصة بالتطبيق فقط،
+    // في مجلد فريد لكل تصدير (فلا يكتب ملف فوق آخر بالاسم نفسه)، ونمسحها عند كل تشغيل.
     return blobToBase64(blob).then(function (data) {
-      var savedCopy = CAP.nativePromise('Filesystem', 'writeFile', { path: 'RifaqAlTuhfa/' + safe, data: data, directory: 'DOCUMENTS', recursive: true })
-        .then(function () { return true; }, function () { return false; });
-      return savedCopy.then(function (ok) {
-        return CAP.nativePromise('Filesystem', 'writeFile', { path: 'share/' + safe, data: data, directory: 'CACHE', recursive: true })
-          .then(function (res) {
-            toast(ok ? '✅ حُفظت نسخة في: المستندات / RifaqAlTuhfa\nاختر الآن طريقة الإرسال.' : '✅ الملف جاهز. اختر طريقة الإرسال أو الحفظ.', 6000);
-            return CAP.nativePromise('Share', 'share', { title: safe, dialogTitle: 'إرسال الملف أو حفظه', files: [res.uri] })
-              .catch(function (e) { if (!/cancel/i.test(String(e && (e.message || e)))) throw e; });
-          });
-      });
+      var dir = 'share/' + Date.now().toString(36);
+      return CAP.nativePromise('Filesystem', 'writeFile', { path: dir + '/' + safe, data: data, directory: 'CACHE', recursive: true })
+        .then(function (res) {
+          toast('✅ الملف جاهز. اختر: واتساب أو Drive، أو «حفظ في الملفات» للاحتفاظ بنسخة.', 6000);
+          return CAP.nativePromise('Share', 'share', { title: safe, dialogTitle: 'إرسال الملف أو حفظه', files: [res.uri] })
+            .catch(function (e) { if (!/cancel/i.test(String(e && (e.message || e)))) throw e; });
+        });
     });
   }
 
@@ -302,11 +361,13 @@
     if (!uri || !/^(content|file):/i.test(uri)) return;
     loading.hidden = false; panel.hidden = true;
     CAP.nativePromise('Filesystem', 'readFile', { path: uri, encoding: 'utf8' }).then(function (r) {
-      var name = decodeURIComponent(String(uri).split('/').pop() || 'ملف');
+      var name = String(uri).split('/').pop() || 'ملف';
+      try { name = decodeURIComponent(name); } catch (e) { /* اسم فيه % غير مرمَّز: نتركه كما هو */ }
       return openText(name, r && r.data);
     }).catch(function (e) { showError('تعذّرت قراءة الملف الذي فُتح: ' + (e && e.message || e)); });
   }
   if (IS_CAP) {
+    CAP.nativePromise('Filesystem', 'rmdir', { path: 'share', directory: 'CACHE', recursive: true }).catch(function () { });
     try {
       CAP.nativeCallback('App', 'addListener', { eventName: 'appUrlOpen' }, function (res) { if (res && res.url) openUri(res.url); });
       CAP.nativePromise('App', 'getLaunchUrl', {}).then(function (r) { if (r && r.url) openUri(r.url); }, function () { });
@@ -319,6 +380,11 @@
   }
 
   /* ---------- الأحداث ---------- */
+  $('clear-recent').addEventListener('click', function () {
+    if (!confirm('حذف كل النسخ المحفوظة (وفيها تسجيلات الطلاب) من هذا الجهاز؟\nلا يحذف تقدّم الطلاب في التطبيق ولا الملفات الأصلية.')) return;
+    listRecent().then(function (all) { return tx('readwrite', function (s) { all.forEach(function (r) { s.delete(r.id); }); }); }).then(renderRecent);
+  });
+
   var input = $('file-in');
   input.addEventListener('change', function () { var f = input.files && input.files[0]; input.value = ''; readFile(f); });
   $('pick-btn').addEventListener('click', function () { input.click(); });
@@ -336,5 +402,5 @@
   else showPanel();
   if (NATIVE && typeof NATIVE.ready === 'function') NATIVE.ready();
 
-  window.RIFAQ_HOST = { openText: openText, buildHtml: buildHtml, extractPack: extractPack }; // للاختبار
+  window.RIFAQ_HOST = { openText: openText, buildHtml: buildHtml, extractPack: extractPack, forgetPack: forgetPack };
 })();

@@ -17,7 +17,8 @@ protocol.registerSchemesAsPrivileged([{
   privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
 }]);
 
-if (!app.requestSingleInstanceLock()) { app.quit(); }
+// نسخة ثانية: تسلّم الملف للأولى (second-instance) وتخرج فورًا دون تسجيل أي معالِجات
+if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
 let win = null;
 let pending = null;   // ملف ينتظر جاهزية الصفحة المضيفة
@@ -99,7 +100,7 @@ function createWindow(startUrl) {
       contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false
     }
   });
-  win.once('ready-to-show', () => { if (!process.env.RIFAQ_SMOKE_OUT) win.show(); });
+  win.once('ready-to-show', () => { if (!(process.env.RIFAQ_SMOKE_OUT && process.argv.includes('--rifaq-self-test'))) win.show(); });
   win.webContents.on('did-navigate', () => { hostReady = false; });
 
   // روابط خارجية تفتح في المتصفح؛ لا نوافذ جديدة داخل البرنامج
@@ -129,9 +130,10 @@ app.on('second-instance', (_e, argv) => {
 
 app.whenReady().then(() => {
   protocol.handle('rifaq', (req) => {
-    const u = new URL(req.url);
+    let u, rel;
+    try { u = new URL(req.url); rel = decodeURIComponent(u.pathname); }
+    catch (e) { return new Response('Bad request', { status: 400 }); }
     if (u.host !== 'app') return new Response('Not found', { status: 404 });
-    let rel = decodeURIComponent(u.pathname);
     if (rel.endsWith('/')) rel += 'index.html';
     const f = path.normalize(path.join(SITE, rel));
     if (!f.startsWith(SITE + path.sep)) return new Response('Forbidden', { status: 403 });
@@ -166,7 +168,8 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => { app.quit(); });
 
 /* فحص ذاتي يُشغَّل في CI على البرنامج المبني فعلًا: RIFAQ_SMOKE_OUT=مسار ملف النتائج */
-if (process.env.RIFAQ_SMOKE_OUT) {
+// يتطلب متغير البيئة ومعامل سطر الأوامر معًا، فلا يُفعَّل عرضًا في تثبيت عادي
+if (process.env.RIFAQ_SMOKE_OUT && process.argv.includes('--rifaq-self-test')) {
   const out = process.env.RIFAQ_SMOKE_OUT;
   const res = { checks: [], csp: [] };
   const ok = (name, pass, detail) => res.checks.push({ name, pass: !!pass, detail: String(detail || '').slice(0, 200) });
