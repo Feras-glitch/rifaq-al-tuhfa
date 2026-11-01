@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+t_*.html
+out_*.html
+/tmp/

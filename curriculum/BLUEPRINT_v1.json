@@ -1,0 +1,116 @@
+{
+ "sections": [
+  {
+   "id": "s0_muqaddima",
+   "title": "مقدمة المتن",
+   "questions": 8,
+   "minRequired": 2,
+   "typeCount": 5
+  },
+  {
+   "id": "s1_intro",
+   "title": "النون الساكنة والتنوين",
+   "questions": 5,
+   "minRequired": 3,
+   "typeCount": 3
+  },
+  {
+   "id": "s2_idhhar",
+   "title": "الإظهار",
+   "questions": 8,
+   "minRequired": 2,
+   "typeCount": 6
+  },
+  {
+   "id": "s3_idgham",
+   "title": "الإدغام",
+   "questions": 8,
+   "minRequired": 3,
+   "typeCount": 5
+  },
+  {
+   "id": "s4_iqlab",
+   "title": "الإقلاب",
+   "questions": 7,
+   "minRequired": 2,
+   "typeCount": 4
+  },
+  {
+   "id": "s5_ikhfa",
+   "title": "الإخفاء",
+   "questions": 8,
+   "minRequired": 3,
+   "typeCount": 6
+  },
+  {
+   "id": "s6_ghunna",
+   "title": "النون والميم المشددتان",
+   "questions": 4,
+   "minRequired": 2,
+   "typeCount": 4
+  },
+  {
+   "id": "s7_meem",
+   "title": "الميم الساكنة",
+   "questions": 9,
+   "minRequired": 2,
+   "typeCount": 6
+  },
+  {
+   "id": "s8_lam",
+   "title": "لام «أل»",
+   "questions": 10,
+   "minRequired": 2,
+   "typeCount": 6
+  },
+  {
+   "id": "s8b_mithl",
+   "title": "المثلان والمتقاربان والمتجانسان",
+   "questions": 10,
+   "minRequired": 2,
+   "typeCount": 6
+  },
+  {
+   "id": "s9_madd1",
+   "title": "المد الطبيعي والبدل والعوض",
+   "questions": 8,
+   "minRequired": 3,
+   "typeCount": 6
+  },
+  {
+   "id": "s10_madd2",
+   "title": "المد المتصل والمنفصل",
+   "questions": 7,
+   "minRequired": 3,
+   "typeCount": 5
+  },
+  {
+   "id": "s11_madd3",
+   "title": "المد العارض واللين والصلة",
+   "questions": 8,
+   "minRequired": 3,
+   "typeCount": 5
+  },
+  {
+   "id": "s12_lazim",
+   "title": "المد اللازم",
+   "questions": 6,
+   "minRequired": 3,
+   "typeCount": 5
+  },
+  {
+   "id": "s12b_fawatih",
+   "title": "فواتح السور واللازم الحرفي",
+   "questions": 10,
+   "minRequired": 3,
+   "typeCount": 6
+  },
+  {
+   "id": "s13_khatima",
+   "title": "خاتمة المتن",
+   "questions": 6,
+   "minRequired": 2,
+   "typeCount": 4
+  }
+ ]
+}
