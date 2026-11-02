@@ -1,0 +1,90 @@
+<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>فحص 9.39.5 المستقل</title><style>body{font:17px/1.9 Tahoma,Arial;max-width:960px;margin:25px auto;padding:20px;color:#163047}pre{direction:ltr;text-align:left;background:#eef2f6;padding:15px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}</style><h1>إعادة فحص رفاق التحفة 9.39.5</h1><p>2 نوفمبر 2026 · الالتزام bb8aa9794a3ab2b8bd051829298f3ec2f420b9af</p><h2>القرار</h2><p>لا قبول لإغلاق جميع البنود بعد. توجد حالتان مثبتتان في Chromium: عودة مشكلة ربط الاعتماد بالتسجيل عند رجوع ساعة جهاز الطالب، وبيان إهداء يَعِد بصوت مرجعي غير موجود. توقيع البيانات لا يثبت صحة الوصف الذي يولده التطبيق.</p><h2>RT9395-01 — عودة الساعة تجعل التسجيل الجديد معتمدًا بقرار تسجيل قديم</h2><p><b>عالٍ.</b> النسخة v هي تاريخ updatedAt، ويُحسم الأحدث بمقارنة Date.parse، وليست هوية تسجيل أو عدادًا مستقلًا عن الساعة.</p><p>أعددت تسجيلًا سابقًا اعتمده المعلم ونسخته 12:00. حاكيت رجوع ساعة جهاز الطالب إلى 11:00 ورفعت صوتًا بديلًا عبر uploadReplacementAudio الأصلية. حُفظ Blob الجديد فعلًا بمحتوى NEW وحالة pending؛ بعد syncPackStatuses أصبحت حالته approved بنسخة 12:00 القديمة. وعند doExportStudent رُفض الإرسال برسالة «لا توجد تسجيلات جديدة أو نتائج اختبار للإرسال».</p><p>المقارنة تعتمد وقت الطالب، لذلك اختلاف ساعة المعلم وحده لا يسبب هذه الحالة؛ المثبت هو رجوع ساعة الطالب أو متابعة الطالب من جهاز بساعته أقدم. استُخدم بديل Date داخل بيئة الاختبار لمحاكاة الساعة دون تغيير ساعة النظام.</p><p><b>الإصلاح:</b> هوية عشوائية/بصمة محتوى لكل تسجيل، وقرار موقّع مرتبط بها. لا يكفي أن يساوي أو يتجاوز التاريخ تاريخ النسخة المحلية. أضف معايير قبول: نفس التسجيل يقبل القرار، وإعادة التسجيل مع ساعة أقدم أو مساوية أو أحدث تبقى pending وتُرسل، والقرار على نسخة قديمة لا يعتمد الصوت الجديد.</p><h2>RT9395-02 — وصف الإهداء يعد بتلاوة الشيخ دون وجودها</h2><p><b>متوسط، يمس شرط R08.</b> giftContentsText يقرر ثابتًا أن المنهج يتضمن تلاوة الشيخ وأن المهام الأخرى فيها تلاوة الشيخ وحدها، ولا يفحص masterAudios لكل مهمة.</p><p>أنشأت عينة إهداء سليمة التوقيع باستخدام signGiftPack الأصلية، فيها تسجيل زميل واحد وmasterAudios={}، وفتحتها من المضيفة بمفتاح المعلم مثبتًا. النتيجة verified وعدد تسجيلات الشيخ صفر، بينما بقي النص يعد بتلاوة الشيخ في المهام الأخرى. هذه ليست قدرة على تعديل ملف بعد توقيعه مع إبقاء توقيعه صحيحًا؛ بل وصف غير صحيح يولده البرنامج ثم يوقّعه.</p><p><b>الإصلاح:</b> بناء البيان من وجود الصوت الفعلي لكل مهمة، مع إظهار ما لا يملك صوتًا مرجعيًا؛ أو منع الإصدار حتى يكتمل المرجع إذا كان ذلك شرط المنتج. القبول: إهداء بمرجع كامل، وآخر بمرجع جزئي، وآخر بلا مرجع؛ أوصافها تختلف وتطابق الملفات المعروضة.</p><h2>نطاق التحقق</h2><p>بُني المصدر محليًا ونجح فحص CSP. اختبارات المضيفة القائمة شُغلت محليًا؛ سجلها أدناه. قراءة الكود والاختبارات تؤيد التحسينات في R12 وحمل الاعتمادات R09، لكن الحكم لا يساوي ضمان كل مسارات الترحيل. لم أعد تشغيل مجموعة الملف المستقل أو APK/EXE أو ميكروفون حقيقي في هذه الجولة. لم أغيّر مصدر المستودع أو أنشر شيئًا.</p><h2>النتائج الخام</h2><pre>[
+  {
+    &quot;test&quot;: &quot;clock-rollback&quot;,
+    &quot;before&quot;: {
+      &quot;status&quot;: &quot;pending&quot;,
+      &quot;updatedAt&quot;: &quot;2026-11-02T11:00:00.000Z&quot;,
+      &quot;source&quot;: &quot;uploaded-replacement&quot;
+    },
+    &quot;after&quot;: {
+      &quot;status&quot;: &quot;approved&quot;,
+      &quot;v&quot;: &quot;2026-11-02T12:00:00.000Z&quot;
+    },
+    &quot;newBlob&quot;: &quot;NEW&quot;
+  },
+  {
+    &quot;test&quot;: &quot;export-not-produced&quot;,
+    &quot;messages&quot;: [
+      &quot;لا توجد تسجيلات جديدة أو نتائج اختبار للإرسال. التسجيلات المعتمدة سابقًا محفوظة لدى المعلم.&quot;
+    ]
+  },
+  {
+    &quot;test&quot;: &quot;gift-missing-master&quot;,
+    &quot;trust&quot;: &quot;verified&quot;,
+    &quot;masterCount&quot;: 0,
+    &quot;description&quot;: &quot;📚 ما ستتعلمه: المنهج كاملًا (16 درسًا) بالشرح والأبيات والاختبارات وتلاوة الشيخ.\n🎧 تسجيلات زميل معتمدة من المعلم في 1 من 42 مهمة. المهام الأخرى فيها تلاوة الشيخ وحدها.\n\n○ مقدمة المتن\n○ النون الساكنة والتنوين\n✅ الإظهار — تسجيل زميل في 1 من 2\n    • آية: ﴿صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِم\n○ الإدغام\n○ الإقلاب\n○ الإخفاء\n○ النون والميم المشددتان\n○ الميم الساكنة\n○ لام «أل»\n○ المثلان والمتقاربان والمتجانسان\n○ المد الطبيعي والبدل والعوض\n○ المد المتصل والمنفصل\n○ المد العارض واللين والصلة\n○ المد اللازم\n○ فواتح السور واللازم الحرفي\n○ خاتمة المتن&quot;
+  }
+]</pre><h2>أداة إعادة الإنتاج</h2><p>بعد بناء _site وتثبيت Playwright 1.48.0 وChromium: python probe.py /path/to/repository /tmp/recheck9395. تستخدم المنفذ المحلي 8876 وبيانات اصطناعية. الاختبار يسجل النتيجة ولا يدعي أنه اختبار قبول عام للإصلاح القادم.</p><pre>import asyncio,json,re,pathlib,threading,http.server,functools,sys
+from playwright.async_api import async_playwright
+ROOT=pathlib.Path(sys.argv[1]).resolve();OUT=pathlib.Path(sys.argv[2] if len(sys.argv)&gt;2 else &#x27;/tmp/recheck9395&#x27;);OUT.mkdir(parents=True,exist_ok=True);res=[]
+def rec(n,**d):res.append(dict(test=n,**d));print(json.dumps(res[-1],ensure_ascii=False),flush=True)
+class Quiet(http.server.SimpleHTTPRequestHandler):
+ def log_message(self,*a):pass
+srv=http.server.ThreadingHTTPServer((&#x27;127.0.0.1&#x27;,8876),functools.partial(Quiet,directory=str(ROOT/&#x27;_site&#x27;)));threading.Thread(target=srv.serve_forever,daemon=True).start()
+async def frame(pg):
+ for _ in range(100):
+  for f in pg.frames:
+   if f.url.startswith(&#x27;blob:&#x27;):
+    try:
+     if await f.evaluate(&quot;typeof STATE===&#x27;object&#x27;&quot;):return f
+    except:pass
+  await pg.wait_for_timeout(100)
+ raise Exception(&#x27;frame missing&#x27;)
+async def main():
+ async with async_playwright() as p:
+  b=await p.chromium.launch();ctx=await b.new_context(accept_downloads=True);pg=await ctx.new_page();pg.on(&#x27;dialog&#x27;,lambda d:asyncio.create_task(d.accept()));await pg.goto(&#x27;http://127.0.0.1:8876/open.html?src=app&#x27;);fr=await frame(pg)
+  r=await fr.evaluate(&#x27;&#x27;&#x27;async()=&gt;{STATE.student={name:&#x27;اختبار&#x27;,id:&#x27;stu_test&#x27;,gender:&#x27;boy&#x27;,consent:{v:2,guardian:&#x27;ولي&#x27;,permissions:{record:true,review:true,shareWithPeers:true}}};STATE.role=&#x27;student&#x27;;PACK_DATA.packageType=&#x27;student_returned&#x27;;PACK_DATA.studentAudios={r2_1:{audio:&#x27;data:audio/webm;base64,T0xE&#x27;,status:&#x27;approved&#x27;,v:&#x27;2026-11-02T12:00:00.000Z&#x27;}};let D=Date;Date=class extends D{constructor(...a){super(...(a.length?a:[&#x27;2026-11-02T11:00:00.000Z&#x27;]))} static now(){return new D(&#x27;2026-11-02T11:00:00Z&#x27;).getTime()}};await uploadReplacementAudio({target:{files:[new File([&#x27;NEW&#x27;],&#x27;new.webm&#x27;,{type:&#x27;audio/webm&#x27;})],value:&#x27;&#x27;}},&#x27;r2_1&#x27;);Date=D;let before=JSON.parse(JSON.stringify(STATE.studentAudios.r2_1));syncPackStatuses();return {before,after:STATE.studentAudios.r2_1,newBlob:await (await dbGet(&#x27;r2_1&#x27;)).text()}}&#x27;&#x27;&#x27;);rec(&#x27;clock-rollback&#x27;,**r)
+  exp=await fr.evaluate(&quot;async()=&gt;{let blobs=[];let o=URL.createObjectURL;URL.createObjectURL=b=&gt;{blobs.push(b);return o.call(URL,b)};let msgs=[];let al=alert;alert=x=&gt;msgs.push(x);await doExportStudent(&#x27;submission&#x27;);alert=al;URL.createObjectURL=o;return {msgs,files:await Promise.all(blobs.map(b=&gt;b.text()))}}&quot;)
+  if exp[&#x27;files&#x27;]:
+   pk=json.loads(re.search(r&#x27;var PACK_DATA = (.*?);\n/\* ===PACK_DATA_END&#x27;,exp[&#x27;files&#x27;][-1],re.S)[1]);rec(&#x27;export-after-rollback&#x27;,record=pk[&#x27;studentAudios&#x27;].get(&#x27;r2_1&#x27;))
+  else:rec(&#x27;export-not-produced&#x27;,messages=exp[&#x27;msgs&#x27;])
+  gift=await fr.evaluate(&#x27;&#x27;&#x27;async()=&gt;{let p=JSON.parse(JSON.stringify(PACK_DATA));p.packageType=&#x27;approved_gift&#x27;;p.approved=true;p.studentAudios={};p.approvedStudentAudios={};p.masterAudios={};p.approvedPeerRecordings=[{id:&#x27;giver&#x27;,name:&#x27;زميل&#x27;,shareable:true,audios:{r2_1:{audio:&#x27;data:audio/webm;base64,T0xE&#x27;,status:&#x27;approved&#x27;}}}];let old=PACK_DATA.masterAudios;PACK_DATA.masterAudios={};p.giftContents=buildGiftContents(p.approvedPeerRecordings);PACK_DATA.masterAudios=old;await signGiftPack(p);return p}&#x27;&#x27;&#x27;)
+  await ctx.close();ctx=await b.new_context();await ctx.route(&#x27;**/trusted-teachers.json&#x27;,lambda r:r.fulfill(json={&#x27;keys&#x27;:[gift[&#x27;signature&#x27;][&#x27;key&#x27;]]}));pg=await ctx.new_page();pg.on(&#x27;dialog&#x27;,lambda d:asyncio.create_task(d.accept()));await pg.goto(&#x27;http://127.0.0.1:8876/open.html&#x27;);tpl=(ROOT/&#x27;_site/app/template.txt&#x27;).read_text();m=re.search(r&#x27;(var PACK_DATA = )(.*?)(;\n/\* ===PACK_DATA_END)&#x27;,tpl,re.S);f=OUT/&#x27;gift.html&#x27;;f.write_text(tpl[:m.start(2)]+json.dumps(gift,ensure_ascii=False)+tpl[m.end(2):]);await pg.set_input_files(&#x27;#file-in&#x27;,str(f));fr=await frame(pg);await fr.wait_for_function(&#x27;GIFT_TRUST!==null&#x27;);rec(&#x27;gift-missing-master&#x27;,trust=await fr.evaluate(&#x27;GIFT_TRUST&#x27;),masterCount=await fr.evaluate(&#x27;Object.keys(PACK_DATA.masterAudios).length&#x27;),description=await fr.evaluate(&#x27;giftContentsText(PACK_DATA.giftContents)&#x27;))
+  await ctx.close();await b.close()
+ OUT.joinpath(&#x27;results.json&#x27;).write_text(json.dumps(res,ensure_ascii=False,indent=2))
+asyncio.run(main());srv.shutdown()
+</pre><h2>سجل اختبارات المشروع</h2><pre>PASS H1 launcher loads, SW registered, 4 cards | ([], True, [&#x27;./app/&#x27;, &#x27;./studio/&#x27;, &#x27;./open.html&#x27;, &#x27;./trial/&#x27;])
+PASS H2 app in host: setup, record, export submission | ([], 415935)
+PASS H3 state persists after reloading host | 
+PASS H4 submission opens as teacher view | 
+PASS R7 «تم الحذف» (markRosterDeleted) is callable | 44
+PASS H5 teacher exports signed gift | []
+PASS H6 recent list shows submission with 30-day expiry | ([&#x27;📨 إرسال للمراجعة — مريم أحمد&#x27;], [&#x27;sub.html · ٠٢\u200f/١١\u200f/٢٠٢٦، ٤:٥٠ ص · 82 ك.ب · يُحذف تلقائيًا بعد 30 يومًا&#x27;])
+PASS R4a teacher «تم الحذف» purges the stored copy | []
+PASS R2a gift trusted only by its own embedded list is NOT verified in the app | (&#x27;untrusted&#x27;, &#x27;untrusted&#x27;)
+PASS R2b pinned teacher key: genuine gift verified, tampered audio invalid | (&#x27;verified&#x27;, &#x27;invalid&#x27;)
+PASS R8 RT9392-01 marker inside data cannot unpin trust (empty, pinned, fetch-failed) | [(&#x27;untrusted&#x27;, &#x27;[]&#x27;), (&#x27;untrusted&#x27;, &#x27;[{&quot;kty&quot;:&quot;EC&quot;,&quot;crv&quot;:&quot;P-256&quot;,&quot;x&quot;:&quot;S6fJiXYBeql9QYSH2QrqYGFPN_RYpf-MQP9Zu3q5exo&quot;,&quot;y&quot;:&quot;B-vR2-lzZFBeLSWfk5NY0PhZK9AmIWooN-QkmJt9eMU&quot;}]&#x27;), (&#x27;untrusted&#x27;, &#x27;[]&#x27;), (&#x27;untrusted&#x27;, &#x27;[]&#x27;)]
+PASS R9 RT9392-02 unsigned additions/changes rejected and not shown; genuine still verified | ((&#x27;verified&#x27;, True), {&#x27;legacy&#x27;: (&#x27;invalid&#x27;, 0), &#x27;photo&#x27;: (&#x27;invalid&#x27;, 0), &#x27;sheikh&#x27;: (&#x27;invalid&#x27;, 0), &#x27;downgrade&#x27;: (&#x27;outdated&#x27;, 0)})
+PASS R10 RT9392-03 blocked delete not announced, no late writes, completes for real afterwards | ((True, True, &#x27;private-audio&#x27;, &#x27;refused&#x27;, True), (True, True, None))
+PASS R13 RT9393-01 deletion holds across windows and reload; other child intact | ([&#x27;&#x27;, False, True], None, [&#x27;&#x27;, False, True, &#x27;refused&#x27;], {&#x27;mineGone&#x27;: True, &#x27;state&#x27;: None, &#x27;tomb&#x27;: None, &#x27;otherState&#x27;: &#x27;{&quot;keep&quot;:1}&#x27;, &#x27;otherAudio&#x27;: &#x27;other-audio&#x27;})
+PASS R11 RT9392-04 forgetPack removes only that child (all its packages) + identity-less file of the package | ([[&#x27;-@shared-package&#x27;, &#x27;-@third-package&#x27;, &#x27;child-A@other-package&#x27;, &#x27;child-A@shared-package&#x27;, &#x27;child-B@shared-package&#x27;], 3, [&#x27;-@third-package&#x27;, &#x27;child-B@shared-package&#x27;]], [[&#x27;-@third-package&#x27;, &#x27;child-B@shared-package&#x27;], 1
+PASS R12 R11 consent gate enforced in export and file-upload functions | (True, 0, [0, True])
+PASS R14 R12 legacy name profile migrated without loss; same-name new student gets separate storage | ([&#x27;ليلى&#x27;, &#x27;stu_old1&#x27;, True, &#x27;old-audio&#x27;], [&#x27;ليلى&#x27;, True, True, True, True, True], True)
+PASS R15 R03 teacher decision applies to the same recording version; newer re-recording stays pending | [&#x27;approved&#x27;, &#x27;pending&#x27;, &#x27;pending&#x27;]
+PASS R16 R09 resubmission carries previously approved recordings; each recording carries its version | (&#x27;approved&#x27;, True, &#x27;2026-10-01T10:00:00.000Z&#x27;, &#x27;pending&#x27;, True)
+PASS R17 R08 partial gift: teacher sees contents before export; signed giftContents; recipient sees what they will learn | ([&#x27;r2_1&#x27;], {&#x27;withPeer&#x27;: 1, &#x27;totalTasks&#x27;: 42, &#x27;complete&#x27;: False}, &#x27;🎁 ما يتضمنه الإهداء:\n📚 ما ستتعلمه: المنهج كاملًا (16 درسًا) بالشرح والأبيات والا&#x27;, &#x27;📚 ما ستتعلمه: المنهج كاملًا (16 درسًا) بالشرح والأبيات والاختبارات وت
+PASS R1 host rejects __proto__-injected pack | هذا الملف معدَّل بطريقة غير صالحة ولا يمكن فتحه.
+اطلب من الم
+PASS H8 injected code in opened file never executes | 
+PASS H9 non-Rifaq HTML rejected, not run | 
+PASS R5 1.6 MB crafted file handled in &lt; 2 s | 0.04s, 1757 KB
+PASS R3 studio: HTML in curriculum not executed; unsafe ids rejected | (None, &quot;❌ لم يُستورد المنهج (1 خطأ): معرّف غير صالح: r1&#x27;);window.top&quot;)
+PASS R3b approved curriculum imports unchanged by sanitizer | ✅ استُورد المنهج: 16 قسمًا، الأسئلة: {&quot;multiple_choice&quot;:45,&quot;
+PASS R4b «حذف بيانات الطالب» also removes the stored copy | (1, 0)
+PASS R6 copies older than 30 days are purged | []
+PASS H10 trial opens in host | []
+PASS H11 Android: launcher routes via host | [&#x27;./open.html?src=app&#x27;, &#x27;./open.html?src=studio&#x27;, &#x27;./open.html&#x27;, &#x27;./open.html?src=trial&#x27;]
+PASS H12 Android: export writes app cache only + Share; old share cache cleaned | [[&#x27;Filesystem&#x27;, &#x27;rmdir&#x27;, &#x27;CACHE:share&#x27;], [&#x27;App&#x27;, &#x27;addListener&#x27;, &#x27;:appUrlOpen&#x27;], [&#x27;App&#x27;, &#x27;getLaunchUrl&#x27;, &#x27;:&#x27;], [&#x27;Filesystem&#x27;, &#x27;writeFile&#x27;, &#x27;CACHE:share/mvyq1uch/إرسال_للمراجعة_الأولى_سارة.html&#x27;], [&#x27;Share&#x27;, &#x27;share&#x27;, &#x27;:&#x27;]]
+
+SUMMARY: 31 / 31
+</pre></html>

@@ -1,6 +1,6 @@
 {
   "name": "rifaq-al-tuhfa-android",
-  "version": "9.39.5",
+  "version": "9.39.6",
   "private": true,
   "description": "غلاف أندرويد (Capacitor) لتطبيق رفاق التحفة: يعمل على الهاتف والتابلت دون إنترنت",
   "scripts": {

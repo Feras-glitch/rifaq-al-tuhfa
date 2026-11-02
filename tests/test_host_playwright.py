@@ -340,7 +340,7 @@ async def main():
                 await setup_student(fS9, 'هند'); await record(fS9)
                 await ev(fS9, "w=>{var T='2026-10-01T10:00:00.000Z'; PACK_DATA.studentAudios={r3_1:{audio:w,status:'approved',v:T}}; STATE.studentAudios.r3_1={status:'approved',v:T}; save()}", WAV5)
                 sub9 = await export_from(pS9, fS9, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/sub_r09.html')
-                upd = await ev(fS9, "STATE.studentAudios.r2_1.updatedAt")
+                upd = await ev(fS9, "STATE.studentAudios.r2_1.rid || STATE.studentAudios.r2_1.updatedAt")  # 9.39.6: النسخة = معرّف التسجيل
                 sa9 = pack_of(sub9)['studentAudios']; await ctxS9.close()
                 got = (sa9.get('r3_1', {}).get('status'), sa9.get('r3_1', {}).get('audio') == WAV5, sa9.get('r3_1', {}).get('v'), sa9.get('r2_1', {}).get('status'), sa9.get('r2_1', {}).get('v') == upd)
                 rec('R16 R09 resubmission carries previously approved recordings; each recording carries its version', got == ('approved', True, '2026-10-01T10:00:00.000Z', 'pending', True), got)
@@ -365,11 +365,69 @@ async def main():
                 box = await ev(fR8, "(document.getElementById('gift-contents-box')||{}).textContent || ''")
                 await ctxR8.close()
                 ok8 = (peers == ['r2_1'] and gc.get('withPeer') == 1 and gc.get('totalTasks', 0) > 1 and gc.get('complete') is False
-                       and 'لن يدخل الإهداء 1' in conf and 'ما ستتعلمه' in conf and 'ما ستتعلمه' in box and ('1 من ' + str(gc.get('totalTasks'))) in box)
+                       and 'لن يدخل الإهداء 1' in conf and 'ما ستتعلمه' in conf and ('1 من ' + str(gc.get('totalTasks'))) in conf
+                       # 9.39.6: المهدى إليه هنا غير موثّق (مفتاح المعلم غير مثبّت)، فالوصف يطابق ما يُعرض: صفر تسجيلات زملاء مع التنبيه
+                       and 'ما ستتعلمه' in box and ('0 من ' + str(gc.get('totalTasks'))) in box and 'غير موثّق' in box)
                 rec('R17 R08 partial gift: teacher sees contents before export; signed giftContents; recipient sees what they will learn',
                     ok8, (peers, {k: gc.get(k) for k in ('withPeer', 'totalTasks', 'complete')}, conf[:80], box[:120]))
             except Exception as e:
                 rec('R17 (exception)', False, repr(e)[:200])
+
+            # ===== 9.39.6: RT9395-01 (هوية التسجيل) وRT9395-02 (البيان من الأصوات الفعلية) =====
+            # R18: القرار مربوط بمعرّف التسجيل؛ إعادة التسجيل بساعة أقدم/مساوية/أحدث تبقى قيد المراجعة وتُرسل
+            try:
+                ctxK8, pK8, _ = await ctx_page(b)
+                await pK8.goto(BASE + '/open.html?src=app'); fK8 = await appframe(pK8)
+                r18 = await ev(fK8, """(async()=>{
+                  STATE.student={name:'ساعة',id:'stu_clk',gender:'boy',consent:{v:CONSENT_VERSION,guardian:'ولي',permissions:{record:true,review:true,shareWithPeers:true}}}; STATE.role='student'; PACK_DATA.packageType='student_returned';
+                  const D=Date; const setClock=iso=>{ Date=class extends D{constructor(...a){super(...(a.length?a:[iso]))} static now(){return new D(iso).getTime()}} };
+                  const up=async(txt,iso)=>{ setClock(iso); try { await uploadReplacementAudio({target:{files:[new File([txt],'a.webm',{type:'audio/webm'})],value:''}},'r2_1'); } finally { Date=D; } return STATE.studentAudios.r2_1.rid || STATE.studentAudios.r2_1.updatedAt; };
+                  const out={}; const r1=await up('ONE','2026-11-02T12:00:00.000Z');
+                  PACK_DATA.studentAudios={r2_1:{audio:'data:audio/webm;base64,T05F',status:'approved',v:r1}};
+                  syncPackStatuses(); out.same=STATE.studentAudios.r2_1.status;
+                  for (const [k,iso] of [['older','2026-11-02T11:00:00.000Z'],['equal','2026-11-02T12:00:00.000Z'],['newer','2026-11-02T13:00:00.000Z']]){
+                    STATE.studentAudios.r2_1={status:'approved',v:r1}; const rk=await up('NEW-'+k,iso); syncPackStatuses();
+                    out[k]=[STATE.studentAudios.r2_1.status, await (await dbGet('r2_1')).text(), rk!==r1]; }
+                  const blobs=[]; const o=URL.createObjectURL; URL.createObjectURL=b=>{blobs.push(b);return o.call(URL,b)}; const al=alert; const msgs=[]; alert=x=>msgs.push(x);
+                  try { await doExportStudent('submission'); } finally { URL.createObjectURL=o; alert=al; }
+                  const txt=blobs.length?await blobs[blobs.length-1].text():''; const m=txt.match(/var PACK_DATA = (.*?);\\n\\/\\* ===PACK_DATA_END/s);
+                  const rec=m?JSON.parse(m[1]).studentAudios.r2_1:null; out.exported=rec?[rec.status, atob(rec.audio.split(',')[1]), rec.v===STATE.studentAudios.r2_1.rid]:msgs;
+                  return out; })()""")
+                await ctxK8.close()
+                ok18 = (r18.get('same') == 'approved' and all(r18.get(k) == ['pending', 'NEW-' + k, True] for k in ('older', 'equal', 'newer'))
+                        and r18.get('exported') == ['pending', 'NEW-newer', True])
+                rec('R18 RT9395-01 decision bound to recording id; re-record with older/equal/newer clock stays pending and is sent', ok18, r18)
+            except Exception as e:
+                rec('R18 (exception)', False, repr(e)[:200])
+            # R19: بيان الإهداء يطابق الأصوات الموجودة (مرجع كامل/جزئي/معدوم)، والمهدى إليه يرى الوصف المحسوب من الملف
+            try:
+                ctxM9, pM9, _ = await ctx_page(b)
+                await pM9.goto(BASE + '/open.html?src=app'); fM9 = await appframe(pM9)
+                r19 = await ev(fM9, """(()=>{ const groups=[{id:'g',name:'زميل',shareable:true,audios:{r2_1:{audio:'data:audio/webm;base64,T0xE',status:'approved'}}}];
+                  const all={}; CURRICULUM.forEach(s=>{(s.items||[]).forEach(i=>all[i.id]='data:audio/webm;base64,QQ=='); (s.questions||[]).forEach(q=>{ if(q.textType==='quran'||detectTextType(q)==='quran') all[q.id]='data:audio/webm;base64,QQ=='; });});
+                  const part={}; CURRICULUM.forEach(s=>(s.items||[]).slice(0,1).forEach(i=>{ if (Object.keys(part).length<5) part[i.id]=all[i.id]; }));
+                  const t=m=>{ const gc=buildGiftContents(groups,m); return [gc.totalTasks, gc.withMaster, gc.noAudio, giftContentsText(gc)]; };
+                  return [t(all), t(part), t({})]; })()""")
+                giftNM = json.loads(await ev(fM9, """(async()=>{ let p=JSON.parse(JSON.stringify(PACK_DATA)); Object.assign(p,{packageType:'approved_gift',approved:true,studentAudios:{},approvedStudentAudios:{},masterAudios:{},
+                  approvedPeerRecordings:[{id:'giver',name:'زميل',shareable:true,audios:{r2_1:{audio:'data:audio/webm;base64,T0xE',status:'approved'}}}]});
+                  p.giftContents=buildGiftContents(p.approvedPeerRecordings,{}); await signGiftPack(p); return JSON.stringify(p) })()"""))
+                await ctxM9.close()
+                ctxV9 = await b.new_context(); await ctxV9.route('**/trusted-teachers.json', lambda r: r.fulfill(json={'keys': [giftNM['signature']['key']]}))
+                pV9 = await ctxV9.new_page(); pV9.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+                await pV9.goto(BASE + '/open.html'); fV9 = await open_file(pV9, with_pack(gift, giftNM, f'{OUT}/gift_nomaster.html'))
+                await ev(fV9, "continueFromSplash()"); await pV9.wait_for_timeout(600)
+                boxNM = await ev(fV9, "[GIFT_TRUST, (document.getElementById('gift-contents-box')||{}).textContent || '']")
+                await ctxV9.close()
+                full, part, none = r19
+                ok19 = (full[1] == full[0] and 'موجودة في كل المهام' in full[3] and 'لا توجد تلاوة' not in full[3]
+                        and 0 < part[1] < part[0] and ('في %d من %d' % (part[1], part[0])) in part[3]
+                        and none[1] == 0 and none[2] == none[0] - 1 and 'لا توجد تلاوة مرجعية' in none[3]
+                        and len({full[3], part[3], none[3]}) == 3 and all('وحدها' not in x[3] for x in r19)
+                        and boxNM[0] == 'verified' and 'لا توجد تلاوة مرجعية' in boxNM[1] and 'وحدها' not in boxNM[1])
+                rec('R19 RT9395-02 gift description matches actual audio (full/partial/none) and recipient view', ok19,
+                    ([x[:3] for x in r19], boxNM[0], boxNM[1][:90]))
+            except Exception as e:
+                rec('R19 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
