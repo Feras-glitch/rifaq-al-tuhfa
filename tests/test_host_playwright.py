@@ -296,6 +296,81 @@ async def main():
             except Exception as e:
                 rec('R12 (exception)', False, repr(e)[:200])
 
+            # ===== 9.39.5: R12 (التخزين بالمعرّف + ترحيل)، R03، R09، R08 =====
+            WAV5 = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='
+            # R14 R12: ترحيل ملف قديم مسمّى بالاسم بلا فقد، ثم «طالب جديد» بالاسم نفسه يحصل على ملف مستقل
+            try:
+                ctxN = await b.new_context(viewport={'width': 390, 'height': 844}, locale='ar')
+                pN = await ctxN.new_page(); seen = []
+                def _dlg(d):
+                    seen.append(d.message)
+                    asyncio.ensure_future(d.dismiss() if 'يوجد على هذا الجهاز طالب' in d.message else d.accept())
+                pN.on('dialog', _dlg)
+                await pN.goto(BASE + '/open.html?src=app'); fN = await appframe(pN)
+                lk = await ev(fN, "[STORAGE_BASE + '_' + simpleHash('ليلى'), DB_BASE + '_' + simpleHash('ليلى'), STORAGE_BASE + '_active']")
+                await ev(pN, """k=>new Promise(r=>{localStorage.setItem(k[0], JSON.stringify({student:{name:'ليلى',gender:'girl',id:'stu_old1'},progress:{s0_muqaddima:{done:true,stars:3}},stats:{totalPoints:30,completedSections:1,perfectSections:1,totalAttempts:1},studentAudios:{r2_1:{status:'pending',updatedAt:'2026-10-01T10:00:00.000Z'}},role:'student',sawSplash:true}));
+                    localStorage.setItem(k[2], 'ليلى'); var q=indexedDB.open(k[1],1); q.onupgradeneeded=()=>q.result.createObjectStore('audios');
+                    q.onsuccess=()=>{var t=q.result.transaction('audios','readwrite');t.objectStore('audios').put(new Blob(['old-audio']),'r2_1');t.oncomplete=()=>{q.result.close();r(1)}}})""", lk)
+                await pN.reload(); fN = await appframe(pN)
+                mig = await ev(fN, "(async()=>{var b=await dbGet('r2_1');return [STATE.student.name, STATE.student.id, !!(STATE.progress.s0_muqaddima&&STATE.progress.s0_muqaddima.done), b?await b.text():null]})()")
+                await ev(fN, "show('view-student-setup'); startNewStudent()"); await fN.fill('#setup-name', 'ليلى')
+                await ev(fN, "saveSetup()"); await pN.wait_for_timeout(500)
+                sep = await ev(fN, "k=>[STATE.student.name, STATE.student.id !== 'stu_old1', !STATE.progress.s0_muqaddima, STORAGE_KEY !== k[0], DB_NAME !== k[1], JSON.parse(localStorage.getItem(k[0])).progress.s0_muqaddima.done === true]", lk)
+                asked = any('يوجد على هذا الجهاز طالب' in m for m in seen)
+                await ctxN.close()
+                rec('R14 R12 legacy name profile migrated without loss; same-name new student gets separate storage',
+                    mig == ['ليلى', 'stu_old1', True, 'old-audio'] and sep == ['ليلى', True, True, True, True, True] and asked, (mig, sep, asked))
+            except Exception as e:
+                rec('R14 (exception)', False, repr(e)[:200])
+            # R15 R03: قرار المعلم على النسخة نفسها يُطبَّق، والتسجيل الأحدث يبقى قيد المراجعة
+            try:
+                ctxQ, pQ, _ = await ctx_page(b)
+                await pQ.goto(BASE + '/open.html?src=app'); fQ = await appframe(pQ)
+                r15 = await ev(fQ, """(()=>{var T='2026-10-01T10:00:00.000Z'; PACK_DATA.studentAudios={r2_1:{status:'approved',v:T}, r3_1:{status:'rejected',v:T}, r3_2:{status:'approved'}};
+                    STATE.studentAudios={r2_1:{status:'pending',updatedAt:T}, r3_1:{status:'pending',updatedAt:'2026-10-02T10:00:00.000Z'}, r3_2:{status:'pending',updatedAt:T}};
+                    syncPackStatuses(); return [STATE.studentAudios.r2_1.status, STATE.studentAudios.r3_1.status, STATE.studentAudios.r3_2.status]})()""")
+                await ctxQ.close()
+                rec('R15 R03 teacher decision applies to the same recording version; newer re-recording stays pending', r15 == ['approved', 'pending', 'pending'], r15)
+            except Exception as e:
+                rec('R15 (exception)', False, repr(e)[:200])
+            # R16 R09: إعادة الإرسال تحمل المعتمد سابقًا بصوته، والجديد يحمل نسخته
+            try:
+                ctxS9, pS9, errsS9 = await ctx_page(b)
+                await pS9.goto(BASE + '/open.html?src=app'); fS9 = await appframe(pS9)
+                await setup_student(fS9, 'هند'); await record(fS9)
+                await ev(fS9, "w=>{var T='2026-10-01T10:00:00.000Z'; PACK_DATA.studentAudios={r3_1:{audio:w,status:'approved',v:T}}; STATE.studentAudios.r3_1={status:'approved',v:T}; save()}", WAV5)
+                sub9 = await export_from(pS9, fS9, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/sub_r09.html')
+                upd = await ev(fS9, "STATE.studentAudios.r2_1.updatedAt")
+                sa9 = pack_of(sub9)['studentAudios']; await ctxS9.close()
+                got = (sa9.get('r3_1', {}).get('status'), sa9.get('r3_1', {}).get('audio') == WAV5, sa9.get('r3_1', {}).get('v'), sa9.get('r2_1', {}).get('status'), sa9.get('r2_1', {}).get('v') == upd)
+                rec('R16 R09 resubmission carries previously approved recordings; each recording carries its version', got == ('approved', True, '2026-10-01T10:00:00.000Z', 'pending', True), got)
+            except Exception as e:
+                rec('R16 (exception)', False, repr(e)[:200])
+            # R08 (قرار المالك): إهداء جزئي ببيان صريح للمعلم قبل الإصدار وللمهدى إليه عند الفتح
+            try:
+                ctxG, pG, errsG = await ctx_page(b); msgsG = []
+                pG.on('dialog', lambda d: msgsG.append(d.message))
+                await pG.goto(BASE + '/open.html'); fG = await open_file(pG, sub)
+                await ev(fG, "w=>{PACK_DATA.studentAudios.r3_1={audio:w,status:'pending'}}", WAV5)
+                await fG.fill('#review-teacher-name', 'الشيخ محمود')
+                await fG.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await fG.wait_for_timeout(300)
+                giftP = await export_from(pG, fG, "exportApprovedPack()", f'{OUT}/gift_partial.html')
+                await ctxG.close()
+                gp = pack_of(giftP); gc = gp.get('giftContents') or {}
+                peers = sorted(k for g in gp.get('approvedPeerRecordings', []) for k in g.get('audios', {}))
+                conf = next((m for m in msgsG if 'ما يتضمنه الإهداء' in m), '')
+                ctxR8, pR8, _ = await ctx_page(b)
+                await pR8.goto(BASE + '/open.html'); fR8 = await open_file(pR8, giftP)
+                await ev(fR8, "continueFromSplash()"); await pR8.wait_for_timeout(500)
+                box = await ev(fR8, "(document.getElementById('gift-contents-box')||{}).textContent || ''")
+                await ctxR8.close()
+                ok8 = (peers == ['r2_1'] and gc.get('withPeer') == 1 and gc.get('totalTasks', 0) > 1 and gc.get('complete') is False
+                       and 'لن يدخل الإهداء 1' in conf and 'ما ستتعلمه' in conf and 'ما ستتعلمه' in box and ('1 من ' + str(gc.get('totalTasks'))) in box)
+                rec('R17 R08 partial gift: teacher sees contents before export; signed giftContents; recipient sees what they will learn',
+                    ok8, (peers, {k: gc.get(k) for k in ('withPeer', 'totalTasks', 'complete')}, conf[:80], box[:120]))
+            except Exception as e:
+                rec('R17 (exception)', False, repr(e)[:200])
+
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
             grp3['audios']['__proto__'] = {'r3_1': {'audio': 'data:audio/webm;base64,' + 'QUJD' * 10, 'status': 'approved'}}

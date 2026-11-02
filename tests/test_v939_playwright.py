@@ -242,9 +242,9 @@ async def main():
         await pD.evaluate("show('view-student-setup'); startNewStudent()"); await pD.wait_for_timeout(400)
         await pD.fill('#setup-name', 'طفل ثان'); await pD.evaluate("saveSetup()"); await pD.wait_for_timeout(400)
         await pD.evaluate("document.getElementById('consent-no') && document.getElementById('consent-no').click()")
-        keys_before = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE))")
+        keys_before = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE) && !/_(idmap|active|active_id)$/.test(k))")  # 9.39.5: مفاتيح الحالة وحدها (لا خريطة المعرّفات)
         await pD.evaluate("deleteChildDataOnDevice()"); await pD.wait_for_timeout(2500)
-        keys_after = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE))")
+        keys_after = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE) && !/_(idmap|active|active_id)$/.test(k))")
         first_kept = False
         for k in keys_after:
             v = await pD.evaluate(f"localStorage.getItem('{k}')") or ''
