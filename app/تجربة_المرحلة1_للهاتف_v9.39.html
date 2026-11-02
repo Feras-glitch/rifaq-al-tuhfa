@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-kYbZXVkGwzEli9PUAlaAc92MiXrZk4MCvhC5SGcM+Xo='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-o2hTvJ2QHp0CsYA9seLAiQFtjQ5ALuMAVMR3eDOm0QE='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -1352,8 +1352,11 @@ function isNewerLocalRecording(local, fromPack){
   if (!local || local.status !== 'pending') return false;
   if (local.rid) return String(fromPack && fromPack.v || '') !== local.rid;
   if (!local.updatedAt) return false;
-  var pv = fromPack && fromPack.v ? (Date.parse(fromPack.v) || 0) : 0;
-  return !pv || (Date.parse(local.updatedAt) || 0) > pv;
+  /* 9.39.7: التسجيل القديم بلا rid — في 9.39.5 كانت v هي updatedAt نفسه حرفيًا، فالمطابقة الحرفية تحدد التسجيل نفسه.
+     لا مقارنة بالأقدم/الأحدث إطلاقًا، فرجوع الساعة أو تساويها لا يمنح تسجيلًا آخر قرارًا ليس له.
+     الحزم الأقدم من 9.39.5 بلا v تبقى على سلوكها السابق (التسجيل المحلي يبقى قيد المراجعة). */
+  var pv = fromPack && fromPack.v ? String(fromPack.v) : '';
+  return !pv || pv !== String(local.updatedAt);
 }
 function newStudentId(){
   try { if (window.crypto && crypto.randomUUID) return 'stu_' + crypto.randomUUID(); } catch(e) {}

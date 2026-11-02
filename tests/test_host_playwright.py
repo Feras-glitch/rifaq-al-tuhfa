@@ -429,6 +429,21 @@ async def main():
             except Exception as e:
                 rec('R19 (exception)', False, repr(e)[:200])
 
+            # R20 (9.39.7): تسجيلات قديمة بلا rid — مطابقة حرفية للتاريخ، لا مقارنة بالترتيب
+            try:
+                ctxL, pL, _ = await ctx_page(b)
+                await pL.goto(BASE + '/open.html?src=app'); fL = await appframe(pL)
+                r20 = await ev(fL, """(()=>{ const T='2026-11-02T12:00:00.000Z';
+                  PACK_DATA.studentAudios={same:{status:'approved',v:T}, older:{status:'approved',v:T}, newer:{status:'approved',v:T}, otherRid:{status:'approved',v:'rec_abc'}, noV:{status:'approved'}};
+                  STATE.studentAudios={same:{status:'pending',updatedAt:T}, older:{status:'pending',updatedAt:'2026-11-02T11:00:00.000Z'}, newer:{status:'pending',updatedAt:'2026-11-02T13:00:00.000Z'},
+                    otherRid:{status:'pending',updatedAt:T}, noV:{status:'pending',updatedAt:T}};
+                  syncPackStatuses(); return ['same','older','newer','otherRid','noV'].map(k=>STATE.studentAudios[k].status); })()""")
+                await ctxL.close()
+                rec('R20 legacy recordings without rid: exact-match decision only (older/newer clock stay pending)',
+                    r20 == ['approved', 'pending', 'pending', 'pending', 'pending'], r20)
+            except Exception as e:
+                rec('R20 (exception)', False, repr(e)[:200])
+
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
             grp3['audios']['__proto__'] = {'r3_1': {'audio': 'data:audio/webm;base64,' + 'QUJD' * 10, 'status': 'approved'}}
