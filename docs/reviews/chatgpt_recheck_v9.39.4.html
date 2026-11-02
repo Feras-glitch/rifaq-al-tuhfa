@@ -1,0 +1,103 @@
+<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>إعادة فحص رفاق التحفة 9.39.4</title><style>body{font:17px/1.9 Tahoma,Arial;max-width:950px;margin:30px auto;padding:20px;color:#163247}pre{direction:ltr;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;background:#eef2f6;padding:15px;font-size:12px}</style><h1>إعادة فحص 9.39.4</h1><p>2 نوفمبر 2026 · الالتزام 56aafc2d9422b9a36e3333ec48effe98f71eb189</p><h2>القرار</h2><p>إغلاق RT9393-01 وامتداد RT9392-03 ضمن نطاق الفحوص المنفذة. لا قبول شامل للتوزيع: تبقى R03 وR09 وR12 وقرار R08، إضافة إلى متطلبات الثقة والتوقيع وتجربة الهاتف.</p><h2>الدليل المستقل</h2><p>أُعيد تشغيل أداة المراجع السابقة على المصدر المبني من الوسم v9.39.4: النافذة الثانية لم تحفظ، وبعد إعادة التحميل بقي الحفظ ممنوعًا أثناء الحذف المعلّق، ولم يعد الاسم أو التقدم. بعد إزالة الحاجب اختفت قاعدة الصوت وزالت علامة الحذف. عينة التوقيع السليمة verified؛ تعديل الحقل الصوتي القديم واسم الشيخ وصورة المعلم وإضافة علامة المرساة أعطى invalid.</p><p>اختبار إضافي باستخدام Page.setWebLifecycleState في Chromium: تجميد نافذة ثانية تحمل بيانات الطفل ثم حذف بياناته وإيقاظها؛ لم تعد البيانات القديمة. هذا محاكاة تجميد عبر بروتوكول المتصفح، وليس اختبار تعليق نظام هاتف.</p><p>اختبارات المشروع المحلية تتحقق أيضًا من بقاء حالة طفل آخر وصوته سليمين. تحققت من GitHub أن تشغيل CI رقم 41368777106 على الالتزام نفسه مكتمل وناجح.</p><h2>حدود الحكم</h2><p>اختبارات Chromium على المصدر المبني محليًا. لم أُعِد تشغيل مجموعة الملف المستقل الـ26، ولم أشغّل APK أو EXE أو ميكروفونًا حقيقيًا محليًا في هذه الجولة. لم أغيّر المصدر أو أنشر شيئًا. اشتراك طفلين بالاسم نفسه في التخزين يظل R12 مفتوحًا.</p><h2>النتائج الخام لأداة المراجع</h2><pre>[
+  {
+    &quot;test&quot;: &quot;valid&quot;,
+    &quot;trust&quot;: &quot;verified&quot;
+  },
+  {
+    &quot;test&quot;: &quot;mutation-approvedStudentAudios&quot;,
+    &quot;trust&quot;: &quot;invalid&quot;
+  },
+  {
+    &quot;test&quot;: &quot;mutation-sheikhName&quot;,
+    &quot;trust&quot;: &quot;invalid&quot;
+  },
+  {
+    &quot;test&quot;: &quot;mutation-teacherPhoto&quot;,
+    &quot;trust&quot;: &quot;invalid&quot;
+  },
+  {
+    &quot;test&quot;: &quot;mutation-extra&quot;,
+    &quot;trust&quot;: &quot;invalid&quot;
+  },
+  {
+    &quot;test&quot;: &quot;second-window-late-save&quot;,
+    &quot;name&quot;: &quot;&quot;,
+    &quot;saved&quot;: false
+  },
+  {
+    &quot;test&quot;: &quot;pending-before-reload&quot;,
+    &quot;pending&quot;: [
+      &quot;tohfa_student_audio_pack_s34_guest&quot;
+    ],
+    &quot;save&quot;: false
+  },
+  {
+    &quot;test&quot;: &quot;pending-after-reload&quot;,
+    &quot;pending&quot;: [
+      &quot;tohfa_student_audio_pack_s34_guest&quot;
+    ],
+    &quot;blockedFlag&quot;: true,
+    &quot;save&quot;: false
+  },
+  {
+    &quot;test&quot;: &quot;resurrected-state&quot;,
+    &quot;name&quot;: &quot;&quot;,
+    &quot;progress&quot;: {}
+  },
+  {
+    &quot;test&quot;: &quot;after-unblock&quot;,
+    &quot;pending&quot;: [],
+    &quot;dbs&quot;: [
+      {
+        &quot;name&quot;: &quot;rifaq_host_v1&quot;,
+        &quot;version&quot;: 1
+      }
+    ]
+  }
+]</pre><h2>تجميد النافذة وإيقاظها</h2><pre>[
+  {
+    &quot;test&quot;: &quot;before-freeze&quot;,
+    &quot;name&quot;: &quot;طفل الاختبار&quot;
+  },
+  {
+    &quot;test&quot;: &quot;after-delete&quot;,
+    &quot;state&quot;: null,
+    &quot;tomb&quot;: null
+  },
+  {
+    &quot;test&quot;: &quot;after-thaw&quot;,
+    &quot;name&quot;: &quot;&quot;,
+    &quot;saved&quot;: true,
+    &quot;persisted&quot;: &quot;{\&quot;student\&quot;:{\&quot;name\&quot;:\&quot;\&quot;,\&quot;gender\&quot;:\&quot;boy\&quot;,\&quot;photo\&quot;:null,\&quot;supervisorName\&quot;:\&quot;\&quot;,\&quot;supervisorGender\&quot;:\&quot;boy\&quot;},\&quot;progress\&quot;:{},\&quot;stats\&quot;:{\&quot;totalPoints\&quot;:0,\&quot;completedSections\&quot;:0,\&quot;perfectSections\&quot;:0,\&quot;totalAttempts\&quot;:0},\&quot;studentAudios\&quot;:{},\&quot;role\&quot;:\&quot;student\&quot;,\&quot;sawSplash\&quot;:false,\&quot;recipientOnboarded\&quot;:false}&quot;
+  }
+]</pre><h2>اختبارات المشروع</h2><pre>PASS H1 launcher loads, SW registered, 4 cards | ([], True, [&#x27;./app/&#x27;, &#x27;./studio/&#x27;, &#x27;./open.html&#x27;, &#x27;./trial/&#x27;])
+PASS H2 app in host: setup, record, export submission | ([], 404269)
+PASS H3 state persists after reloading host | 
+PASS H4 submission opens as teacher view | 
+PASS R7 «تم الحذف» (markRosterDeleted) is callable | 43
+PASS H5 teacher exports signed gift | []
+PASS H6 recent list shows submission with 30-day expiry | ([&#x27;📨 إرسال للمراجعة — مريم أحمد&#x27;], [&#x27;sub.html · ٠٢\u200f/١١\u200f/٢٠٢٦، ٣:٥٦ ص · 82 ك.ب · يُحذف تلقائيًا بعد 30 يومًا&#x27;])
+PASS R4a teacher «تم الحذف» purges the stored copy | []
+PASS R2a gift trusted only by its own embedded list is NOT verified in the app | (&#x27;untrusted&#x27;, &#x27;untrusted&#x27;)
+PASS R2b pinned teacher key: genuine gift verified, tampered audio invalid | (&#x27;verified&#x27;, &#x27;invalid&#x27;)
+PASS R8 RT9392-01 marker inside data cannot unpin trust (empty, pinned, fetch-failed) | [(&#x27;untrusted&#x27;, &#x27;[]&#x27;), (&#x27;untrusted&#x27;, &#x27;[{&quot;kty&quot;:&quot;EC&quot;,&quot;crv&quot;:&quot;P-256&quot;,&quot;x&quot;:&quot;_IMsw94vk2oCnuFy6kInLbqNWq067J62YG08GlEe6dU&quot;,&quot;y&quot;:&quot;6WWH7KYwkrJfABcMX7OJflDAgds0jVovmhPFt4h88gQ&quot;}]&#x27;), (&#x27;untrusted&#x27;, &#x27;[]&#x27;), (&#x27;untrusted&#x27;, &#x27;[]&#x27;)]
+PASS R9 RT9392-02 unsigned additions/changes rejected and not shown; genuine still verified | ((&#x27;verified&#x27;, True), {&#x27;legacy&#x27;: (&#x27;invalid&#x27;, 0), &#x27;photo&#x27;: (&#x27;invalid&#x27;, 0), &#x27;sheikh&#x27;: (&#x27;invalid&#x27;, 0), &#x27;downgrade&#x27;: (&#x27;outdated&#x27;, 0)})
+PASS R10 RT9392-03 blocked delete not announced, no late writes, completes for real afterwards | ((True, True, &#x27;private-audio&#x27;, &#x27;refused&#x27;, True), (True, True, None))
+PASS R13 RT9393-01 deletion holds across windows and reload; other child intact | ([&#x27;&#x27;, False, True], None, [&#x27;&#x27;, False, True, &#x27;refused&#x27;], {&#x27;mineGone&#x27;: True, &#x27;state&#x27;: None, &#x27;tomb&#x27;: None, &#x27;otherState&#x27;: &#x27;{&quot;keep&quot;:1}&#x27;, &#x27;otherAudio&#x27;: &#x27;other-audio&#x27;})
+PASS R11 RT9392-04 forgetPack removes only that child (all its packages) + identity-less file of the package | ([[&#x27;-@shared-package&#x27;, &#x27;-@third-package&#x27;, &#x27;child-A@other-package&#x27;, &#x27;child-A@shared-package&#x27;, &#x27;child-B@shared-package&#x27;], 3, [&#x27;-@third-package&#x27;, &#x27;child-B@shared-package&#x27;]], [[&#x27;-@third-package&#x27;, &#x27;child-B@shared-package&#x27;], 1
+PASS R12 R11 consent gate enforced in export and file-upload functions | (True, 0, [0, True])
+PASS R1 host rejects __proto__-injected pack | هذا الملف معدَّل بطريقة غير صالحة ولا يمكن فتحه.
+اطلب من الم
+PASS H8 injected code in opened file never executes | 
+PASS H9 non-Rifaq HTML rejected, not run | 
+PASS R5 1.6 MB crafted file handled in &lt; 2 s | 0.05s, 1757 KB
+PASS R3 studio: HTML in curriculum not executed; unsafe ids rejected | (None, &quot;❌ لم يُستورد المنهج (1 خطأ): معرّف غير صالح: r1&#x27;);window.top&quot;)
+PASS R3b approved curriculum imports unchanged by sanitizer | ✅ استُورد المنهج: 16 قسمًا، الأسئلة: {&quot;multiple_choice&quot;:45,&quot;
+PASS R4b «حذف بيانات الطالب» also removes the stored copy | (1, 0)
+PASS R6 copies older than 30 days are purged | []
+PASS H10 trial opens in host | []
+PASS H11 Android: launcher routes via host | [&#x27;./open.html?src=app&#x27;, &#x27;./open.html?src=studio&#x27;, &#x27;./open.html&#x27;, &#x27;./open.html?src=trial&#x27;]
+PASS H12 Android: export writes app cache only + Share; old share cache cleaned | [[&#x27;Filesystem&#x27;, &#x27;rmdir&#x27;, &#x27;CACHE:share&#x27;], [&#x27;App&#x27;, &#x27;addListener&#x27;, &#x27;:appUrlOpen&#x27;], [&#x27;App&#x27;, &#x27;getLaunchUrl&#x27;, &#x27;:&#x27;], [&#x27;Filesystem&#x27;, &#x27;writeFile&#x27;, &#x27;CACHE:share/mvyju1nl/إرسال_للمراجعة_الأولى_سارة.html&#x27;], [&#x27;Share&#x27;, &#x27;share&#x27;, &#x27;:&#x27;]]
+
+SUMMARY: 27 / 27
+</pre><h2>النتيجة النهائية</h2><pre>SUMMARY: 27 / 27</pre></html>
