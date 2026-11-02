@@ -468,6 +468,32 @@ async def main():
             except Exception as e:
                 rec('R21 (exception)', False, repr(e)[:200])
 
+            # R22 (9.39.9): تبديل الطالب أثناء مقارنة البصمة لا ينقل نتيجة A إلى B؛ ولكل طالب مقارنته
+            try:
+                ctxX, pX, _ = await ctx_page(b)
+                await pX.goto(BASE + '/open.html?src=app'); fX = await appframe(pX)
+                r22 = await ev(fX, """(async()=>{ const T='2026-11-02T12:00:00.000Z';
+                  const wav=n=>{ const u=new Uint8Array(64); for(let i=0;i<64;i++) u[i]=(i*n)&255; return u; };
+                  const b64=u=>{ let s=''; u.forEach(c=>s+=String.fromCharCode(c)); return 'data:audio/wav;base64,'+btoa(s); };
+                  const A=wav(3), B=wav(7);
+                  PACK_DATA.packageType='student_returned'; PACK_DATA.studentAudios={legX:{status:'approved',v:T,audio:b64(A)}};
+                  switchStudentProfile('أ','stu_A'); STATE.role='student'; await dbPut('legX', new Blob([A],{type:'audio/wav'}));
+                  STATE.studentAudios={legX:{status:'pending',updatedAt:T}}; save();
+                  let release; const gate=new Promise(r=>release=r); const orig=sha256OfBytes; sha256OfBytes=async u=>{ await gate; return orig(u); };
+                  const pA=reconcileLegacyDecisions(); await new Promise(r=>setTimeout(r,80));
+                  switchStudentProfile('ب','stu_B'); STATE.role='student'; STATE.studentAudios={legX:{status:'pending',updatedAt:T}};
+                  await dbPut('legX', new Blob([B],{type:'audio/wav'})); save();
+                  release(); await pA; sha256OfBytes=orig; await new Promise(r=>setTimeout(r,50));
+                  const race=[CURRENT_PROFILE_ID, STATE.studentAudios.legX.status];
+                  await reconcileLegacyDecisions(); const ownB=STATE.studentAudios.legX.status;
+                  switchStudentProfile('أ','stu_A'); await reconcileLegacyDecisions(); const ownA=[CURRENT_PROFILE_ID, STATE.studentAudios.legX.status];
+                  return [race, ownB, ownA]; })()""")
+                await ctxX.close()
+                rec('R22 RT9398-01 switching child during hash comparison does not approve the other child; each child checked in its own context',
+                    r22 == [['stu_B', 'pending'], 'pending', ['stu_A', 'approved']], r22)
+            except Exception as e:
+                rec('R22 (exception)', False, repr(e)[:200])
+
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
             grp3['audios']['__proto__'] = {'r3_1': {'audio': 'data:audio/webm;base64,' + 'QUJD' * 10, 'status': 'approved'}}
