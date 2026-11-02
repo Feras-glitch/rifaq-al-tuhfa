@@ -5,6 +5,9 @@
 | 2026-11-01 | ChatGPT (فحص دوال معزولة في Node) | 9.38 | `chatgpt_audit_v9.38.html` |
 | 2026-11-01 | Claude (فحص علمي + تشغيل فعلي على Chromium) | 9.38 | https://claude.ai/artifact/WCqHxLMkZTjRKPqcpkjvhx |
 | 2026-11-01 | Claude — تقرير ما بعد الإصلاح | 9.39 | https://claude.ai/artifact/1RjVThEQ38rr2qyGsRY9fK |
+| 2026-11-01 | Claude — مراجعة نسخ المنصات | 9.39.1←9.39.2 | https://claude.ai/artifact/P4ak47baStw7sUVdgrBaAX |
+| 2026-11-02 | ChatGPT — مراجعة مستقلة (RT9392-01..04) | 9.39.2 | `chatgpt_independent_review_v9.39.2.html` |
+| 2026-11-02 | الرد بندًا بندًا | 9.39.3 | `RESPONSE_9.39.3.md` |
 
 ## خلاصة مراجعة 9.38 (Claude)
 - النص القرآني: 26 مهمة و45 سؤال استخراج مطابقة حرفيًا لنص تنزيل؛ أحكام النون الساكنة في الأسئلة كلها صحيحة بإعادة الحساب الآلي.

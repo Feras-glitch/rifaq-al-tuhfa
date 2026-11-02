@@ -195,12 +195,27 @@ async def main():
         rec('T12 gift verified with studio-trusted key', trust == 'verified', trust)
         leak_fields = [k for k in ['studentName', 'studentId', 'studentPhoto', 'studentAssessment', 'teacherRatings', 'teacherNotes', 'teacherFeedbacks', 'studentConsent'] if pd.get(k)]
         rec('T13 R07 gift carries no private fields', not leak_fields and pd.get('sourceGiftStudentName') == 'مريم أحمد', (leak_fields, pd.get('sourceGiftStudentName')))
-        # tamper: change peer audio -> invalid
-        await pR.evaluate("PACK_DATA.approvedPeerRecordings[0].audios[Object.keys(PACK_DATA.approvedPeerRecordings[0].audios)[0]].audio='data:audio/webm;base64,QUJD'")
-        t2 = await pR.evaluate("verifyGiftPack(PACK_DATA)")
+        # 9.39.3: التلاعب يكون في الملف نفسه (كما يفعل المهاجم) مع إعادة حساب تجزئة CSP؛ التحقق يجري على الملف كما وصل
+        async def tampered_trust(mut, name):
+            src = open(gift1, encoding='utf-8').read()
+            m = re.search(r'(var PACK_DATA = )(.*?)(;\n/\* ===PACK_DATA_END)', src, re.S)
+            pk = json.loads(m.group(2)); mut(pk)
+            body = json.dumps(pk, ensure_ascii=False).replace('</', '<\\/')
+            out = src[:m.start(2)] + body + src[m.end(2):]
+            sc = re.search(r'<script>(.*?)</script>', out, re.S).group(1)
+            import hashlib, base64
+            h = base64.b64encode(hashlib.sha256(sc.encode()).digest()).decode()
+            out = re.sub(r"script-src 'sha256-[^']+'", "script-src 'sha256-" + h + "'", out, count=1)
+            fp = f'{D}/{name}.html'; open(fp, 'w', encoding='utf-8').write(out)
+            ctxX, pX, errsX = await newpage(b); await pX.goto('file://' + fp); await pX.wait_for_timeout(1200)
+            t = await pX.evaluate("GIFT_TRUST"); await ctxX.close(); return t
+        def mut_audio(pk):
+            g = pk['approvedPeerRecordings'][0]; g['audios'][sorted(g['audios'])[0]]['audio'] = 'data:audio/webm;base64,QUJD'
+        t2 = await tampered_trust(mut_audio, 't_gift1_tamper_audio')
         rec('T14 tampered audio -> invalid', t2 == 'invalid', t2)
-        await pR.evaluate("PACK_DATA.trustedTeacherKeys.push({kty:'EC',crv:'P-256',x:'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',y:'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'})")
-        t3 = await pR.evaluate("verifyGiftPack(PACK_DATA)")
+        def mut_keys(pk):
+            pk['trustedTeacherKeys'].append({'kty':'EC','crv':'P-256','x':'A'*43,'y':'A'*43})
+        t3 = await tampered_trust(mut_keys, 't_gift1_tamper_keys')
         rec('T15 R02 tampered trusted-key list -> invalid', t3 == 'invalid', t3)
         await ctxR.close()
 

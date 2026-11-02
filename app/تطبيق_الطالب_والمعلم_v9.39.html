@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-K/6gbMaFsCfSbfuekelwj+TbEvtx0ZII2kmvADGAy1E='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-7KdD683glnqwp+gTlwNMaq+WSDbZaDPi6OaMAb6zKIA='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -586,7 +586,25 @@ PACK_DATA = (function deproto(v, depth){
 /* 9.39.2: مرساة الثقة. تحقنها الصفحة المضيفة من إعداد التطبيق المثبَّت (web/trusted-teachers.json).
    null = ملف مستقل خارج التطبيق: الثقة من قائمة الملف نفسه (ذاتية، قيد معلن). */
 var PINNED_TEACHER_KEYS = null; /* RIFAQ_PINNED_KEYS */
-function trustedKeysFor(pack){ return Array.isArray(PINNED_TEACHER_KEYS) ? PINNED_TEACHER_KEYS : (Array.isArray(pack && pack.trustedTeacherKeys) ? pack.trustedTeacherKeys : []); }
+/* 9.39.3 (RT9392-01): داخل الصفحة المضيفة تأتي الثقة منها وحدها؛ إن غابت المرساة فلا ثقة إطلاقًا (لا رجوع إلى قائمة الملف) */
+function runningInHost(){ try { return window.parent !== window && !!window.parent.RIFAQ_HOST; } catch(e){ return false; } }
+function trustedKeysFor(pack){
+  if (Array.isArray(PINNED_TEACHER_KEYS)) return PINNED_TEACHER_KEYS;
+  if (runningInHost()) return [];
+  return Array.isArray(pack && pack.trustedTeacherKeys) ? pack.trustedTeacherKeys : [];
+}
+/* 9.39.3 (RT9392-02): التوقيع v4 يغطي محتوى الحزمة كله (كل ما قد يُعرض)، محسوبًا على البيانات كما وصلت قبل أي تطبيع */
+function canonJSON(v, skipTopKey){
+  function c(x, top){
+    if (x === null || typeof x !== 'object'){ var s = JSON.stringify(x); return s === undefined ? undefined : s; }
+    if (Array.isArray(x)) return '[' + x.map(function(e){ var s = c(e, false); return s === undefined ? 'null' : s; }).join(',') + ']';
+    var ks = Object.keys(x).sort(), out = [];
+    for (var i = 0; i < ks.length; i++){ if (top && ks[i] === skipTopKey) continue; var s = c(x[ks[i]], false); if (s !== undefined) out.push(JSON.stringify(ks[i]) + ':' + s); }
+    return '{' + out.join(',') + '}';
+  }
+  return c(v, true);
+}
+var PACK_CANON_DIGEST = (function(){ try { return sha256b64(canonJSON(PACK_DATA, 'signature')).catch(function(){ return null; }); } catch(e){ return Promise.resolve(null); } })();
 
 // Runtime sanity check: exported files must retain the application constants.
 if (typeof APP_VERSION === 'undefined') { throw new Error('APP_VERSION bootstrap missing'); }
@@ -917,7 +935,7 @@ function renderTFView(){
     tl.insertBefore(rn, tl.firstChild);
   }
   if (tl && RETURN_TRUST){
-    var msg = {verified: '✅ ملاحظات المعلم موقّعة ولم تتغير', untrusted: '⚠️ توقيع ملاحظات المعلم ليس من معلم موثوق', invalid: '❌ ملاحظات المعلم تغيّرت بعد توقيعها', unsigned: 'ℹ️ ملاحظات المعلم بلا توقيع'}[RETURN_TRUST];
+    var msg = {verified: '✅ ملاحظات المعلم موقّعة ولم تتغير', untrusted: '⚠️ توقيع ملاحظات المعلم ليس من معلم موثوق', invalid: '❌ ملاحظات المعلم تغيّرت بعد توقيعها', unsigned: 'ℹ️ ملاحظات المعلم بلا توقيع', outdated: '⚠️ توقيع ملاحظات المعلم بصيغة قديمة؛ اطلب إعادة الإرسال'}[RETURN_TRUST];
     var note = document.createElement('div'); note.className = 'notice'; note.style.cssText = 'font-size:.85rem;margin-bottom:8px'; note.textContent = msg;
     tl.insertBefore(note, tl.firstChild);
   }
@@ -1057,7 +1075,7 @@ function safeIdString(id){
     } else P.trustedTeacherKeys = [];
     if (P.signature && typeof P.signature === 'object'){
       var sk = P.signature.key || {};
-      P.signature = {alg: 'ECDSA-P256-SHA256', key: {kty: 'EC', crv: 'P-256', x: String(sk.x || ''), y: String(sk.y || '')}, sig: String(P.signature.sig || '').slice(0, 200), signedAt: String(P.signature.signedAt || '').slice(0, 40)};
+      P.signature = {alg: 'ECDSA-P256-SHA256', mv: (P.signature.mv === 4 ? 4 : 3), key: {kty: 'EC', crv: 'P-256', x: String(sk.x || ''), y: String(sk.y || '')}, sig: String(P.signature.sig || '').slice(0, 200), signedAt: String(P.signature.signedAt || '').slice(0, 40)};
     } else P.signature = null;
     if (P.studentAudios && typeof P.studentAudios === 'object'){
       Object.keys(P.studentAudios).forEach(function(k){ var r = P.studentAudios[k]; if (r && typeof r === 'object') r.partial = r.partial === true; });
@@ -1172,6 +1190,7 @@ function normalizeState(raw){
   return base;
 }
 function save(){
+  if (CHILD_DATA_DELETED) return false; // 9.39.3: لا حفظ متأخر يعيد بيانات طفل حُذفت
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
     return true;
@@ -1214,11 +1233,33 @@ var DB_BASE = 'tohfa_student_audio_' + PACKAGE_ID;
 var DB_NAME = DB_BASE + '_' + (INITIAL_PROFILE_NAME ? simpleHash(INITIAL_PROFILE_NAME.trim().toLowerCase()) : 'guest');
 var STORE = 'audios';
 var _dbConn = null, _dbConnName = null;
+/* 9.39.3 (RT9392-03): حذف قاعدة التسجيلات لا يُعدّ ناجحًا إلا عند onsuccess. علامة الحذف المعلّق تبقى حتى يكتمل،
+   وأي فتح لاحق للقاعدة ينتظر اكتمال الحذف أولًا فلا تعود البيانات ولا تُكتب فوقها */
+var PENDING_DEL_KEY = 'rifaq_pending_db_delete_v1';
+var CHILD_DATA_DELETED = false;
+var _dbDeleting = {};
+function pendingDbDeletes(){ try { var a = JSON.parse(localStorage.getItem(PENDING_DEL_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
+function markPendingDbDelete(name, on){
+  try { var a = pendingDbDeletes().filter(function(x){ return x !== name; }); if (on) a.push(name);
+    if (a.length) localStorage.setItem(PENDING_DEL_KEY, JSON.stringify(a)); else localStorage.removeItem(PENDING_DEL_KEY); } catch(e){}
+}
+function deleteDbFully(name){
+  if (_dbDeleting[name]) return _dbDeleting[name];
+  markPendingDbDelete(name, true);
+  _dbDeleting[name] = new Promise(function(res, rej){
+    var req = indexedDB.deleteDatabase(name);
+    req.onsuccess = function(){ markPendingDbDelete(name, false); delete _dbDeleting[name]; res(true); };
+    req.onerror = function(){ delete _dbDeleting[name]; rej(req.error || new Error('delete failed')); };
+    req.onblocked = function(){ console.warn('indexedDB delete blocked: another connection is open'); };
+  });
+  return _dbDeleting[name];
+}
 function openDB(){
   if (_dbConn && _dbConnName === DB_NAME) return _dbConn;
   var name = DB_NAME;
   _dbConnName = name;
-  _dbConn = new Promise(function(res, rej){
+  var pre = (_dbDeleting[name] || pendingDbDeletes().indexOf(name) >= 0) ? deleteDbFully(name) : Promise.resolve();
+  _dbConn = pre.then(function(){ return new Promise(function(res, rej){
     var req = indexedDB.open(name, 1);
     req.onupgradeneeded = function(){
       if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE);
@@ -1230,7 +1271,7 @@ function openDB(){
     };
     req.onerror = function(){ if (_dbConnName === name) { _dbConn = null; _dbConnName = null; } rej(req.error); };
     req.onblocked = function(){ console.warn('indexedDB open blocked'); };
-  });
+  }); }, function(e){ if (_dbConnName === name) { _dbConn = null; _dbConnName = null; } throw e; });
   return _dbConn;
 }
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e) {}
@@ -1240,6 +1281,7 @@ function newStudentId(){
   return 'stu_' + a;
 }
 async function dbPut(key, blob){
+  if (CHILD_DATA_DELETED) throw new Error('child data deleted on this device');
   var db = await openDB();
   return new Promise(function(res, rej){
     var tx = db.transaction(STORE,'readwrite');
@@ -1732,7 +1774,14 @@ function normalizePeerGroups(){
   }
   return groups;
 }
+function peerAudiosAllowed(){
+  /* 9.39.3 (RT9392-02): أصوات الأطفال الآخرين تُعرض فقط بعد التحقق من اعتماد معلم موثوق لمحتوى الملف كله */
+  if (PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true) return GIFT_TRUST === 'verified';
+  if (PACK_DATA.packageType === 'student_returned') return RETURN_TRUST === 'verified';
+  return true;
+}
 function peerAudioBlocks(itemId){
+  if (!peerAudiosAllowed()) return '';
   var groups = normalizePeerGroups(), out = [];
   groups.forEach(function(g){
     var r = g.audios && g.audios[itemId];
@@ -1811,7 +1860,7 @@ var GIFT_TRUST = null; // unsigned | untrusted | invalid | verified
 var RETURN_TRUST = null; // حالة توقيع ملاحظات المعلم في ملف الإعادة
 function b64FromBytes(u8){ var s = ''; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
 function bytesFromB64(b){ var s = atob(b), u8 = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; }
-function giftTrustBadge(){ var t = {verified: ' — ✅ معتمد وموقّع من المعلم', untrusted: ' — ⚠️ التوقيع ليس من معلم مسجَّل لدى المشرف', invalid: ' — ❌ الاعتماد تغيّر بعد التوقيع', unsigned: ' — ℹ️ هذا الاعتماد بلا توقيع'}; return GIFT_TRUST ? (t[GIFT_TRUST] || '') : ''; }
+function giftTrustBadge(){ var t = {verified: ' — ✅ معتمد وموقّع من المعلم', untrusted: ' — ⚠️ التوقيع ليس من معلم مسجَّل لدى المشرف', invalid: ' — ❌ الاعتماد تغيّر بعد التوقيع', unsigned: ' — ℹ️ هذا الاعتماد بلا توقيع', outdated: ' — ⚠️ توقيع بصيغة قديمة لا تثبت محتوى الملف كله؛ اطلب من المعلم إعادة إصداره'}; return GIFT_TRUST ? (t[GIFT_TRUST] || '') : ''; }
 function jwkThumb(k){ return JSON.stringify([k.crv, k.x, k.y]); }
 async function sha256b64(str){ var d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(str))); return b64FromBytes(new Uint8Array(d)); }
 /* البيان: ما يُعتمد بالضبط (معرّف الحزمة وكل مجموعة وكل تسجيل بخلاصته) */
@@ -1849,11 +1898,17 @@ async function getTeacherSigningKey(){
   await keyDbPut(SIG_KEY_ID, rec);
   return rec;
 }
+async function contentManifest(pack, fresh){
+  var d = (pack === PACK_DATA && !fresh) ? await PACK_CANON_DIGEST : await sha256b64(canonJSON(JSON.parse(JSON.stringify(pack)), 'signature'));
+  if (!d) throw new Error('content digest unavailable');
+  return JSON.stringify({v: 4, content: d});
+}
 async function signGiftPack(pack){
   var k = await getTeacherSigningKey();
-  var m = await giftManifest(pack);
+  pack.signature = null; // لا يدخل في البيان، ويُستبعد صراحةً
+  var m = await contentManifest(pack, true);
   var sig = await crypto.subtle.sign({name: 'ECDSA', hash: 'SHA-256'}, k.privateKey, new TextEncoder().encode(m));
-  pack.signature = {alg: 'ECDSA-P256-SHA256', key: k.publicJwk, sig: b64FromBytes(new Uint8Array(sig)), signedAt: new Date().toISOString()};
+  pack.signature = {alg: 'ECDSA-P256-SHA256', mv: 4, key: k.publicJwk, sig: b64FromBytes(new Uint8Array(sig)), signedAt: new Date().toISOString()};
   return pack;
 }
 async function verifyGiftPack(pack){
@@ -1863,9 +1918,10 @@ async function verifyGiftPack(pack){
   var trusted = trustedKeysFor(pack);
   var th = jwkThumb(sg.key);
   if (!trusted.some(function(t){ return t && jwkThumb(t) === th; })) return 'untrusted';
+  if (sg.mv !== 4) return 'outdated'; // v3 لا يغطي كل الحقول المعروضة؛ لا يُقبل كاعتماد موثّق
   try {
     var key = await crypto.subtle.importKey('jwk', {kty: sg.key.kty, crv: sg.key.crv, x: sg.key.x, y: sg.key.y, ext: true}, {name: 'ECDSA', namedCurve: 'P-256'}, false, ['verify']);
-    var m = await giftManifest(pack);
+    var m = await contentManifest(pack);
     var ok = await crypto.subtle.verify({name: 'ECDSA', hash: 'SHA-256'}, key, bytesFromB64(sg.sig), new TextEncoder().encode(m));
     return ok ? 'verified' : 'invalid';
   } catch(e){ return 'invalid'; }
@@ -2142,23 +2198,22 @@ async function forgetInHost(packageId, studentId){
 async function deleteChildDataOnDevice(){
   if (!confirm('سيُحذف تسجيل الطفل وتقدّمه وموافقة ولي الأمر من هذا الجهاز. هل أنت متأكد؟')) return;
   if (!confirm('تأكيد نهائي: لا يمكن استرجاع هذه البيانات من الجهاز. متابعة؟')) return;
+  CHILD_DATA_DELETED = true;
+  var dbName = DB_NAME;
   try { if (typeof _dbConn !== 'undefined' && _dbConn){ var db = await _dbConn; try { db.close(); } catch(e){} } } catch(e){}
   _dbConn = null; _dbConnName = null;
-  try {
-    /* 9.39 (R04): الحذف يخص الطفل الحالي وحده (قاعدته ومفتاح حالته)، ويُنتظر اكتمال الحذف قبل الإعلان */
-    await new Promise(function(resolve){
-      var req = indexedDB.deleteDatabase(DB_NAME);
-      req.onsuccess = resolve; req.onerror = resolve; req.onblocked = resolve;
-      setTimeout(resolve, 4000);
-    });
-  } catch(e){ console.warn('db delete', e); }
   try {
     localStorage.removeItem(STORAGE_KEY);
     if (localStorage.getItem(ACTIVE_PROFILE_KEY) === INITIAL_PROFILE_NAME) localStorage.removeItem(ACTIVE_PROFILE_KEY);
   } catch(e){}
   await forgetInHost(PACK_DATA.packageId || PACKAGE_ID, PACK_DATA.studentId || (STATE.student && STATE.student.id) || null);
-  alert('تم حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.');
-  location.reload();
+  /* 9.39 (R04) + 9.39.3 (RT9392-03): لا إعلان نجاح إلا بعد onsuccess الفعلي لحذف قاعدة التسجيلات */
+  var del = deleteDbFully(dbName).then(function(){ return 'ok'; }, function(){ return 'error'; });
+  var r = await Promise.race([del, new Promise(function(res){ setTimeout(function(){ res('pending'); }, 6000); })]);
+  if (r === 'ok'){ alert('تم حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.'); location.reload(); return; }
+  alert('⚠️ الحذف لم يكتمل بعد: ' + (r === 'error' ? 'تعذّر حذف قاعدة التسجيلات على هذا الجهاز.' : 'التطبيق مفتوح في نافذة أو تبويب آخر يمنع حذف التسجيلات.') +
+    '\nأغلق النوافذ الأخرى للتطبيق. سيكتمل الحذف تلقائيًا، وإن لم يكتمل فسيُعاد عند فتح التطبيق مرة أخرى قبل أي استعمال للتسجيلات.');
+  del.then(function(x){ if (x === 'ok'){ alert('اكتمل حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.'); location.reload(); } });
 }
 
 /* ===== 9.23: الاختبار النهائي النظري (70 سؤالًا تغطي كل المفاهيم) ===== */
@@ -2770,6 +2825,8 @@ async function uploadReplacementAudio(event, itemId){
   var file = event.target.files && event.target.files[0];
   event.target.value = '';
   if (!file) return;
+  /* 9.39.3 (R11): مسار رفع الملف يخضع لبوابة الموافقة نفسها التي يخضع لها الميكروفون */
+  if (!hasConsent()){ ensureConsent(function(){ alert('تم حفظ الموافقة. اختر الملف الصوتي مرة أخرى.'); }); return; }
   if (!isAudioFile(file)){ alert('اختر ملفًا صوتيًا صالحًا.'); return; }
   if (file.size > 12 * 1024 * 1024){ alert('حجم التسجيل كبير جدًا (أكثر من 12 ميجابايت). اختر تسجيلًا أقصر أو ملفًا مضغوطًا.'); return; }
   try {
@@ -3490,6 +3547,8 @@ function arabicReviewOrdinal(n){
 
 async function doExportStudent(exportKind){
   exportKind = exportKind || 'submission';
+  /* 9.39.3 (R11): لا إرسال لتسجيلات طفل دون موافقة ولي أمر سارية، أيًّا كان المسار الذي استُدعيت منه الدالة */
+  if (exportKind !== 'gift' && Object.keys(STATE.studentAudios || {}).length && !hasConsent()){ closeModal(); ensureConsent(function(){ doExportStudent(exportKind); }); return; }
   closeModal();
   var btn = $('btn-export-home');
   if (!btn) btn = $('btn-reexport');

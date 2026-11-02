@@ -1,4 +1,4 @@
-# اختبارات نسخة الويب والصفحة المضيفة (فتح ملف)، ومحاكاة جسر أندرويد، واختبارات انحدار مراجعة الخصم 9.39.2.
+# اختبارات نسخة الويب والصفحة المضيفة (فتح ملف)، ومحاكاة جسر أندرويد، واختبارات انحدار مراجعتي الخصم 9.39.2 و9.39.3.
 # التشغيل: python3 tools/build_web.py _site && RIFAQ_SITE=_site python3 tests/test_host_playwright.py
 # يعمل في CI قبل أي نشر أو إصدار (مهمة web-tests). يخرج برمز 1 عند أي فشل.
 import asyncio, json, re, os, base64, subprocess, sys, time, shutil, hashlib
@@ -81,6 +81,9 @@ def with_pack(path, pack, out):
     open(out, 'w', encoding='utf-8').write(src[:m.start(2)] + json.dumps(pack, ensure_ascii=False) + src[m.end(2):])
     return out
 
+def ev(target, js, *a):
+    return asyncio.wait_for(target.evaluate(js, *a), 20)
+
 async def main():
     srv = serve(SITE, PORT); BASE = f'http://localhost:{PORT}'
     srv2 = None
@@ -156,6 +159,112 @@ async def main():
             tP2 = await frP2.evaluate("GIFT_TRUST")
             rec('R2b pinned teacher key: genuine gift verified, tampered audio invalid', tP == 'verified' and tP2 == 'invalid', (tP, tP2))
             await ctxP.close()
+
+            # ===== 9.39.3: انحدار مراجعة الخصم المستقلة (RT9392-01..04) =====
+            # RT9392-01: علامة موضع المرساة داخل بيانات الملف لا تغيّر موضع الحقن (قائمة فارغة/غير فارغة/فشل التحميل)
+            ctxF, pF, _ = await ctx_page(b)
+            await pF.goto(BASE + '/open.html?src=app'); frF = await appframe(pF)
+            attacker = json.loads(await frF.evaluate("""(async()=>{let k=await getTeacherSigningKey();let p=JSON.parse(JSON.stringify(PACK_DATA));
+                Object.assign(p,{packageType:'approved_gift',approved:true,studentAudios:{},approvedStudentAudios:{},approvedPeerRecordings:[],trustedTeacherKeys:[k.publicJwk],
+                reviewerMarker:'var PINNED_TEACHER_KEYS = null; /* RIFAQ_PINNED_KEYS */'});await signGiftPack(p);return JSON.stringify(p)})()"""))
+            marker_gift = with_pack(gift, attacker, f'{OUT}/gift_marker.html')
+            await ctxF.close()
+            res = []
+            for base, route in [(BASE, None), (f'http://localhost:{PORT + 1}', None), (f'http://localhost:{PORT + 1}', 'abort')]:
+                ctxM, pM, _ = await ctx_page(b)
+                if route: await pM.route('**/trusted-teachers.json', lambda r: r.abort())
+                await pM.goto(base + '/open.html')
+                try:
+                    frM = await open_file(pM, marker_gift)
+                    res.append((await frM.evaluate("GIFT_TRUST"), await frM.evaluate("JSON.stringify(PINNED_TEACHER_KEYS)")))
+                except Exception as e:
+                    res.append(('noframe', str(e)[:40]))
+                if route:  # والإهداء الأصلي لا يُعدّ موثّقًا إن تعذّر تحميل المفاتيح (إغلاق آمن)
+                    await pM.click('#open-btn'); frM2 = await open_file(pM, gift); res.append((await frM2.evaluate("GIFT_TRUST"), await frM2.evaluate("JSON.stringify(PINNED_TEACHER_KEYS)")))
+                await ctxM.close()
+            rec('R8 RT9392-01 marker inside data cannot unpin trust (empty, pinned, fetch-failed)',
+                [r[0] for r in res] == ['untrusted'] * 4 and all(r[1] is not None and r[1].startswith('[') for r in res), res)
+            try:
+                # RT9392-02: كل حقل في الإهداء مغطى بالتوقيع؛ أي إضافة أو تغيير غير موقّع = invalid ولا يُعرض صوت الزملاء
+                WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='
+                def variant(fn, name):
+                    pk = pack_of(gift); fn(pk); return with_pack(gift, pk, f'{OUT}/{name}.html')
+                cases = [('legacy', lambda pk: pk.__setitem__('approvedStudentAudios', {'r2_1': {'audio': WAV, 'status': 'approved'}})),
+                         ('photo', lambda pk: pk['approvedPeerRecordings'][0].__setitem__('photo', 'data:image/png;base64,iVBORw0KGgo=')),
+                         ('sheikh', lambda pk: pk.__setitem__('sheikhName', 'اسم مزوّر')),
+                         ('downgrade', lambda pk: pk['signature'].pop('mv', None))]
+                ctxV, pV, errsV = await ctx_page(b)
+                await pV.goto(f'http://localhost:{PORT + 1}/open.html'); frV = await open_file(pV, gift)
+                k_audio = list(pack_of(gift)['approvedPeerRecordings'][0]['audios'])[0]
+                good = (await frV.evaluate("GIFT_TRUST"), bool(await frV.evaluate(f"peerAudioBlocks({json.dumps(k_audio)})")))
+                out = {}
+                for name, fn in cases:
+                    await pV.click('#open-btn'); frV = await open_file(pV, variant(fn, 'gift_' + name))
+                    out[name] = (await frV.evaluate("GIFT_TRUST"), await frV.evaluate(f"peerAudioBlocks({json.dumps(k_audio)}) + peerAudioBlocks('r2_1')"))
+                await ctxV.close()
+                rec('R9 RT9392-02 unsigned additions/changes rejected and not shown; genuine still verified',
+                    good == ('verified', True) and out['legacy'] == ('invalid', '') and out['photo'] == ('invalid', '') and out['sheikh'] == ('invalid', '') and out['downgrade'] == ('outdated', ''),
+                    (good, {k: (v[0], len(v[1])) for k, v in out.items()}))
+            except Exception as e:
+                rec('R9 (exception)', False, repr(e)[:200])
+            try:
+                # RT9392-03: حذف محجوب = لا إعلان نجاح، والبيانات لا تُكتب؛ ثم يكتمل فعليًا ويُعلن بعد إغلاق الاتصال الحاجب
+                ctxD3, pD3, _ = await ctx_page(b); msgs = []
+                pD3.on('dialog', lambda d: msgs.append(d.message))
+                await pD3.goto(BASE + '/open.html?src=app'); frD3 = await appframe(pD3)
+                await ev(frD3, "dbPut('probe', new Blob(['private-audio']))")
+                dbn = await ev(frD3, "DB_NAME")
+                await ev(pD3, "n=>new Promise(r=>{var q=indexedDB.open(n);q.onsuccess=()=>{window.holdDB=q.result;r(1)}})", dbn)
+                await ev(frD3, "setTimeout(deleteChildDataOnDevice, 0)"); await pD3.wait_for_timeout(7000)
+                present = await ev(pD3, "()=>new Promise(r=>{var q=holdDB.transaction('audios').objectStore('audios').get('probe');q.onsuccess=async()=>r(q.result?await q.result.text():null)})")
+                late = await ev(frD3, "dbPut('late', new Blob(['x'])).then(()=>'saved',()=>'refused')")
+                pend = await ev(frD3, "pendingDbDeletes()")
+                phase1 = (not any('تم حذف بيانات' in m for m in msgs), any('لم يكتمل' in m for m in msgs), present, late, dbn in pend)
+                await ev(pD3, "holdDB.close()"); await pD3.wait_for_timeout(2500)
+                gone = await ev(pD3, "n=>new Promise(r=>{var q=indexedDB.open(n);q.onupgradeneeded=()=>{};q.onsuccess=()=>{var has=q.result.objectStoreNames.contains('audios');q.result.close();r(!has)}})", dbn)
+                mark = await ev(pD3, "localStorage.getItem('rifaq_pending_db_delete_v1')")
+                phase2 = (any('اكتمل حذف' in m for m in msgs), gone, mark)
+                await ctxD3.close()
+                rec('R10 RT9392-03 blocked delete not announced, no late writes, completes for real afterwards',
+                    phase1 == (True, True, 'private-audio', 'refused', True) and phase2 == (True, True, None), (phase1, phase2))
+            except Exception as e:
+                rec('R10 (exception)', False, repr(e)[:200])
+            try:
+                # RT9392-04: حذف ملفات طفل لا يمسّ ملفات طفل آخر في الحزمة نفسها
+                ctxK, pK, _ = await ctx_page(b)
+                await pK.goto(BASE + '/open.html'); await pK.wait_for_timeout(500)
+                base_pk = pack_of(sub)
+                for nm, sid, pid in [('a1', 'child-A', 'shared-package'), ('b1', 'child-B', 'shared-package'), ('a2', 'child-A', 'other-package'), ('f0', '', 'shared-package'), ('f9', '', 'third-package')]:
+                    q = json.loads(json.dumps(base_pk)); q.update(studentId=sid, studentName=sid or 'بلا', packageId=pid, signature=None)
+                    if not sid: q['packageType'] = 'student_fresh'
+                    await pK.evaluate('(x)=>RIFAQ_HOST.openText(x.n, x.t)', {'n': nm + '.html', 't': open(with_pack(sub, q, f'{OUT}/k_{nm}.html'), encoding='utf-8').read()})
+                    await pK.wait_for_timeout(300)
+                listing = """async(a)=>{let c=()=>new Promise(r=>{let o=indexedDB.open('rifaq_host_v1');o.onsuccess=()=>{let q=o.result.transaction('recent').objectStore('recent').getAll();
+                    q.onsuccess=()=>{o.result.close();r(q.result.map(x=>{let p=JSON.parse(x.json);return (p.studentId||'-')+'@'+p.packageId}).sort())}}});
+                    let before=await c(); let n=await RIFAQ_HOST.forgetPack(a[0],a[1]); return [before,n,await c()]}"""
+                r1 = await pK.evaluate(listing, ['shared-package', 'child-A'])
+                r2 = await pK.evaluate(listing, ['third-package', None])
+                await ctxK.close()
+                rec('R11 RT9392-04 forgetPack removes only that child (all its packages) + identity-less file of the package',
+                    len(r1[0]) == 5 and r1[2] == ['-@third-package', 'child-B@shared-package'] and r2[2] == ['child-B@shared-package'], (r1, r2))
+
+            except Exception as e:
+                rec('R11 (exception)', False, repr(e)[:200])
+            # R11 (التقرير الأول): رفع ملف بديل والإرسال يخضعان لبوابة الموافقة على مستوى الدالة
+            try:
+                ctxC, pC, _ = await ctx_page(b); dls = []
+                pC.on('download', lambda d: dls.append(d))
+                await pC.goto(BASE + '/open.html?src=app'); frC = await appframe(pC)
+                await frC.evaluate("""STATE.student={name:'بلا موافقة',gender:'boy',id:'stu_x',consent:null};STATE.role='student';STATE.studentAudios={r2_1:{status:'pending',updatedAt:Date.now()}};save()""")
+                await frC.evaluate("doExportStudent('submission')"); await pC.wait_for_timeout(1500)
+                gate1 = await frC.evaluate("!!document.getElementById('consent-name')")
+                await frC.evaluate("closeModal()")
+                up = await frC.evaluate("""(async()=>{let f=new File([new Uint8Array(400)],'a.webm',{type:'audio/webm'});let put=0;let o=dbPut;dbPut=async function(){put++;return o.apply(this,arguments)};
+                    await uploadReplacementAudio({target:{files:[f],value:''}},'r3_1');dbPut=o;return [put,!!document.getElementById('consent-name')]})()""")
+                await ctxC.close()
+                rec('R12 R11 consent gate enforced in export and file-upload functions', gate1 and not dls and up == [0, True], (gate1, len(dls), up))
+            except Exception as e:
+                rec('R12 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]

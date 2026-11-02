@@ -127,29 +127,35 @@
     return pinnedPromise;
   }
   var PIN_RE = /var PINNED_TEACHER_KEYS = [^\n]*?; \/\* RIFAQ_PINNED_KEYS \*\//;
-  /* يحقن مرساة الثقة ويعيد حساب تجزئة السكربت في CSP (بالطريقة نفسها التي يصدّر بها التطبيق) */
-  function finalizeHtml(html) {
+  /* 9.39.3 (RT9392-01): مرساة الثقة تُحقن في القالب الموثوق قبل إدخال أي بيانات من الملف المفتوح،
+     فلا يمكن لنص داخل البيانات أن يطابق موضع الحقن. القالب يجب أن يحوي الموضع مرة واحدة بالضبط. */
+  function pinTemplate(tpl) {
     return getPinned().then(function (keys) {
-      if (!PIN_RE.test(html)) throw new Error('template has no trust anchor slot');
+      var n = (tpl.match(new RegExp(PIN_RE.source, 'g')) || []).length;
+      if (n !== 1) throw new Error('template trust anchor slot count = ' + n);
       var pinned = JSON.stringify(keys).replace(/<\//g, '<\\/');
-      html = html.replace(PIN_RE, function () { return 'var PINNED_TEACHER_KEYS = ' + pinned + '; /* RIFAQ_PINNED_KEYS */'; });
-      var a = html.indexOf('<script>'), b = html.lastIndexOf('</script>');
-      if (a < 0 || b < a) throw new Error('template script not found');
-      return sha256b64(html.substring(a + 8, b)).then(function (h) {
-        return html.replace(/script-src 'sha256-[A-Za-z0-9+\/=_-]+';/, "script-src 'sha256-" + h + "';");
-      });
+      return tpl.replace(PIN_RE, function () { return 'var PINNED_TEACHER_KEYS = ' + pinned + '; /* RIFAQ_PINNED_KEYS */'; });
     });
   }
+  /* يعيد حساب تجزئة السكربت في CSP (بالطريقة نفسها التي يصدّر بها التطبيق) */
+  function rehashCsp(html) {
+    var a = html.indexOf('<script>'), b = html.lastIndexOf('</script>');
+    if (a < 0 || b < a) return Promise.reject(new Error('template script not found'));
+    return sha256b64(html.substring(a + 8, b)).then(function (h) {
+      return html.replace(/script-src 'sha256-[A-Za-z0-9+\/=_-]+';/, "script-src 'sha256-" + h + "';");
+    });
+  }
+  function trustedTemplate() { return getTemplate().then(pinTemplate); }
 
-  /* يحقن البيانات في القالب */
+  /* يحقن البيانات في القالب (بعد تثبيت مرساة الثقة) */
   function buildHtml(pack) {
-    return getTemplate().then(function (tpl) {
+    return trustedTemplate().then(function (tpl) {
       var json = JSON.stringify(pack).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--')
         .replace(/[\u2028\u2029]/g, function (c) { return c === '\u2028' ? '\\u2028' : '\\u2029'; });
       var html = tpl.replace(PACK_RE, function () {
         return '/* ===PACK_DATA_START=== */\nvar PACK_DATA = ' + json + ';\n/* ===PACK_DATA_END=== */';
       });
-      return finalizeHtml(html);
+      return rehashCsp(html);
     });
   }
 
@@ -190,7 +196,7 @@
       return;
     }
     loading.hidden = false; panel.hidden = true;
-    getTemplate().then(finalizeHtml).then(function (html) { showHtml(html, 'تطبيق الطالب والمعلم'); })
+    trustedTemplate().then(rehashCsp).then(function (html) { showHtml(html, 'تطبيق الطالب والمعلم'); })
       .catch(function (e) { showError('تعذّر فتح التطبيق: ' + (e && e.message || e)); });
   }
 
@@ -268,8 +274,14 @@
   /* 9.39.2: يستدعيه التطبيق عند «حذف بيانات الطالب» وعند «تم الحذف» لدى المعلم */
   function forgetPack(packageId, studentId) {
     return listRecent().then(function (all) {
+      /* 9.39.3 (RT9392-04): هوية الطفل حاسمة. مع studentId تُحذف ملفاته هو وحده (في أي حزمة)، إضافةً إلى ملف الحزمة
+         نفسها الذي لا يحمل هوية أي طفل. لا تتسع مطابقة الحزمة أبدًا إلى ملفات طفل آخر. */
       var gone = all.filter(function (r) {
-        try { var p = JSON.parse(r.json); return (packageId && p.packageId === packageId) || (studentId && p.studentId === studentId); } catch (e) { return false; }
+        try {
+          var p = JSON.parse(r.json), sid = p && p.studentId ? String(p.studentId) : '';
+          if (studentId) return sid === String(studentId) || (!sid && !!packageId && p.packageId === packageId);
+          return !sid && !!packageId && p.packageId === packageId;
+        } catch (e) { return false; }
       });
       if (!gone.length) return 0;
       return tx('readwrite', function (s) { gone.forEach(function (r) { s.delete(r.id); }); }).then(function () { return gone.length; });
