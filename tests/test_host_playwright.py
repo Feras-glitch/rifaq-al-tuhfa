@@ -326,8 +326,8 @@ async def main():
             try:
                 ctxQ, pQ, _ = await ctx_page(b)
                 await pQ.goto(BASE + '/open.html?src=app'); fQ = await appframe(pQ)
-                r15 = await ev(fQ, """(()=>{var T='2026-10-01T10:00:00.000Z'; PACK_DATA.studentAudios={r2_1:{status:'approved',v:T}, r3_1:{status:'rejected',v:T}, r3_2:{status:'approved'}};
-                    STATE.studentAudios={r2_1:{status:'pending',updatedAt:T}, r3_1:{status:'pending',updatedAt:'2026-10-02T10:00:00.000Z'}, r3_2:{status:'pending',updatedAt:T}};
+                r15 = await ev(fQ, """(()=>{var T='2026-10-01T10:00:00.000Z'; PACK_DATA.studentAudios={r2_1:{status:'approved',v:'rec_same1'}, r3_1:{status:'rejected',v:T}, r3_2:{status:'approved'}}; /* 9.39.8: «النسخة نفسها» = المعرّف نفسه */
+                    STATE.studentAudios={r2_1:{status:'pending',updatedAt:T,rid:'rec_same1'}, r3_1:{status:'pending',updatedAt:'2026-10-02T10:00:00.000Z'}, r3_2:{status:'pending',updatedAt:T}};
                     syncPackStatuses(); return [STATE.studentAudios.r2_1.status, STATE.studentAudios.r3_1.status, STATE.studentAudios.r3_2.status]})()""")
                 await ctxQ.close()
                 rec('R15 R03 teacher decision applies to the same recording version; newer re-recording stays pending', r15 == ['approved', 'pending', 'pending'], r15)
@@ -438,11 +438,35 @@ async def main():
                   STATE.studentAudios={same:{status:'pending',updatedAt:T}, older:{status:'pending',updatedAt:'2026-11-02T11:00:00.000Z'}, newer:{status:'pending',updatedAt:'2026-11-02T13:00:00.000Z'},
                     otherRid:{status:'pending',updatedAt:T}, noV:{status:'pending',updatedAt:T}};
                   syncPackStatuses(); return ['same','older','newer','otherRid','noV'].map(k=>STATE.studentAudios[k].status); })()""")
+                # 9.39.8: تساوي الوقت وحده (بلا صوت للمقارنة) لا يكفي، فيبقى «same» قيد المراجعة أيضًا؛ انظر R21 لمطابقة الصوت
+                await pL.wait_for_timeout(300)
+                r20 = await ev(fL, "['same','older','newer','otherRid','noV'].map(k=>STATE.studentAudios[k].status)")
                 await ctxL.close()
-                rec('R20 legacy recordings without rid: exact-match decision only (older/newer clock stay pending)',
-                    r20 == ['approved', 'pending', 'pending', 'pending', 'pending'], r20)
+                rec('R20 legacy recordings without rid: no ordering comparison; equal time alone does not approve',
+                    r20 == ['pending', 'pending', 'pending', 'pending', 'pending'], r20)
             except Exception as e:
                 rec('R20 (exception)', False, repr(e)[:200])
+
+            # R21 (9.39.8): التسجيل القديم بلا rid بوقت مطابق: يُعتمد فقط إن طابقت بصمة صوته الصوت المعتمد
+            try:
+                ctxH, pH, _ = await ctx_page(b)
+                await pH.goto(BASE + '/open.html?src=app'); fH = await appframe(pH)
+                r21 = await ev(fH, """(async()=>{ const T='2026-11-02T12:00:00.000Z';
+                  const wav=n=>{ const u=new Uint8Array(64); for(let i=0;i<64;i++) u[i]=(i*n)&255; return u; };
+                  const b64=u=>{ let s=''; u.forEach(c=>s+=String.fromCharCode(c)); return 'data:audio/wav;base64,'+btoa(s); };
+                  const A=wav(3), B=wav(7);
+                  await dbPut('legSame', new Blob([A],{type:'audio/wav'})); await dbPut('legDiff', new Blob([B],{type:'audio/wav'})); await dbPut('legNoPackAudio', new Blob([A],{type:'audio/wav'}));
+                  PACK_DATA.packageType='student_returned';
+                  PACK_DATA.studentAudios={legSame:{status:'approved',v:T,audio:b64(A)}, legDiff:{status:'approved',v:T,audio:b64(A)}, legNoPackAudio:{status:'approved',v:T}, legNoBlob:{status:'approved',v:T,audio:b64(A)}};
+                  STATE.studentAudios={legSame:{status:'pending',updatedAt:T}, legDiff:{status:'pending',updatedAt:T}, legNoPackAudio:{status:'pending',updatedAt:T}, legNoBlob:{status:'pending',updatedAt:T}};
+                  syncPackStatuses();
+                  if (typeof reconcileLegacyDecisions === 'function') await reconcileLegacyDecisions(); else await new Promise(r=>setTimeout(r,500));
+                  return ['legSame','legDiff','legNoPackAudio','legNoBlob'].map(k=>STATE.studentAudios[k].status); })()""")
+                await ctxH.close()
+                rec('R21 RT9397-01 equal time: identical audio approved; different audio, or nothing to compare, stays pending',
+                    r21 == ['approved', 'pending', 'pending', 'pending'], r21)
+            except Exception as e:
+                rec('R21 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]

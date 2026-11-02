@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-o2hTvJ2QHp0CsYA9seLAiQFtjQ5ALuMAVMR3eDOm0QE='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-dx8P6ypmkA5PTJxjcs1Bi5OnHhTO8dp1rVgNMd5aKqM='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -1242,7 +1242,7 @@ function load(){
 function syncPackStatuses(){
   // In an approved gift, inherited recordings are reference material only.
   if (PACK_DATA.packageType === 'approved_gift') return;
-  var packRecords = PACK_DATA.studentAudios || {};
+  var packRecords = PACK_DATA.studentAudios || {}, needCheck = false;
   STATE.studentAudios = STATE.studentAudios || {};
   Object.keys(packRecords).forEach(function(id){
     var fromPack = packRecords[id] || {};
@@ -1250,8 +1250,10 @@ function syncPackStatuses(){
     // 9.39.5 (R03): التسجيل المحلي يبقى «قيد المراجعة» فقط إن كان أحدث من النسخة التي قرّر فيها المعلم (v).
     // إن كان القرار على النسخة نفسها أو أحدث منها يُطبَّق القرار. الحزم القديمة بلا v تبقى على السلوك السابق.
     if (isNewerLocalRecording(local, fromPack)) return; // 9.39.6: بالمعرّف لا بالساعة
+    if (legacyNeedsAudioCheck(local, fromPack)) { needCheck = true; return; } // 9.39.8: لا قرار قبل مطابقة الصوت
     STATE.studentAudios[id] = {status: fromPack.status || 'pending', v: fromPack.v || ''};
   });
+  if (needCheck) setTimeout(function(){ reconcileLegacyDecisions(); }, 0);
 }
 /* 9.39.5 (R12): إذا وُجد على الجهاز طالب بالاسم نفسه يُسأل المستخدم: هل هو نفسه؟ وإلا يُنشأ ملف مستقل بمعرّف جديد */
 function chooseProfileForName(name){
@@ -1357,6 +1359,37 @@ function isNewerLocalRecording(local, fromPack){
      الحزم الأقدم من 9.39.5 بلا v تبقى على سلوكها السابق (التسجيل المحلي يبقى قيد المراجعة). */
   var pv = fromPack && fromPack.v ? String(fromPack.v) : '';
   return !pv || pv !== String(local.updatedAt);
+}
+/* 9.39.8 (RT9397-01): تساوي الوقت لا يثبت تطابق الصوت. التسجيل القديم بلا rid ذو الوقت المطابق يبقى «قيد المراجعة»
+   حتى تُقارن بصمة صوته المحفوظ على الجهاز ببصمة الصوت الذي قرّر فيه المعلم؛ فإن تطابقتا طُبِّق القرار، وإلا بقي قيد المراجعة */
+function legacyNeedsAudioCheck(local, fromPack){
+  return !!(local && local.status === 'pending' && !local.rid && local.updatedAt && fromPack && fromPack.v && String(fromPack.v) === String(local.updatedAt));
+}
+async function sha256OfBytes(u8){ var d = await crypto.subtle.digest('SHA-256', u8); return b64FromBytes(new Uint8Array(d)); }
+var _legacyReconcile = null;
+function reconcileLegacyDecisions(){
+  if (_legacyReconcile) return _legacyReconcile;
+  _legacyReconcile = (async function(){
+    var packRecords = PACK_DATA.studentAudios || {}, changed = 0;
+    var ids = Object.keys(packRecords).filter(function(id){ return legacyNeedsAudioCheck(STATE.studentAudios && STATE.studentAudios[id], packRecords[id]); });
+    for (var i = 0; i < ids.length; i++){
+      var id = ids[i], fp = packRecords[id];
+      try {
+        var m = /^data:[^,]*;base64,(.*)$/.exec(String(fp.audio || ''));
+        if (!m) continue; // لا صوت في الحزمة للمقارنة: يبقى قيد المراجعة
+        var blob = await dbGet(id);
+        if (!blob) continue; // لا صوت محلي للمقارنة: يبقى قيد المراجعة
+        var a = await sha256OfBytes(new Uint8Array(await blob.arrayBuffer()));
+        var b = await sha256OfBytes(bytesFromB64(m[1]));
+        var cur = STATE.studentAudios[id];
+        if (a === b && legacyNeedsAudioCheck(cur, fp)){ STATE.studentAudios[id] = {status: fp.status || 'pending', v: fp.v || ''}; changed++; }
+      } catch(e){ console.warn('legacy decision check failed', id, e); }
+    }
+    if (changed){ save(); try { if ($('view-home') && !$('view-home').classList.contains('hidden')) renderHome(); } catch(e){} }
+    return changed;
+  })();
+  _legacyReconcile.then(function(){ _legacyReconcile = null; }, function(){ _legacyReconcile = null; });
+  return _legacyReconcile;
 }
 function newStudentId(){
   try { if (window.crypto && crypto.randomUUID) return 'stu_' + crypto.randomUUID(); } catch(e) {}
