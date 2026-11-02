@@ -229,6 +229,36 @@ async def main():
                     phase1 == (True, True, 'private-audio', 'refused', True) and phase2 == (True, True, None), (phase1, phase2))
             except Exception as e:
                 rec('R10 (exception)', False, repr(e)[:200])
+            # RT9393-01: الحذف محمي عبر النوافذ وإعادة التحميل، وطفل آخر يبقى سليمًا
+            try:
+                ctxW, pW1, _ = await ctx_page(b); msgsW = []
+                pW1.on('dialog', lambda d: msgsW.append(d.message))
+                await pW1.goto(BASE + '/open.html?src=app'); fW1 = await appframe(pW1)
+                await ev(fW1, "STATE.student.name='طفل الاختبار';STATE.progress={probe:{score:100}};save();dbPut('probe',new Blob(['private']))")
+                keys = await ev(fW1, "[DB_NAME, STORAGE_KEY, STORAGE_BASE + '_other', DB_BASE + '_other']")
+                # طفل آخر على الجهاز نفسه (حالة + قاعدة صوت)
+                await ev(pW1, """k=>new Promise(r=>{localStorage.setItem(k[2],'{"keep":1}');var q=indexedDB.open(k[3],1);q.onupgradeneeded=()=>q.result.createObjectStore('audios');
+                    q.onsuccess=()=>{var t=q.result.transaction('audios','readwrite');t.objectStore('audios').put('other-audio','x');t.oncomplete=()=>{q.result.close();r(1)}}})""", keys)
+                pW2 = await ctxW.new_page(); pW2.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+                await pW2.goto(BASE + '/open.html?src=app'); fW2 = await appframe(pW2)
+                await ev(pW1, "n=>new Promise(r=>{var q=indexedDB.open(n);q.onsuccess=()=>{window.holdW=q.result;r(1)}})", keys[0])
+                await ev(fW1, "setTimeout(deleteChildDataOnDevice, 0)"); await pW1.wait_for_timeout(7000)
+                fW2 = await appframe(pW2)
+                w2 = await ev(fW2, "[STATE.student && STATE.student.name || '', save(), (typeof isCurrentChildDeleted === 'function' ? isCurrentChildDeleted() : CHILD_DATA_DELETED)]")
+                st_after_w2 = await ev(pW1, "k=>localStorage.getItem(k)", keys[1])
+                await ev(fW1, "location.reload()"); await pW1.wait_for_timeout(1500); fW1 = await appframe(pW1)
+                w1 = await ev(fW1, "[STATE.student && STATE.student.name || '', save(), CHILD_DATA_DELETED, dbPut('late',new Blob(['x'])).then(()=>'saved',()=>'refused')]")
+                w1[3] = await ev(fW1, "dbPut('late',new Blob(['x'])).then(()=>'saved',()=>'refused')")
+                await ev(pW1, "holdW.close()"); await pW1.wait_for_timeout(2500)
+                fin = await ev(pW1, """k=>new Promise(r=>{indexedDB.databases().then(ds=>{var names=ds.map(d=>d.name);
+                    var q=indexedDB.open(k[3]);q.onsuccess=()=>{var g=q.result.transaction('audios').objectStore('audios').get('x');g.onsuccess=()=>{q.result.close();
+                    r({mineGone:names.indexOf(k[0])<0, state:localStorage.getItem(k[1]), tomb:localStorage.getItem('rifaq_pending_db_delete_v1'), otherState:localStorage.getItem(k[2]), otherAudio:g.result})}}})})""", keys)
+                await ctxW.close()
+                okW = (w2[0] == '' and w2[1] is False and w2[2] is True and st_after_w2 is None and w1[:3] == ['', False, True] and w1[3] == 'refused'
+                       and fin == {'mineGone': True, 'state': None, 'tomb': None, 'otherState': '{"keep":1}', 'otherAudio': 'other-audio'} and any('اكتمل حذف' in m for m in msgsW))
+                rec('R13 RT9393-01 deletion holds across windows and reload; other child intact', okW, (w2, st_after_w2, w1, fin))
+            except Exception as e:
+                rec('R13 (exception)', False, repr(e)[:200])
             try:
                 # RT9392-04: حذف ملفات طفل لا يمسّ ملفات طفل آخر في الحزمة نفسها
                 ctxK, pK, _ = await ctx_page(b)

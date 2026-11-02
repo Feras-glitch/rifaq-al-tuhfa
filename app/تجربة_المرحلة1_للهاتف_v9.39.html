@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-I7sY+eE8f2DtFtAVvePTG/HMAbWdzWcStzS/wqoAm6s='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-PwOp0bbf/haIG0G5z0oMYCCqu1abqV6aIsq9gRnwgJo='; style-src 'sha256-1nhTvxz0D2VfuOrB5bIXtRNuyyyskxaRhi+4XmexdNg='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -1190,7 +1190,7 @@ function normalizeState(raw){
   return base;
 }
 function save(){
-  if (CHILD_DATA_DELETED) return false; // 9.39.3: لا حفظ متأخر يعيد بيانات طفل حُذفت
+  if (isCurrentChildDeleted()) return false; // 9.39.4: العلامة الدائمة تُفحص في كل نافذة، لا متغير هذه النافذة وحدها
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
     return true;
@@ -1235,20 +1235,36 @@ var STORE = 'audios';
 var _dbConn = null, _dbConnName = null;
 /* 9.39.3 (RT9392-03): حذف قاعدة التسجيلات لا يُعدّ ناجحًا إلا عند onsuccess. علامة الحذف المعلّق تبقى حتى يكتمل،
    وأي فتح لاحق للقاعدة ينتظر اكتمال الحذف أولًا فلا تعود البيانات ولا تُكتب فوقها */
+/* 9.39.4 (RT9393-01): علامة الحذف دائمة ومشتركة بين النوافذ: تحمل قاعدة الصوت ومفتاح الحالة معًا، وتُفحص عند الإقلاع
+   وعند كل حفظ أو كتابة صوت في أي نافذة، ويُبلَّغ بها كل نافذة مفتوحة عبر حدث storage. لا يكفي متغير في ذاكرة نافذة واحدة. */
 var PENDING_DEL_KEY = 'rifaq_pending_db_delete_v1';
 var CHILD_DATA_DELETED = false;
 var _dbDeleting = {};
-function pendingDbDeletes(){ try { var a = JSON.parse(localStorage.getItem(PENDING_DEL_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
-function markPendingDbDelete(name, on){
-  try { var a = pendingDbDeletes().filter(function(x){ return x !== name; }); if (on) a.push(name);
-    if (a.length) localStorage.setItem(PENDING_DEL_KEY, JSON.stringify(a)); else localStorage.removeItem(PENDING_DEL_KEY); } catch(e){}
+function readTombs(){
+  try { var a = JSON.parse(localStorage.getItem(PENDING_DEL_KEY) || '[]'); if (!Array.isArray(a)) return [];
+    return a.map(function(x){ return typeof x === 'string' ? {d: x, s: null} : (x && typeof x.d === 'string' ? {d: x.d, s: typeof x.s === 'string' ? x.s : null, at: x.at} : null); }).filter(Boolean);
+  } catch(e){ return []; }
 }
-function deleteDbFully(name){
+function writeTombs(a){ try { if (a.length) localStorage.setItem(PENDING_DEL_KEY, JSON.stringify(a)); else localStorage.removeItem(PENDING_DEL_KEY); } catch(e){} }
+function pendingDbDeletes(){ return readTombs().map(function(t){ return t.d; }); }
+function tombFor(dbName, stateKey){ return readTombs().some(function(t){ return t.d === dbName || (!!stateKey && t.s === stateKey); }); }
+function isCurrentChildDeleted(){ return CHILD_DATA_DELETED || tombFor(DB_NAME, STORAGE_KEY); }
+function markPendingDbDelete(name, on, stateKey){
+  var a = readTombs().filter(function(t){ return t.d !== name; });
+  if (on) a.push({d: name, s: stateKey || null, at: Date.now()});
+  writeTombs(a);
+}
+function deleteDbFully(name, stateKey){
   if (_dbDeleting[name]) return _dbDeleting[name];
-  markPendingDbDelete(name, true);
+  var prev = readTombs().filter(function(t){ return t.d === name; })[0];
+  stateKey = stateKey || (prev && prev.s) || null;
+  markPendingDbDelete(name, true, stateKey);
   _dbDeleting[name] = new Promise(function(res, rej){
     var req = indexedDB.deleteDatabase(name);
-    req.onsuccess = function(){ markPendingDbDelete(name, false); delete _dbDeleting[name]; res(true); };
+    req.onsuccess = function(){
+      try { if (stateKey) localStorage.removeItem(stateKey); } catch(e){} // حالة ربما أعادت نافذة أخرى كتابتها قبل أن تعلم بالحذف
+      markPendingDbDelete(name, false); delete _dbDeleting[name]; res(true);
+    };
     req.onerror = function(){ delete _dbDeleting[name]; rej(req.error || new Error('delete failed')); };
     req.onblocked = function(){ console.warn('indexedDB delete blocked: another connection is open'); };
   });
@@ -1281,7 +1297,7 @@ function newStudentId(){
   return 'stu_' + a;
 }
 async function dbPut(key, blob){
-  if (CHILD_DATA_DELETED) throw new Error('child data deleted on this device');
+  if (isCurrentChildDeleted()) throw new Error('child data deleted on this device');
   var db = await openDB();
   return new Promise(function(res, rej){
     var tx = db.transaction(STORE,'readwrite');
@@ -2200,6 +2216,7 @@ async function deleteChildDataOnDevice(){
   if (!confirm('تأكيد نهائي: لا يمكن استرجاع هذه البيانات من الجهاز. متابعة؟')) return;
   CHILD_DATA_DELETED = true;
   var dbName = DB_NAME;
+  markPendingDbDelete(dbName, true, STORAGE_KEY); // أولًا: العلامة الدائمة، فلا تعيد نافذة أخرى كتابة الحالة بعد مسحها
   try { if (typeof _dbConn !== 'undefined' && _dbConn){ var db = await _dbConn; try { db.close(); } catch(e){} } } catch(e){}
   _dbConn = null; _dbConnName = null;
   try {
@@ -2208,7 +2225,7 @@ async function deleteChildDataOnDevice(){
   } catch(e){}
   await forgetInHost(PACK_DATA.packageId || PACKAGE_ID, PACK_DATA.studentId || (STATE.student && STATE.student.id) || null);
   /* 9.39 (R04) + 9.39.3 (RT9392-03): لا إعلان نجاح إلا بعد onsuccess الفعلي لحذف قاعدة التسجيلات */
-  var del = deleteDbFully(dbName).then(function(){ return 'ok'; }, function(){ return 'error'; });
+  var del = deleteDbFully(dbName, STORAGE_KEY).then(function(){ return 'ok'; }, function(){ return 'error'; });
   var r = await Promise.race([del, new Promise(function(res){ setTimeout(function(){ res('pending'); }, 6000); })]);
   if (r === 'ok'){ alert('تم حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.'); location.reload(); return; }
   alert('⚠️ الحذف لم يكتمل بعد: ' + (r === 'error' ? 'تعذّر حذف قاعدة التسجيلات على هذا الجهاز.' : 'التطبيق مفتوح في نافذة أو تبويب آخر يمنع حذف التسجيلات.') +
@@ -3994,7 +4011,27 @@ function toast(m){
   setTimeout(function(){ e.remove(); }, 3000);
 }
 
+/* 9.39.4 (RT9393-01): استئناف كل حذف معلّق عند الإقلاع (لا عند فتح القاعدة فقط)، ومنع هذه النافذة من استعادة طفل محذوف */
+function resumePendingDeletions(){
+  var tombs = readTombs(); if (!tombs.length) return;
+  var mine = tombFor(DB_NAME, STORAGE_KEY);
+  if (mine) CHILD_DATA_DELETED = true;
+  tombs.forEach(function(t){
+    try { if (t.s) localStorage.removeItem(t.s); } catch(e){}
+    deleteDbFully(t.d, t.s).then(function(){ if (mine && (t.d === DB_NAME || t.s === STORAGE_KEY)){ alert('اكتمل حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.'); location.reload(); } }, function(e){ console.warn('pending delete failed', e); });
+  });
+  if (mine) setTimeout(function(){ if (tombFor(DB_NAME, STORAGE_KEY)) { try { showModal('⏳ حذف بيانات الطالب لم يكتمل', 'التطبيق مفتوح في نافذة أو تبويب آخر يمنع الحذف. أغلق النوافذ الأخرى؛ سيكتمل الحذف تلقائيًا. لن يُحفظ شيء لهذا الطالب حتى يكتمل.', [{label: 'حسنًا', class: 'primary', action: closeModal}]); } catch(e){} } }, 1200);
+}
+window.addEventListener('storage', function(e){
+  if (e.key !== PENDING_DEL_KEY || CHILD_DATA_DELETED || !tombFor(DB_NAME, STORAGE_KEY)) return;
+  CHILD_DATA_DELETED = true;
+  try { if (_dbConn) _dbConn.then(function(db){ try { db.close(); } catch(x){} }, function(){}); } catch(x){}
+  _dbConn = null; _dbConnName = null;
+  alert('حُذفت بيانات هذا الطالب من نافذة أخرى على هذا الجهاز. سيُعاد فتح التطبيق.');
+  location.reload();
+});
 (async function boot(){
+  resumePendingDeletions();
   load();
   setTimeout(showDueReviewBanner, 1200);
   if (PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true){
