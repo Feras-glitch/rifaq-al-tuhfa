@@ -39,3 +39,8 @@ body{font:16px/1.8 "Segoe UI",Tahoma,Arial,sans-serif;background:#eef1fa;color:v
 .toast{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));right:50%;transform:translateX(50%);max-width:92vw;background:#1b2440;color:#fff;padding:10px 16px;border-radius:12px;z-index:20;font-size:.92rem;box-shadow:0 6px 18px #0005;white-space:pre-line;text-align:center}
 [hidden]{display:none!important}
 .r-clear{margin-top:10px;font:inherit;font-size:.88rem;background:#fff;border:1px solid #ef9a9a;color:#b71c1c;border-radius:10px;padding:6px 12px;cursor:pointer}
+
+/* 9.39.10: شرح الأنواع مطويّ، و«الملفات الأخيرة» قبله حتى لا يمرّر المعلم العائد كل مرة */
+.kinds-box{margin:14px 0 0}
+.kinds-box summary{cursor:pointer;font-weight:700;color:var(--muted);padding:8px 0;min-height:44px}
+.kinds-box .kinds{margin-top:8px}

@@ -1,6 +1,7 @@
 # اختبارات نسخة الويب والصفحة المضيفة (فتح ملف)، ومحاكاة جسر أندرويد، واختبارات انحدار مراجعتي الخصم 9.39.2 و9.39.3.
 # التشغيل: python3 tools/build_web.py _site && RIFAQ_SITE=_site python3 tests/test_host_playwright.py
 # يعمل في CI قبل أي نشر أو إصدار (مهمة web-tests). يخرج برمز 1 عند أي فشل.
+GIFT_EXPORT_JS = "(function(){ exportApprovedPack(); (function w(n){ var m=document.getElementById('modal'); var b=Array.prototype.slice.call(document.querySelectorAll('#modal-actions button')).filter(function(x){ return x.textContent.indexOf('إصدار الإهداء')>=0; })[0]; if (b && m && !m.classList.contains('hidden')){ window.__giftMsg=document.getElementById('modal-body').textContent; b.click(); } else if (n<150) setTimeout(function(){ w(n+1); },100); })(0); })()"  # 9.39.10: بيان الإهداء في نافذة التطبيق لا في confirm
 import asyncio, json, re, os, base64, subprocess, sys, time, shutil, hashlib
 from playwright.async_api import async_playwright
 
@@ -119,7 +120,7 @@ async def main():
             rec('R7 «تم الحذف» (markRosterDeleted) is callable', 'markRosterDeleted' in allow, len(allow))
             await frT.fill('#review-teacher-name', 'الشيخ محمود')
             await frT.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await frT.wait_for_timeout(300)
-            gift = await export_from(pT, frT, "exportApprovedPack()", f'{OUT}/gift.html')
+            gift = await export_from(pT, frT, GIFT_EXPORT_JS, f'{OUT}/gift.html')
             teacher_jwk = json.loads(await frT.evaluate("keyDbGet(SIG_KEY_ID).then(r=>JSON.stringify(r.publicJwk))"))
             rec('H5 teacher exports signed gift', os.path.getsize(gift) > 100000 and not errsT and pack_of(gift).get('signature'), errsT[:3])
             await pT.goto(BASE + '/open.html'); await pT.wait_for_timeout(600)
@@ -354,7 +355,8 @@ async def main():
                 await ev(fG, "w=>{PACK_DATA.studentAudios.r3_1={audio:w,status:'pending'}}", WAV5)
                 await fG.fill('#review-teacher-name', 'الشيخ محمود')
                 await fG.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await fG.wait_for_timeout(300)
-                giftP = await export_from(pG, fG, "exportApprovedPack()", f'{OUT}/gift_partial.html')
+                giftP = await export_from(pG, fG, GIFT_EXPORT_JS, f'{OUT}/gift_partial.html')
+                msgsG.append(await fG.evaluate("window.__giftMsg || ''"))
                 await ctxG.close()
                 gp = pack_of(giftP); gc = gp.get('giftContents') or {}
                 peers = sorted(k for g in gp.get('approvedPeerRecordings', []) for k in g.get('audios', {}))
@@ -493,6 +495,140 @@ async def main():
                     r22 == [['stu_B', 'pending'], 'pending', ['stu_A', 'approved']], r22)
             except Exception as e:
                 rec('R22 (exception)', False, repr(e)[:200])
+
+            # ===== 9.39.10: المراجعة الشاملة (لا قرار مالك) =====
+            # R23: تصحيحات المادة العلمية وصلت إلى القالب المنشور
+            try:
+                tpl = os.path.join(SITE, 'app', 'template.txt')
+                cur = pack_of(tpl)['curriculum']; ttxt = open(tpl, encoding='utf-8').read()
+                allq = {x['id']: x for s_ in cur for x in s_.get('items', []) + s_['questions']}
+                poems = ' '.join(x['text'] for s_ in cur for x in s_.get('items', []) if x.get('type') == 'poem')
+                chk = {
+                    'kilma': poems.count('كِلْمَةٍ') == 4 and 'كَلِمَةٍ' not in poems,
+                    'meter': all(w not in poems for w in ['قَمَرِيَّهْ', 'مِنْ إِبْغِ', 'وَرَمْزُهَا', 'وَايْ ', 'وَعَيْنٌ', 'الثُّلَاثِيِّ']),
+                    'lamfil': allq['q8_3']['answer'] is False and 'تظهر دائمًا' not in allq['s8_lam_matn']['desc'],
+                    'akmal': '{أكمل|أكملي} ما تكون' not in json.dumps(cur, ensure_ascii=False),
+                    'honorific': not any('ﷺ' in o for o in allq['q13_3']['options']),
+                    'seq': all('اللازم' != p_[0] for p_ in allq['i9_1']['pairs']) and 'i5_4' in allq and not any('يَرْمُلُونَ' in p_[1] for p_ in allq['i1_1']['pairs']),
+                    'dup': 'الوقف' in allq['q1_5']['text'],
+                    'icon': 'U0001f4c1' not in ttxt, 'zoom': 'user-scalable=no' not in ttxt,
+                }
+                rec('R23 curriculum and template corrections shipped', all(chk.values()), {k: v for k, v in chk.items() if not v} or 'all')
+            except Exception as e:
+                rec('R23 (exception)', False, repr(e)[:200])
+            # R24: الاختبار والمراجعة لا يُعدّان أقسامًا ولا تُضاف نقاطهما؛ ونتيجة البنت مجنّسة
+            try:
+                ctxQ2, pQ2, _ = await ctx_page(b)
+                await pQ2.goto(BASE + '/open.html?src=app'); fQ2 = await appframe(pQ2)
+                r24 = await ev(fQ2, """(()=>{ STATE.student={name:'هند',gender:'girl',id:'stu_h'}; STATE.role='student';
+                  STATE.progress={s0_muqaddima:{bestScore:40,stars:3,attempts:1}};
+                  var fin={id:'final_exam',title:'x',emoji:'🎓',items:[],questions:[{id:'q1_1',type:'true_false',text:'x',answer:true,explanation:'',points:350}],_map:{q1_1:'s1_intro'}};
+                  assessPushSection(fin); STATE.progress.final_exam={bestScore:350,stars:3,attempts:1}; recalcStats(); renderHome();
+                  var a=[STATE.stats.completedSections, STATE.stats.totalPoints, $('progress-label').textContent.indexOf('من 16 ')>=0];
+                  delete STATE.progress.final_exam; openSection('final_exam'); CURRENT.section=CURRICULUM.find(function(s){return s.id==='final_exam'}); CURRENT.score=350; CURRENT.correct=1; CURRENT.wrong=0; CURRENT.examResults=[{id:'q1_1',ok:true}];
+                  finishQuiz(); a.push(!STATE.progress.final_exam, $('result-title').textContent.indexOf('أنتِ بطلة')>=0); return a; })()""")
+                await ctxQ2.close()
+                rec('R24 synthetic exam not counted as a section/points; feminine result title', r24 == [1, 40, True, True, True], r24)
+            except Exception as e:
+                rec('R24 (exception)', False, repr(e)[:200])
+            # R25: النقر المكرر على الخطأ نفسه في «اصطد» يُحسب خطأً واحدًا
+            try:
+                ctxH2, pH2, _ = await ctx_page(b)
+                await pH2.goto(BASE + '/open.html?src=app'); fH2 = await appframe(pH2)
+                await ev(fH2, """(()=>{ STATE.student={name:'هند',gender:'girl',id:'stu_h'}; STATE.role='student';
+                  var sec=CURRICULUM.find(function(s){ return s.questions.some(function(q){ return q.type==='hunt'; }); });
+                  openSection(sec.id); startQuiz(); CURRENT.qIdx=sec.questions.findIndex(function(q){ return q.type==='hunt'; }); renderQuestion(); })()""")
+                idx = await ev(fH2, """(()=>{ var q=CURRENT.section.questions[CURRENT.qIdx], toks=[]; q._x.words.forEach(function(w){ w.forEach(function(p){ toks.push(!!p.hit); }); }); return toks.indexOf(false); })()""")
+                tok = fH2.locator('#options .qx-tok').nth(idx)
+                await tok.click(); await fH2.wait_for_timeout(120); await tok.click(); await fH2.wait_for_timeout(900); await tok.click(); await fH2.wait_for_timeout(200)
+                mis = await fH2.inner_text('#options .qx-mis')
+                await ctxH2.close()
+                rec('R25 repeated tap on the same wrong token counts once', idx >= 0 and mis.strip() == '❌ 1', (idx, mis))
+            except Exception as e:
+                rec('R25 (exception)', False, repr(e)[:200])
+            # R26: الشرح بعد الإجابة الخاطئة يظهر في الشاشة الصغيرة دون تمرير يدوي
+            try:
+                ctxF6 = await b.new_context(viewport={'width': 360, 'height': 640}, locale='ar')
+                pF6 = await ctxF6.new_page(); pF6.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+                await pF6.goto(BASE + '/open.html?src=app'); fF6 = await appframe(pF6)
+                await ev(fF6, """(()=>{ STATE.student={name:'هند',gender:'girl',id:'stu_h'}; STATE.role='student'; openSection('s2_idhhar'); startQuiz();
+                  CURRENT.qIdx=CURRENT.section.questions.findIndex(function(q){ return q.type==='multiple_choice' && q.options.length===4; }); renderQuestion(); })()""")
+                wrong = await ev(fF6, "(()=>{ var q=CURRENT.section.questions[CURRENT.qIdx]; return (q.answer+1)%q.options.length; })()")
+                await fF6.click(f'#options .option-btn[data-idx="{wrong}"]'); await fF6.wait_for_timeout(1200)
+                vis = await ev(fF6, "(()=>{ var r=document.querySelector('#feedback-box .feedback .explain').getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom), window.innerHeight]; })()")
+                await ctxF6.close()
+                rec('R26 explanation after a wrong answer is on screen at 360x640', vis[0] >= 0 and vis[0] < vis[2] - 30, vis)
+            except Exception as e:
+                rec('R26 (exception)', False, repr(e)[:200])
+            # R27: اسم المعلم المكتوب بعد الاعتماد يدخل الإهداء؛ ولا «المعلم المعلم»
+            try:
+                ctxN7, pN7, _ = await ctx_page(b)
+                await pN7.goto(BASE + '/open.html'); fN7 = await open_file(pN7, sub)
+                await fN7.fill('#review-teacher-name', 'الشيخ محمود')
+                await fN7.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await fN7.wait_for_timeout(300)
+                await fN7.fill('#review-teacher-name', 'الأستاذة سارة')
+                gN7 = await export_from(pN7, fN7, GIFT_EXPORT_JS, f'{OUT}/gift_name.html')
+                by = await ev(fN7, "(()=>{ if (typeof teacherByline !== 'function') return null; var o=PACK_DATA.teacherName; PACK_DATA.teacherName='المعلم'; var a=teacherByline(); PACK_DATA.teacherName='الشيخ محمود'; var c=teacherByline(); PACK_DATA.teacherName=o; return [a,c]; })()")
+                await ctxN7.close()
+                rec('R27 teacher name typed after approval is used; no duplicated title', pack_of(gN7).get('teacherName') == 'الأستاذة سارة' and by == ['المعلم', 'الشيخ محمود'], (pack_of(gN7).get('teacherName'), by))
+            except Exception as e:
+                rec('R27 (exception)', False, repr(e)[:200])
+            # R28: زر الرجوع يعود داخل التطبيق إلى الخريطة (مع تأكيد الخروج من اختبار جارٍ)
+            try:
+                ctxB8, pB8, _ = await ctx_page(b); dlgB8 = []
+                pB8.on('dialog', lambda d: dlgB8.append(d.message))
+                await pB8.goto(BASE + '/open.html?src=app'); fB8 = await appframe(pB8)
+                await ev(fB8, """(()=>{ STATE.student={name:'هند',gender:'girl',id:'stu_h'}; STATE.role='student'; renderHome(); show('view-home'); openSection('s2_idhhar'); startQuiz(); CURRENT.qIdx=1; renderQuestion(); })()""")
+                await pB8.evaluate("history.back()"); await pB8.wait_for_timeout(900)
+                st8 = await ev(fB8, "[!document.getElementById('view-home').classList.contains('hidden'), location.protocol]")
+                await ctxB8.close()
+                rec('R28 back button returns to the map inside the app (with leave-quiz confirmation)', st8[0] is True and BASE + '/open.html' in pB8.url and any('ستخرج من الاختبار' in m for m in dlgB8), (st8, pB8.url, dlgB8[:1]))
+            except Exception as e:
+                rec('R28 (exception)', False, repr(e)[:200])
+            # R29: تسميات مفهومة بلا معرّفات داخلية
+            try:
+                ctxL9, pL9, _ = await ctx_page(b)
+                await pL9.goto(BASE + '/open.html?src=app'); fL9 = await appframe(pL9)
+                lab = await ev(fL9, "itemLabelById('s2_idhhar_matn')")
+                await ctxL9.close()
+                rec('R29 item labels show title and text, not internal ids', 's2_idhhar' not in lab and lab.startswith('الإظهار · ') and 'أَحْرُفِلِلْحَلْقِ' not in lab, lab)
+            except Exception as e:
+                rec('R29 (exception)', False, repr(e)[:200])
+            # R30: زر 🔄 (إعادة الضبط) يمر بمسار الحذف المحمي نفسه
+            try:
+                ctxZ, pZ, _ = await ctx_page(b); msZ = []
+                pZ.on('dialog', lambda d: msZ.append(d.message))
+                await pZ.goto(BASE + '/open.html?src=app'); fZ = await appframe(pZ)
+                await ev(fZ, "dbPut('probe', new Blob(['private-audio']))")
+                dbZ = await ev(fZ, "DB_NAME")
+                await ev(pZ, "n=>new Promise(r=>{var q=indexedDB.open(n);q.onsuccess=()=>{window.holdZ=q.result;r(1)}})", dbZ)
+                await ev(fZ, "setTimeout(showReset, 0)"); await pZ.wait_for_timeout(7000)
+                fZ = await appframe(pZ)
+                z = await ev(fZ, "[pendingDbDeletes().length > 0, CHILD_DATA_DELETED === true]")
+                await ev(pZ, "holdZ.close()"); await ctxZ.close()
+                rec('R30 reset button uses the protected deletion path', z == [True, True] and any('لم يكتمل' in m for m in msZ), (z, [m[:30] for m in msZ]))
+            except Exception as e:
+                rec('R30 (exception)', False, repr(e)[:200])
+            # R31: حالة «لم يُرسل بعد» ثم «في ملف الإرسال»، وتشخيص الاختبار النظري يصل المعلم
+            try:
+                ctxS1, pS1, _ = await ctx_page(b)
+                await pS1.goto(BASE + '/open.html?src=app'); fS1 = await appframe(pS1)
+                await setup_student(fS1, 'دعاء'); await record(fS1)
+                before = await fS1.inner_text('#lesson-content')
+                await ev(fS1, """(()=>{ STATE.assess=STATE.assess||assessEmptyState(); assessConcept(STATE.assess,'s2_idhhar');
+                  STATE.assess.lastExam={at:new Date().toISOString(),total:10,correct:7,wrong:['q2_1','q2_2','q2_3'],summary:{}}; save(); })()""")
+                subS1 = await export_from(pS1, fS1, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/sub_sent.html')
+                await ev(fS1, "closeModal(); openSection('s2_idhhar')"); await fS1.wait_for_timeout(300)
+                after = await fS1.inner_text('#lesson-content')
+                await ctxS1.close()
+                ctxT1, pT1, _ = await ctx_page(b)
+                await pT1.goto(BASE + '/open.html'); fT1 = await open_file(pT1, subS1)
+                line = await fT1.inner_text('#review-assess-line')
+                await ctxT1.close()
+                rec('R31 recording shows not-sent then sent; teacher sees last exam diagnostics',
+                    'لم يُرسل بعد' in before and 'في ملف الإرسال' in after and 'آخر اختبار: 7/10' in line, (('لم يُرسل بعد' in before), ('في ملف الإرسال' in after), line[:90]))
+            except Exception as e:
+                rec('R31 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]

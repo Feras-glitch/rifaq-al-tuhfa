@@ -3,6 +3,7 @@
 var fs = require('fs'), path = require('path');
 eval(fs.readFileSync(path.join(__dirname, 'qx_core.js'), 'utf8') + '; global.QX = QX;');
 var d = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')), E = [], W = [], ids = {}, n = {};
+if (d && !Array.isArray(d) && Array.isArray(d.sections)) d = d.sections; // ملف المنهج {meta, sections}
 d.forEach(function(sec){
   if (!sec.id || !sec.title) E.push('قسم بلا id/عنوان');
   (sec.items || []).forEach(function(it){ if (ids[it.id]) E.push('معرّف مكرر ' + it.id); ids[it.id] = 1; if (!it.text) E.push(sec.id + '/' + it.id + ': نص فارغ'); });

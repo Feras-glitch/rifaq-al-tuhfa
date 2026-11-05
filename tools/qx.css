@@ -24,4 +24,21 @@
 @keyframes qxshake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
 @keyframes qxpulse{0%{transform:scale(1)}50%{transform:scale(1.12)}100%{transform:scale(1)}}
 .qx-shake{animation:qxshake .35s}.qx-pulse{animation:qxpulse .35s}.qx-done .qx-chip,.qx-done .qx-tok,.qx-done .qx-basket,.qx-done .qx-slot,.qx-done .qx-blank,.qx-done .qx-color{pointer-events:none}
-@media (prefers-reduced-motion:reduce){.qx-shake,.qx-pulse{animation:none}}
+@media (prefers-reduced-motion:reduce){.qx-shake,.qx-pulse{animation:none}.confetti{display:none}}
+/* 9.39.10: أهداف لمس لا تقل عن 44px، ومنع تكبير النقر المزدوج بلا منع التكبير، وخط يعرض علامات الضبط القرآنية */
+.btn,.option-btn,.qx-chip,.qx-color,.qx-tok{min-height:44px;touch-action:manipulation}
+.qx-letters .qx-tok{min-width:38px}
+.rec-actions .btn.rec-del{min-width:44px;flex:0 0 auto;padding:6px 10px;font-size:.85rem;background:#fff;color:#c62828;border:1.5px solid #ef9a9a}
+input[type=checkbox]{width:22px;height:22px;flex:0 0 auto}
+.qx-tok.tried{opacity:.45}
+.quran,.content-text,.qx-text{font-family:"Amiri Quran","KFGQPC Uthmanic Script HAFS","Noto Naskh Arabic","Scheherazade New","Amiri",Tahoma,Arial,sans-serif}
+.no-master{font-size:.82rem;color:#5d4037;background:#fff8e1;border-radius:10px;padding:6px 10px;margin:6px 0}
+.gift-details summary{cursor:pointer;font-weight:800;margin-top:6px}
+
+/* 9.31: الأبيات كما تُكتب في الكتب: الشطر الأول يمينًا، والثاني يسارًا، ويلتف إلى سطر جديد عند ضيق الشاشة */
+.poem-verse{display:flex;flex-wrap:wrap;column-gap:.7em;align-items:baseline;line-height:2.2;margin:.35em 0}
+.poem-verse .v-a{white-space:nowrap}
+.poem-verse .v-b{white-space:nowrap;margin-inline-end:auto;padding-inline-start:1.4em}
+
+/* 9.34: الطباعة: تقرير التقدم فقط */
+@media print{body *{visibility:hidden}#print-report,#print-report *{visibility:visible}#print-report{position:absolute;left:0;top:0;width:100%;box-shadow:none}#print-report-wrap{position:static;background:none}}

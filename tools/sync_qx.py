@@ -14,8 +14,8 @@ k0 = a.index('/* ===== QX: أنماط'); k1 = a.index('</style>', k0)
 a = a[:k0] + css + a[k1:]
 app_p.write_text(a, encoding='utf8')
 d = studio_p.read_text(encoding='utf8', errors='surrogateescape')
-d0 = d.index('/* ===== QX core'); d1 = d.index('function studioValidateCurriculum')
-d = d[:d0] + core + d[d1:]
+# 9.39.10: لا يُستبدل نص الإطار داخل الاستوديو بعد الآن. كان الاستبدال يمتد حتى studioValidateCurriculum
+# فيمحو منظّفات الاستوديو (studioSafeHTML وstudioSanitizeCurriculum، إصلاح 9.39.2)، ونسخة الاستوديو غير مُجنّسة عمدًا.
 b64 = base64.b64encode(a.encode('utf8')).decode()
 d, n = re.subn(r"(EMBEDDED_STUDENT_TEMPLATE_B64\s*=\s*')[A-Za-z0-9+/=]+(')", lambda m: m.group(1) + b64 + m.group(2), d); assert n == 1
 studio_p.write_text(d, encoding='utf8', errors='surrogateescape')

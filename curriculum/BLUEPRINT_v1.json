@@ -10,37 +10,37 @@
   {
    "id": "s1_intro",
    "title": "النون الساكنة والتنوين",
-   "questions": 5,
+   "questions": 6,
    "minRequired": 3,
    "typeCount": 3
   },
   {
    "id": "s2_idhhar",
    "title": "الإظهار",
-   "questions": 8,
+   "questions": 13,
    "minRequired": 2,
    "typeCount": 6
   },
   {
    "id": "s3_idgham",
    "title": "الإدغام",
-   "questions": 8,
+   "questions": 18,
    "minRequired": 3,
    "typeCount": 5
   },
   {
    "id": "s4_iqlab",
    "title": "الإقلاب",
-   "questions": 7,
+   "questions": 12,
    "minRequired": 2,
    "typeCount": 4
   },
   {
    "id": "s5_ikhfa",
    "title": "الإخفاء",
-   "questions": 8,
+   "questions": 14,
    "minRequired": 3,
-   "typeCount": 6
+   "typeCount": 7
   },
   {
    "id": "s6_ghunna",
@@ -112,5 +112,6 @@
    "minRequired": 2,
    "typeCount": 4
   }
- ]
+ ],
+ "note_9_39_10": "حُدّث من المنهج المعتمد v1.3 بعد تصحيحات 9.39.10 ومن ASSESS_CFG في التطبيق: عدد الأسئلة وأنواعها والحد الأدنى لكل مفهوم (3 للمفاهيم الكبيرة). كل الأسئلة 10 نقاط."
 }

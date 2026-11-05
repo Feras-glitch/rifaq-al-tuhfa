@@ -23,19 +23,19 @@ var QX_UI = {};
       c.onclick = function(){
         if (sel && sel.c === c){ c.classList.remove('sel'); sel = null; return; }
         if (sel) sel.c.classList.remove('sel');
-        sel = {c: c, it: it}; c.classList.add('sel'); api.say('الآن اضغط على السلة المناسبة 🧺');
+        sel = {c: c, it: it}; c.classList.add('sel'); api.say('الآن {اضغط|اضغطي} على السلة المناسبة 🧺');
       };
       tray.appendChild(c);
     });
     // اخلط ترتيب البطاقات
     shuffleNotSame(Array.prototype.slice.call(tray.children)).forEach(function(c){ tray.appendChild(c); });
     function drop(bi, bx, inner){
-      if (!sel){ api.say('اختر بطاقة أولًا 👆'); shake(bx); return; }
+      if (!sel){ api.say('{اختر|اختاري} بطاقة أولًا 👆'); shake(bx); return; }
       if (sel.it.b === bi){
         inner.appendChild(el('span', 'qx-mini', sel.it.t)); sel.c.remove(); sel = null; remaining--; pulse(bx);
-        if (!remaining) api.done(); else api.say('أحسنت! ✨ باقٍ ' + remaining);
+        if (!remaining) api.done(); else api.say('{أحسنت|أحسنتِ}! ✨ باقٍ ' + remaining);
       } else {
-        api.mistake('ليست هذه سلتها، حاول مرة أخرى'); shake(sel.c); shake(bx); sel.c.classList.remove('sel'); sel = null;
+        api.mistake('ليست هذه سلتها، {حاول|حاولي} مرة أخرى'); shake(sel.c); shake(bx); sel.c.classList.remove('sel'); sel = null;
       }
     }
     area.appendChild(tray); area.appendChild(baskets);
@@ -49,15 +49,15 @@ var QX_UI = {};
       w.forEach(function(p){
         var b = btn('qx-tok', p.t);
         b.onclick = function(){
-          if (b.classList.contains('ok')) return;
+          if (b.classList.contains('ok') || b.dataset.tried) return; /* 9.39.10: نقرة مكررة على الخطأ نفسه */
           if (p.hit){ b.classList.add('ok'); found++; pulse(b); if (found === x.total) api.done(); else api.say('وجدت ' + found + ' من ' + x.total + ' ✨'); }
-          else { b.classList.add('bad'); shake(b); api.mistake('ليس هنا، ابحث مرة أخرى'); setTimeout(function(){ b.classList.remove('bad'); }, 700); }
+          else { b.dataset.tried = '1'; b.classList.add('bad'); shake(b); api.mistake('ليس هنا، {ابحث|ابحثي} مرة أخرى'); setTimeout(function(){ b.classList.remove('bad'); b.classList.add('tried'); }, 700); }
         };
         wrap.appendChild(b);
       });
       box.appendChild(wrap); box.appendChild(document.createTextNode(' '));
     });
-    area.appendChild(box); api.say('ابحث عن ' + x.total + (x.unit === 'letter' ? ' حرف 🔍' : ' كلمة 🔍'));
+    area.appendChild(box); api.say('{ابحث|ابحثي} عن ' + x.total + (x.unit === 'letter' ? ' حرف 🔍' : ' كلمة 🔍'));
   };
 
   QX_UI.paint = function(q, area, api){
@@ -72,9 +72,11 @@ var QX_UI = {};
       var b = btn('qx-tok', t.t);
       b.onclick = function(){
         if (b.classList.contains('ok')) return;
-        if (cur < 0){ api.say('اختر لونًا أولًا 👆'); shake(pal); return; }
+        if (cur < 0){ api.say('{اختر|اختاري} لونًا أولًا 👆'); shake(pal); return; }
+        b._tried = b._tried || {};
+        if (t.rule !== x.rules[cur] && b._tried[cur]) { shake(b); return; } /* 9.39.10: اللون الخطأ نفسه على الكلمة نفسها لا يُحسب مرتين */
         if (t.rule === x.rules[cur]){ b.classList.add('ok'); b.style.background = COLORS[cur]; b.style.color = '#fff'; b.style.borderColor = COLORS[cur]; pulse(b); left--; if (!left) api.done(); else api.say('باقٍ ' + left + ' ✨'); }
-        else { shake(b); api.mistake(t.rule ? 'هذه الكلمة لها حكم آخر' : 'ليس في هذه الكلمة حكم من هذه الأحكام'); }
+        else { b._tried[cur] = true; shake(b); api.mistake(t.rule ? 'هذه الكلمة لها حكم آخر' : 'ليس في هذه الكلمة حكم من هذه الأحكام'); }
       };
       box.appendChild(b); box.appendChild(document.createTextNode(' '));
     });
@@ -86,19 +88,19 @@ var QX_UI = {};
     var sel = null, matched = 0, cols = el('div', 'qx-cols'), cl = el('div', 'qx-col'), cr = el('div', 'qx-col');
     x.pairs.forEach(function(p, i){
       var b = btn('qx-chip', p[0]);
-      b.onclick = function(){ if (b.disabled) return; if (sel) sel.b.classList.remove('sel'); sel = {i: i, b: b}; b.classList.add('sel'); api.say('اختر ما يناسبه 👈'); };
+      b.onclick = function(){ if (b.disabled) return; if (sel) sel.b.classList.remove('sel'); sel = {i: i, b: b}; b.classList.add('sel'); api.say('{اختر|اختاري} ما يناسبه 👈'); };
       cl.appendChild(b);
     });
     shuffleNotSame(x.pairs.map(function(p, i){ return {t: p[1], i: i}; })).forEach(function(o){
       var b = btn('qx-chip alt', o.t);
       b.onclick = function(){
         if (b.disabled) return;
-        if (!sel){ api.say('ابدأ من العمود الأول 👉'); shake(b); return; }
+        if (!sel){ api.say('{ابدأ|ابدئي} من العمود الأول 👉'); shake(b); return; }
         if (sel.i === o.i){
           var col = COLORS[matched % COLORS.length];
           [sel.b, b].forEach(function(x){ x.disabled = true; x.classList.remove('sel'); x.classList.add('ok'); x.style.background = col; x.style.color = '#fff'; });
-          sel = null; matched++; pulse(b); if (matched === x.pairs.length) api.done(); else api.say('أحسنت! ✨');
-        } else { api.mistake('ليسا زوجين، حاول مرة أخرى'); shake(b); shake(sel.b); sel.b.classList.remove('sel'); sel = null; }
+          sel = null; matched++; pulse(b); if (matched === x.pairs.length) api.done(); else api.say('{أحسنت|أحسنتِ}! ✨');
+        } else { api.mistake('ليسا زوجين، {حاول|حاولي} مرة أخرى'); shake(b); shake(sel.b); sel.b.classList.remove('sel'); sel = null; }
       };
       cr.appendChild(b);
     });
@@ -131,7 +133,7 @@ var QX_UI = {};
       var wrong = [];
       answer.forEach(function(a, i){ if (a !== x.pieces[i]) wrong.push(i); });
       if (!wrong.length){ Array.prototype.forEach.call(line.children, function(s){ s.classList.add('ok'); }); pulse(line); api.done(); }
-      else { wrong.forEach(function(i){ line.children[i].classList.add('bad'); shake(line.children[i]); }); api.mistake('بعض القطع في غير مكانها — اضغط عليها لتعيدها'); }
+      else { wrong.forEach(function(i){ line.children[i].classList.add('bad'); shake(line.children[i]); }); api.mistake('بعض القطع في غير مكانها — {اضغط|اضغطي} عليها لتعيدها'); }
     }
     area.appendChild(line); area.appendChild(poolEl); draw();
   };
@@ -153,32 +155,69 @@ var QX_UI = {};
         if (c.disabled) return;
         var o = blanks[cur] && !blanks[cur].filled ? blanks[cur] : blanks[firstOpen()];
         if (!o) return;
-        if (o.ans === t){ o.el.textContent = t; o.el.classList.remove('sel'); o.el.classList.add('ok'); o.filled = true; c.disabled = true; c.classList.add('used'); pulse(o.el); left--; cur = Math.max(0, firstOpen()); mark(); if (!left) api.done(); else api.say('أحسنت! ✨'); }
-        else { api.mistake('هذه ليست الكلمة المناسبة'); shake(c); shake(o.el); }
+        if (o.ans === t){ o.el.textContent = t; o.el.classList.remove('sel'); o.el.classList.add('ok'); o.filled = true; c.disabled = true; c.classList.add('used'); pulse(o.el); left--; cur = Math.max(0, firstOpen()); mark(); if (!left) api.done(); else api.say('{أحسنت|أحسنتِ}! ✨'); }
+        else { c._tried = c._tried || []; if (c._tried.indexOf(o) >= 0){ shake(c); return; } c._tried.push(o); api.mistake('هذه ليست الكلمة المناسبة'); shake(c); shake(o.el); }
       };
       pool.appendChild(c);
     });
     mark(); area.appendChild(sentence); area.appendChild(pool);
   };
 })();
+function renderTFView(){
+  renderTFViewInner();
+  var tl = document.getElementById('tf-list');
+  if (tl && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
+    var rc = {mastered: 0, needs: 0, notapplied: 0};
+    Object.keys(PACK_DATA.teacherRatings).forEach(function(k){ if (rc[PACK_DATA.teacherRatings[k]] !== undefined) rc[PACK_DATA.teacherRatings[k]]++; });
+    var rn = document.createElement('div'); rn.className = 'notice'; rn.style.cssText = 'font-size:.85rem;margin-bottom:8px';
+    rn.textContent = '📋 تقييم المعلم: ' + RATING_STATES.mastered + ' ' + rc.mastered + ' · ' + RATING_STATES.needs + ' ' + rc.needs + ' · ' + RATING_STATES.notapplied + ' ' + rc.notapplied;
+    tl.insertBefore(rn, tl.firstChild);
+  }
+  if (tl && RETURN_TRUST){
+    var msg = {verified: '✅ ملاحظات المعلم موقّعة ولم تتغير', untrusted: '⚠️ توقيع ملاحظات المعلم ليس من معلم موثوق', invalid: '❌ ملاحظات المعلم تغيّرت بعد توقيعها', unsigned: 'ℹ️ ملاحظات المعلم بلا توقيع', outdated: '⚠️ توقيع ملاحظات المعلم بصيغة قديمة؛ اطلب إعادة الإرسال'}[RETURN_TRUST];
+    var note = document.createElement('div'); note.className = 'notice'; note.style.cssText = 'font-size:.85rem;margin-bottom:8px'; note.textContent = msg;
+    tl.insertBefore(note, tl.firstChild);
+  }
+}
+
+/* 9.19: تطبيق صيغة الجنسين على كل النصوص الظاهرة للطالب (بما فيها ما يُولَّد ديناميكيًا) */
+function resolveGenderText(root){
+  if (!root || !root.ownerDocument) return;
+  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  var nodes = []; var n;
+  while ((n = walker.nextNode())){ if (n.nodeValue && n.nodeValue.indexOf('|') > -1 && n.nodeValue.indexOf('{') > -1) nodes.push(n); }
+  nodes.forEach(function(t){ var v = GT(t.nodeValue); if (v !== t.nodeValue) t.nodeValue = v; });
+  try { var host = root.nodeType === 1 ? root : root.parentNode; if (host && host.querySelectorAll) host.querySelectorAll('[placeholder*="|"]').forEach(function(el){ var p = el.getAttribute('placeholder'); var v = GT(p); if (v !== p) el.setAttribute('placeholder', v); }); } catch(e){}
+}
+(function(){
+  if (typeof MutationObserver === 'undefined') return;
+  var mo = new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      if (m.type === 'characterData' && m.target){ var v = GT(m.target.nodeValue); if (v !== m.target.nodeValue) m.target.nodeValue = v; }
+      else Array.prototype.forEach.call(m.addedNodes || [], function(node){ if (node.nodeType === 1) hydrateMedia(node); if (node.nodeType === 1 || node.nodeType === 3) resolveGenderText(node.nodeType === 3 ? node.parentNode : node); });
+    });
+  });
+  document.addEventListener('DOMContentLoaded', function(){ mo.observe(document.body, {childList: true, subtree: true, characterData: true}); resolveGenderText(document.body); hydrateMedia(document.body); });
+})();
+
 function renderQX(q){
   var host = $('options'); host.innerHTML = '';
   var wrap = document.createElement('div'); wrap.className = 'qx'; host.appendChild(wrap);
   var bar = document.createElement('div'); bar.className = 'qx-bar';
-  var info = document.createElement('span'); info.className = 'qx-info'; info.textContent = QX.types[q.type].hint;
+  var info = document.createElement('span'); info.className = 'qx-info'; info.textContent = GT(QX.types[q.type].hint);
   var mis = document.createElement('span'); mis.className = 'qx-mis'; mis.textContent = '❌ 0';
   bar.appendChild(info); bar.appendChild(mis); wrap.appendChild(bar);
   var area = document.createElement('div'); area.className = 'qx-area'; wrap.appendChild(area);
   var m = 0, finished = false;
   var api = {
-    say: function(msg){ info.textContent = msg; },
-    mistake: function(msg){ if (finished) return; m++; mis.textContent = '❌ ' + m; if (msg) info.textContent = msg; },
-    done: function(){ if (finished) return; finished = true; wrap.classList.add('qx-done'); info.textContent = '🎉 أكملت!'; finishCustom(q, m); }
+    say: function(msg){ info.textContent = GT(msg); },
+    mistake: function(msg){ if (finished) return; m++; mis.textContent = '❌ ' + m; if (msg) info.textContent = GT(msg); },
+    done: function(){ if (finished) return; finished = true; wrap.classList.add('qx-done'); info.textContent = '🎉 {أكملت|أكملتِ}!'; finishCustom(q, m); }
   };
   QX_UI[q.type](q, area, api);
 }
 function finishCustom(q, mistakes){
   var correct = mistakes <= (typeof q.tolerance === 'number' ? q.tolerance : 1);
   finishAnswer(correct, q);
-  if (!correct){ var t = document.querySelector('#feedback-box .feedback .title'); if (t) t.textContent = '💪 أكملت المهمة! راجع الشرح وحاول بأخطاء أقل'; }
+  if (!correct){ var t = document.querySelector('#feedback-box .feedback .title'); if (t) t.textContent = GT('⚠️ اكتملت المهمة مع بعض الأخطاء. {راجع|راجعي} التوضيح أدناه'); }
 }

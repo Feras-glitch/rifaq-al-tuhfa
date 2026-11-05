@@ -31,6 +31,10 @@ jobs:
         with: { python-version: '3.12' }
       - name: بناء الموقع
         run: python3 tools/build_web.py _site
+      - name: فحص المنهج ومحرك التقييم
+        run: |
+          node tools/qx_validate.js "curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json"
+          node tests/test_assess.js
       - name: تثبيت Playwright
         run: |
           pip install playwright==1.48.0
@@ -117,6 +121,9 @@ jobs:
           "$BT/apksigner" verify --print-certs "$APK" | head -3
           grep -q "android.permission.RECORD_AUDIO" badging.txt
           "$BT/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -q "text/html"
+          # 9.39.10: النسخ الاحتياطي معطّل (بيانات الأطفال لا تغادر الجهاز)
+          "$BT/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -E "android:allowBackup\(0x[0-9a-f]+\)=\(type 0x12\)0x0"
+          "$BT/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -q "dataExtractionRules"
           unzip -l "$APK" | grep -E "assets/public/(open.html|host.js|app/template.txt|trusted-teachers.json)"
       - uses: actions/upload-artifact@v4
         with:

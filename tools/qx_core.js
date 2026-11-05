@@ -24,7 +24,7 @@ var QX = (function(){
             points: Number(q.points) > 0 ? Number(q.points) : 10, tolerance: tol, source: str(q.source, 120)};
   }
   /* ---- classify: السلال ---- */
-  types.classify = { label: '🧺 السلال', hint: 'اختر البطاقة ثم اضغط على سلتها', normalize: function(q){
+  types.classify = { label: '🧺 السلال', hint: '{اختر|اختاري} البطاقة ثم {اضغط|اضغطي} على سلتها', normalize: function(q){
     var out = baseOf(q), errs = [], buckets = [], items = [];
     if (q.items && !Array.isArray(q.items) && typeof q.items === 'object'){
       Object.keys(q.items).forEach(function(b){ var bi = buckets.length; buckets.push(str(b, 40)); arr(q.items[b]).forEach(function(t){ items.push({t: str(t, 80), b: bi}); }); });
@@ -39,7 +39,7 @@ var QX = (function(){
     out.buckets = buckets; out.items = items; return {q: out, errors: errs};
   }};
   /* ---- hunt: الصيد ---- */
-  types.hunt = { label: '🎯 اصطد الحكم', hint: 'اضغط على الموضع الصحيح', normalize: function(q){
+  types.hunt = { label: '🎯 اصطد الحكم', hint: '{اضغط|اضغطي} على الموضع الصحيح', normalize: function(q){
     var out = baseOf(q), errs = [], unit = q.unit === 'letter' ? 'letter' : 'word';
     var pm = parseMarked(q.ayah, '[[', ']]');
     if (pm.err){ errs.push(pm.err); out.words = []; out.unit = unit; return {q: out, errors: errs}; }
@@ -58,7 +58,7 @@ var QX = (function(){
     out.words = words; out.unit = unit; out.total = hits; return {q: out, errors: errs};
   }};
   /* ---- paint: لوّن الآية ---- */
-  types.paint = { label: '🎨 لوّن الآية', hint: 'اختر لونًا ثم اضغط على الكلمة المناسبة', normalize: function(q){
+  types.paint = { label: '🎨 {لوّن|لوّني} الآية', hint: '{اختر|اختاري} لونًا ثم {اضغط|اضغطي} على الكلمة المناسبة', normalize: function(q){
     var out = baseOf(q), errs = [];
     var pm = parseMarked(q.ayah, '[[', ']]');
     if (pm.err){ errs.push(pm.err); out.tokens = []; out.rules = []; return {q: out, errors: errs}; }
@@ -79,7 +79,7 @@ var QX = (function(){
     out.tokens = tokens; out.rules = rules; out.total = marks.length; return {q: out, errors: errs};
   }};
   /* ---- match: وصّل ---- */
-  types.match = { label: '🔗 وصّل', hint: 'اختر من اليمين ثم ما يناسبه من اليسار', normalize: function(q){
+  types.match = { label: '🔗 {وصّل|وصّلي}', hint: '{اختر|اختاري} من اليمين ثم ما يناسبه من اليسار', normalize: function(q){
     var out = baseOf(q), errs = [], pairs = [];
     arr(q.pairs).forEach(function(p){ p = arr(p); var a = str(p[0], 60), b = str(p[1], 60); if (!a || !b) errs.push('زوج ناقص'); else pairs.push([a, b]); });
     if (pairs.length < 2 || pairs.length > 6) errs.push('عدد الأزواج يجب أن يكون 2–6');
@@ -88,7 +88,7 @@ var QX = (function(){
     out.pairs = pairs; return {q: out, errors: errs};
   }};
   /* ---- order: رتّب ---- */
-  types.order = { label: '🚂 رتّب', hint: 'اضغط القطع بالترتيب الصحيح', normalize: function(q){
+  types.order = { label: '🚂 {رتّب|رتّبي}', hint: '{اضغط|اضغطي} القطع بالترتيب الصحيح', normalize: function(q){
     var out = baseOf(q), errs = [];
     out.pieces = arr(q.pieces).map(function(p){ return str(p, 60); }).filter(Boolean);
     out.extra = arr(q.extra).map(function(p){ return str(p, 60); }).filter(Boolean).slice(0, 3);
@@ -97,7 +97,7 @@ var QX = (function(){
     return {q: out, errors: errs};
   }};
   /* ---- cloze: أكمل الفراغ ---- */
-  types.cloze = { label: '✍️ أكمل', hint: 'اختر الكلمة المناسبة للفراغ', normalize: function(q){
+  types.cloze = { label: '✍️ {أكمل|أكملي}', hint: '{اختر|اختاري} الكلمة المناسبة للفراغ', normalize: function(q){
     var out = baseOf(q), errs = [], parts = [], raw = String(q.sentence || ''), re = /\{\{([^}]+)\}\}/g, m, last = 0, blanks = 0;
     while ((m = re.exec(raw))){ if (m.index > last) parts.push({t: str(raw.substring(last, m.index), 200, true) || ' '}); parts.push({blank: str(m[1], 60)}); blanks++; last = m.index + m[0].length; }
     if (last < raw.length) parts.push({t: raw.substring(last).slice(0, 200)});

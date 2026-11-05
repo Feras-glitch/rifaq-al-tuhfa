@@ -23,13 +23,6 @@
   <h1>فتح ملف رفاق التحفة</h1>
   <p class="lead">افتح الملف الذي وصلك (عبر واتساب أو البريد أو التخزين) ليعمل هنا مباشرة. يبقى كل شيء على جهازك.</p>
 
-  <div class="kinds">
-    <div class="kind"><b>📨 ملف إرسال للمراجعة</b><span>للمعلم: يستمع ويعتمد أو يرفض.</span></div>
-    <div class="kind"><b>🔄 ملف معاد للتعديل</b><span>للطالب: يرى ملاحظات المعلم ويعيد التسجيل.</span></div>
-    <div class="kind"><b>🎁 ملف إهداء معتمد</b><span>لطالب جديد يبدأ رحلته.</span></div>
-    <div class="kind"><b>🎓 ملف إعداد المشرف</b><span>الملف الذي صدّره الاستوديو للطلاب.</span></div>
-  </div>
-
   <button class="big" type="button" id="pick-btn">📂 اختيار ملف من الجهاز</button>
   <div class="drop" id="drop">أو اسحب الملف وأفلته هنا</div>
   <input type="file" id="file-in" accept=".html,.htm,text/html" hidden>
@@ -42,6 +35,17 @@
     <ul id="recent"></ul>
     <button class="r-clear" type="button" id="clear-recent">🗑️ حذف كل الملفات الأخيرة</button>
   </div>
+  <details class="kinds-box">
+    <summary>ما أنواع الملفات التي تُفتح هنا؟</summary>
+    <div class="kinds">
+    <div class="kind"><b>📨 ملف إرسال للمراجعة</b><span>للمعلم: يستمع ويعتمد أو يرفض.</span></div>
+    <div class="kind"><b>🔄 ملف معاد للتعديل</b><span>للطالب: يرى ملاحظات المعلم ويعيد التسجيل.</span></div>
+    <div class="kind"><b>🎁 ملف إهداء معتمد</b><span>لطالب جديد يبدأ رحلته.</span></div>
+    <div class="kind"><b>🎓 ملف إعداد المشرف</b><span>الملف الذي صدّره الاستوديو للطلاب.</span></div>
+  </div>
+
+  </details>
+
 </section>
 
 <div class="loading" id="loading" hidden>⏳ جارٍ الفتح…</div>

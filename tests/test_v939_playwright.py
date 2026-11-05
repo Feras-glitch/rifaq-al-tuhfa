@@ -1,3 +1,4 @@
+GIFT_EXPORT_JS = "(function(){ exportApprovedPack(); (function w(n){ var m=document.getElementById('modal'); var b=Array.prototype.slice.call(document.querySelectorAll('#modal-actions button')).filter(function(x){ return x.textContent.indexOf('إصدار الإهداء')>=0; })[0]; if (b && m && !m.classList.contains('hidden')){ window.__giftMsg=document.getElementById('modal-body').textContent; b.click(); } else if (n<150) setTimeout(function(){ w(n+1); },100); })(0); })()"  # 9.39.10: بيان الإهداء في نافذة التطبيق لا في confirm
 import asyncio, json, re, os, html as H
 from playwright.async_api import async_playwright
 D = '/home/claude/v939'
@@ -102,7 +103,7 @@ async def main():
         wrong = (q['answer'] + 1) % len(q['options'])
         await page.locator(f'#options .option-btn[data-idx="{wrong}"]').click(); await page.wait_for_timeout(300)
         fb = await page.inner_text('#feedback-box')
-        rec('T7 wrong-answer feedback in feminine', 'راجعي' in fb and 'انتقلي' in fb, fb[:120])
+        rec('T7 wrong-answer feedback in feminine', 'انظري' in fb and 'انتقلي' in fb, fb[:120])  # 9.39.10: صياغة أبسط للطفل
         # T8: final exam then reload -> assess persists (R01)
         await page.evaluate("startFinalExam(1)"); await page.wait_for_timeout(300)
         n = await page.evaluate("CURRENT.section.questions.length")
@@ -130,7 +131,7 @@ async def main():
         await pT.fill('#review-teacher-name', 'الشيخ محمود')
         await pT.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await pT.wait_for_timeout(300)
         async with pT.expect_download(timeout=30000) as dl:
-            await pT.evaluate("exportApprovedPack()")
+            await pT.evaluate(GIFT_EXPORT_JS)
         await (await dl.value).save_as(f'{D}/t_gift0.html')
         jwk = await pT.evaluate("keyDbGet(SIG_KEY_ID).then(r=>JSON.stringify(r.publicJwk))")
         rec('T9a teacher key generated', '"x"' in jwk, jwk[:60])
@@ -179,11 +180,11 @@ async def main():
         # teacher approves (same ctxT, same key)
         await pT.goto('file://' + sub1); await pT.wait_for_timeout(800)
         tlabel = await pT.inner_text('#review-list')
-        rec('T11 teacher sees item title not raw id', 'الإظهار' in tlabel and 'r2_1' in tlabel and 'الطالبة صاحبة' in (await pT.inner_text('body')), tlabel[:120].replace('\n', ' | '))
+        rec('T11 teacher sees item title not raw id', 'الإظهار' in tlabel and 'r2_1' not in tlabel and 'الطالبة صاحبة' in (await pT.inner_text('body')), tlabel[:120].replace('\n', ' | '))
         await pT.fill('#review-teacher-name', 'الشيخ محمود')
         await pT.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await pT.wait_for_timeout(300)
         async with pT.expect_download(timeout=30000) as dl:
-            await pT.evaluate("exportApprovedPack()")
+            await pT.evaluate(GIFT_EXPORT_JS)
         gift1 = f'{D}/t_gift1.html'; await (await dl.value).save_as(gift1)
         rec('T teacher no JS errors', not errsT, errsT[:3])
         await ctxT.close()
@@ -229,7 +230,7 @@ async def main():
         await pT2.fill('#review-teacher-name', 'الشيخ محمود')
         await pT2.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await pT2.wait_for_timeout(300)
         async with pT2.expect_download(timeout=30000) as dl:
-            await pT2.evaluate("exportApprovedPack()")
+            await pT2.evaluate(GIFT_EXPORT_JS)
         gift2 = f'{D}/t_gift2.html'; await (await dl.value).save_as(gift2); await ctxT2.close()
         g2 = open(gift2, encoding='utf-8').read()
         m = re.search(r'var PACK_DATA = (.*?);\n/\* ===PACK_DATA_END', g2, re.S); pd2 = json.loads(m.group(1))

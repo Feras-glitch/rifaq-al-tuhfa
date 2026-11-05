@@ -49,8 +49,22 @@ edit(manifest, (s) => {
                 <data android:mimeType="text/html" />
             </intent-filter>`;
   const launcherEnd = s.indexOf('</intent-filter>', s.indexOf('android.intent.category.LAUNCHER')) + '</intent-filter>'.length;
-  return s.slice(0, launcherEnd) + openWith + s.slice(launcherEnd);
+  s = s.slice(0, launcherEnd) + openWith + s.slice(launcherEnd);
+  // 9.39.10: لا نسخ احتياطي ولا نقل بين الأجهزة لبيانات التطبيق (تسجيلات الأطفال، اسم ولي الأمر، مفتاح توقيع المعلم).
+  // وعدُ ورقة ولي الأمر: «يُحفظ على جهاز الطفل»؛ والحذف من الجهاز يجب ألا تبقى بعده نسخة في حساب Google.
+  must(s, 'android:allowBackup=', manifest);
+  s = s.replace(/android:allowBackup="[^"]*"/, 'android:allowBackup="false"');
+  if (!s.includes('android:fullBackupContent=')) s = s.replace('android:allowBackup="false"', 'android:allowBackup="false"\n        android:fullBackupContent="false"');
+  if (!s.includes('android:dataExtractionRules=')) s = s.replace('android:allowBackup="false"', 'android:allowBackup="false"\n        android:dataExtractionRules="@xml/data_extraction_rules"');
+  return s;
 });
+const xmlDir = path.join(MAIN, 'res', 'xml');
+fs.mkdirSync(xmlDir, { recursive: true });
+const domains = ['root', 'file', 'database', 'sharedpref', 'external'];
+const excl = domains.map((d) => `        <exclude domain="${d}" path="." />`).join('\n');
+fs.writeFileSync(path.join(xmlDir, 'data_extraction_rules.xml'),
+  `<?xml version="1.0" encoding="utf-8"?>\n<!-- 9.39.10: لا نسخ سحابي ولا نقل بين الأجهزة لأي بيانات للتطبيق -->\n<data-extraction-rules>\n    <cloud-backup>\n${excl}\n    </cloud-backup>\n    <device-transfer>\n${excl}\n    </device-transfer>\n</data-extraction-rules>\n`);
+console.log('✓ res/xml/data_extraction_rules.xml');
 
 /* 2) الاسم */
 const strings = path.join(MAIN, 'res', 'values', 'strings.xml');

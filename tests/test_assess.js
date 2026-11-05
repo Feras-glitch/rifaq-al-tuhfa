@@ -1,6 +1,13 @@
-const A = require('./assessCore.js');
-const fs = require('fs');
-const secs = JSON.parse(fs.readFileSync('/home/claude/kids/kids_sections_only.json','utf8'));
+// 9.39.10: يختبر محرك التقييم كما هو داخل التطبيق نفسه (كانت النسخة المنفصلة tools/assessCore.js قد ابتعدت عنه)، على المنهج المعتمد.
+// التشغيل: node tests/test_assess.js
+const fs = require('fs'), path = require('path'), vm = require('vm');
+const ROOT = path.join(__dirname, '..');
+const html = fs.readFileSync(path.join(ROOT, 'app', 'تطبيق_الطالب_والمعلم_v9.39.html'), 'utf8');
+const a = html.indexOf('var ASSESS_CFG'), b = html.indexOf('var CONSENT_VERSION', a);
+if (a < 0 || b < 0) { console.log('FAIL cannot locate assessment engine in app'); process.exit(1); }
+const ctx = {}; vm.createContext(ctx); vm.runInContext(html.slice(a, b), ctx);
+const A = ctx;
+const secs = JSON.parse(fs.readFileSync(path.join(ROOT, 'curriculum', 'منهج_المرحلة1_كامل_معتمد_v1.3.json'), 'utf8')).sections;
 let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console.log('ok', m); };
 // 1 split disjoint
 const sp = A.assessSplit(secs);
@@ -45,4 +52,21 @@ ok(new Date(st.concepts['s0_muqaddima'].nextReview).getTime() - new Date('2026-1
 // 7 teacher reply overdue after 48h
 ok(A.assessTeacherReplyOverdue('2026-10-01T00:00:00Z','2026-10-03T00:00:01Z') === true, 'reply overdue after 48h');
 ok(A.assessTeacherReplyOverdue('2026-10-01T00:00:00Z','2026-10-02T23:00:00Z') === false, 'not overdue before 48h');
+// 8 (9.39.10) mastery needs two passing rounds with NO repeated question (exam rounds get a unique set name each time)
+st = A.assessEmptyState();
+A.assessRecordRound(st,'s3_idgham','X1',true,'2026-10-01T00:00:00Z',['q3_1','q3_2']);
+A.assessRecordRound(st,'s3_idgham','X2',true,'2026-10-02T00:00:00Z',['q3_1','q3_2']);
+ok(!st.concepts['s3_idgham'].mastered, 'two exam passes with the SAME questions are not mastery');
+A.assessRecordRound(st,'s3_idgham','X3',true,'2026-10-03T00:00:00Z',['q3_3','q3_4']);
+ok(st.concepts['s3_idgham'].mastered, 'two consecutive passes with disjoint questions = mastery');
+st = A.assessEmptyState();
+A.assessRecordRound(st,'s5_ikhfa','X1',true,'2026-10-01T00:00:00Z',['q5_1','q5_2']);
+A.assessRecordRound(st,'s5_ikhfa','X2',true,'2026-10-02T00:00:00Z',['q5_2','q5_3']);
+ok(!st.concepts['s5_ikhfa'].mastered, 'one shared question between the two rounds blocks mastery');
+st = A.assessEmptyState(); st.concepts.s6_ghunna = {lastSet: 'X123', lastPass: true, streakPass: 0, failStreak: 0, rounds: 1, mastered: false};
+A.assessRecordRound(st,'s6_ghunna','X999',true,'2026-10-02T00:00:00Z');
+ok(!st.concepts['s6_ghunna'].mastered, 'legacy exam rounds without question lists never count as different versions');
+// 9 (9.39.10) the blueprint still holds for the corrected curriculum
+ok(A.assessBlueprintGaps(secs).length === 0, 'every concept has enough questions in both sets');
 console.log(fails ? 'FAILURES: '+fails : 'ALL PASSED');
+process.exit(fails ? 1 : 0);

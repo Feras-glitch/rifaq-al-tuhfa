@@ -46,6 +46,12 @@ def check_csp(path):
     assert a >= 0 and b > a and m, "بنية CSP غير متوقعة: " + path
     h = base64.b64encode(hashlib.sha256(html[a + 8:b].encode("utf-8")).digest()).decode()
     assert h == m.group(1), "تجزئة CSP لا تطابق السكربت (نهايات أسطر؟): " + path
+    ms = re.search(r"style-src 'sha256-([A-Za-z0-9+/=]+)'", html)
+    if ms:  # 9.39.10: تجزئة الأنماط يجب أن تطابق أيضًا، وإلا تُحجب الأنماط كلها
+        st = re.findall(r"<style>(.*?)</style>", html, re.S)
+        assert len(st) == 1, "عدد عناصر <style> غير متوقع: " + path
+        hs = base64.b64encode(hashlib.sha256(st[0].encode("utf-8")).digest()).decode()
+        assert hs == ms.group(1), "تجزئة CSP لا تطابق الأنماط: " + path
     assert b"\r\n" not in raw[:4000], "نهايات أسطر CRLF في: " + path
 
 
