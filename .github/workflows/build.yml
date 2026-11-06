@@ -35,6 +35,12 @@ jobs:
         run: |
           node tools/qx_validate.js "curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json"
           node tests/test_assess.js
+          python3 -I tests/check_questions.py curriculum/نص_القرآن_تنزيل_العثماني.json "curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json"
+          # 9.39.11: بنك الاختبار المحجوز (مطابقة تنزيل، الحكم المحسوب، عدم التكرار مع الدروس، توزيع الأجوبة)
+          python3 -I tools/verify_exam_bank_9.39.11.py
+          # 9.39.11: الأسئلة الإملائية المختلطة (تُفحص على المنهج بدونها، كما صيغت)
+          python3 -I -c "import json; p='curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json'; c=json.load(open(p,encoding='utf-8')); [s.__setitem__('questions',[q for q in s['questions'] if not q['id'].startswith('mx_')]) for s in c['sections']]; json.dump(c,open('/tmp/cur_pre_mx.json','w',encoding='utf-8'),ensure_ascii=False)"
+          python3 -I tools/verify_lesson_items_9.39.11.py curriculum/drafts/lesson_items_9.39.11.json /tmp/cur_pre_mx.json
       - name: تثبيت Playwright
         run: |
           pip install playwright==1.48.0

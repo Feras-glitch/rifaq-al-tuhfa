@@ -85,6 +85,42 @@ def with_pack(path, pack, out):
 def ev(target, js, *a):
     return asyncio.wait_for(target.evaluate(js, *a), 20)
 
+async def solve_gate(fr, wrong=False):
+    """9.39.11 (ق5-أ): بوابة ولي الأمر — تقرأ المسألة وتكتب الناتج (أو ناتجًا خاطئًا)"""
+    await fr.wait_for_selector('#parent-gate-q', timeout=5000)
+    q = await fr.inner_text('#parent-gate-q')
+    m = re.search(r'(\d+)\s*×\s*(\d+)', q)
+    ans = int(m.group(1)) * int(m.group(2))
+    await fr.fill('#parent-gate-answer', str(ans + 1 if wrong else ans))
+    await fr.click('#parent-gate-ok'); await fr.wait_for_timeout(200)
+    return q
+
+def trust_route(keys=None, sups=None):
+    body = {'keys': keys or [], 'supervisors': sups or []}
+    return lambda r: r.fulfill(json=body)
+
+DUMMY_SUP = {'kty': 'EC', 'crv': 'P-256', 'x': 'A' * 43, 'y': 'B' * 43}  # مشرف مسجَّل لا يملك أحد مفتاحه الخاص
+EVIL_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='
+
+async def configured_page(b, keys=None, sups=None):
+    ctx, pg, errs = await ctx_page(b)
+    await ctx.route('**/trusted-teachers.json', trust_route(keys, sups))
+    return ctx, pg, errs
+
+# 9.39.11 (ق2-ب): يجيب عن أسئلة الجلسة الجارية برمجيًا (الأول خطأ إن طُلب) ويضغط «التالي» حتى تنتهي
+RUN_SESSION_JS = """async (wrongFirst) => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let n = 0; const sec = CURRENT.section;
+  while (CURRENT.section === sec && CURRENT.qIdx < sec.questions.length && !document.getElementById('view-quiz').classList.contains('hidden')) {
+    const q = sec.questions[CURRENT.qIdx], bad = wrongFirst && n === 0;
+    if (QX.has(q.type)) finishCustom(q, bad ? 1 : 0);
+    else answer(bad ? (q.type === 'true_false' ? !q.answer : (q.answer + 1) % q.options.length) : q.answer);
+    n++; await sleep(20);
+    const btn = document.querySelector('#feedback-box button'); if (!btn) break; btn.click(); await sleep(20);
+  }
+  return n;
+}"""
+
 async def main():
     srv = serve(SITE, PORT); BASE = f'http://localhost:{PORT}'
     srv2 = None
@@ -602,7 +638,7 @@ async def main():
                 await ev(fZ, "dbPut('probe', new Blob(['private-audio']))")
                 dbZ = await ev(fZ, "DB_NAME")
                 await ev(pZ, "n=>new Promise(r=>{var q=indexedDB.open(n);q.onsuccess=()=>{window.holdZ=q.result;r(1)}})", dbZ)
-                await ev(fZ, "setTimeout(showReset, 0)"); await pZ.wait_for_timeout(7000)
+                await ev(fZ, "setTimeout(showReset, 0)"); await solve_gate(fZ); await pZ.wait_for_timeout(7000)
                 fZ = await appframe(pZ)
                 z = await ev(fZ, "[pendingDbDeletes().length > 0, CHILD_DATA_DELETED === true]")
                 await ev(pZ, "holdZ.close()"); await ctxZ.close()
@@ -629,6 +665,214 @@ async def main():
                     'لم يُرسل بعد' in before and 'في ملف الإرسال' in after and 'آخر اختبار: 7/10' in line, (('لم يُرسل بعد' in before), ('في ملف الإرسال' in after), line[:90]))
             except Exception as e:
                 rec('R31 (exception)', False, repr(e)[:200])
+
+            # R32 (ق5-أ): لا زر تصفير في الرئيسية؛ إعدادات ولي الأمر خلف بوابة حسابية؛ بلا موافقة: التصفير وحده
+            try:
+                ctxG, pG, _ = await ctx_page(b)
+                await pG.goto(BASE + '/open.html?src=app'); fG = await appframe(pG)
+                await ev(fG, "continueFromSplash()"); await fG.fill('#setup-name', 'هند'); await ev(fG, "saveSetup()"); await fG.wait_for_timeout(400)
+                await ev(fG, "document.getElementById('consent-no') && document.getElementById('consent-no').click()"); await fG.wait_for_timeout(300)
+                await ev(fG, "goHome()"); await fG.wait_for_timeout(300)
+                no_home_reset = await ev(fG, "document.querySelector('#view-home [data-call*=\"showReset\"]') === null && CALLABLE_ALLOW.indexOf('openGuardianSettingsInner') < 0")
+                await ev(fG, "openGuardianSettings()"); await fG.wait_for_timeout(200)
+                gate_first = await ev(fG, "[!!document.getElementById('parent-gate'), !document.getElementById('guardian-overlay')]")
+                q1 = await solve_gate(fG, wrong=True)
+                after_wrong = await ev(fG, "[!!document.getElementById('parent-gate'), !document.getElementById('guardian-overlay'), document.getElementById('parent-gate-msg').textContent]")
+                await solve_gate(fG)
+                reduced = await ev(fG, "[!!document.getElementById('guardian-overlay'), !!document.getElementById('gs-delete'), !document.getElementById('gs-share'), (document.getElementById('gs-delete')||{}).textContent||'']")
+                await ctxG.close()
+                ctxG2, pG2, _ = await ctx_page(b)
+                await pG2.goto(BASE + '/open.html?src=app'); fG2 = await appframe(pG2)
+                await setup_student(fG2, 'ريم')
+                await ev(fG2, "openGuardianSettings()"); await solve_gate(fG2)
+                full = await ev(fG2, "[!!document.getElementById('gs-share'), (document.getElementById('gs-delete')||{}).textContent||'']")
+                await ctxG2.close()
+                rec('R32 no home reset; guardian settings behind arithmetic gate; reset-only without consent',
+                    no_home_reset and gate_first == [True, True] and after_wrong[0] and after_wrong[1] and 'غير صحيحة' in after_wrong[2]
+                    and reduced[:3] == [True, True, True] and 'تصفير' in reduced[3] and full[0] and 'تصفير' in full[1],
+                    (no_home_reset, gate_first, after_wrong, reduced, full, q1))
+            except Exception as e:
+                rec('R32 (exception)', False, repr(e)[:200])
+
+            # R33 (ق1-ب، RT9399-01): ملف إرسال مصنوع يحقن تسجيل «زميل» وتلاوة «شيخ» واسم شيخ؛ المعلم يعتمد تسجيل الطالب فقط
+            # النتيجة المطلوبة: لا شيء من المحقون يصل إلى المهدى إليه، وتسجيل الطالب الحقيقي يصل موثّقًا.
+            try:
+                ctxA1, pA1, _ = await ctx_page(b)
+                await pA1.goto(BASE + '/open.html?src=app'); fA1 = await appframe(pA1)
+                await setup_student(fA1, 'مريم أحمد'); await record(fA1)
+                subL = await export_from(pA1, fA1, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/r33_sub.html')
+                await ctxA1.close()
+                pk = pack_of(subL)
+                pk['approvedPeerRecordings'] = [{'id': 'evil', 'name': 'زميل مجهول', 'gender': 'boy', 'shareable': True, 'audios': {'r3_1': {'audio': EVIL_WAV, 'status': 'approved'}}}]
+                pk.setdefault('masterAudios', {}); pk['masterAudios']['r2_1'] = EVIL_WAV
+                pk['sheikhName'] = 'اسم شيخ محقون'
+                crafted = with_pack(subL, pk, f'{OUT}/r33_crafted.html')
+                ctxT3, pT3, _ = await configured_page(b, sups=[DUMMY_SUP])
+                await pT3.goto(BASE + '/open.html'); fT3 = await open_file(pT3, crafted)
+                tview = await ev(fT3, "[REF_TRUST, REF_HIDDEN, (document.getElementById('review-ref-line')||{}).textContent||'', document.body.innerText.indexOf('اسم شيخ محقون') < 0, trustedPeerGroups().length]")
+                await fT3.fill('#review-teacher-name', 'الشيخ محمود')
+                await fT3.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await fT3.wait_for_timeout(300)
+                giftL = await export_from(pT3, fT3, GIFT_EXPORT_JS, f'{OUT}/r33_gift.html')
+                gmsg = await ev(fT3, "window.__giftMsg || ''")
+                jwkT = json.loads(await ev(fT3, "keyDbGet(SIG_KEY_ID).then(r=>JSON.stringify(r.publicJwk))"))
+                g = pack_of(giftL)
+                in_file = ([x.get('id') for x in g.get('approvedPeerRecordings', []) if x.get('id') == 'evil'], (g.get('masterAudios') or {}).get('r2_1') == EVIL_WAV, g.get('sheikhName'))
+                ctxR3, pR3, _ = await configured_page(b, keys=[jwkT], sups=[DUMMY_SUP])
+                await pR3.goto(BASE + '/open.html'); fR3 = await open_file(pR3, giftL)
+                rv = await ev(fR3, "[GIFT_TRUST, peerAudioBlocks('r3_1').indexOf('زميل مجهول') < 0, Object.keys(PACK_DATA.masterAudios||{}).length, PACK_DATA.sheikhName, peerAudioBlocks('r2_1').indexOf('مريم') >= 0]")
+                await ctxR3.close()
+                rec('R33 RT9399-01 laundering blocked: teacher warned, injected peer/master/name never reach the recipient; real recording verified',
+                    tview[0] == 'unsigned' and tview[1] is True and 'لا تحمل توقيع مشرف' in tview[2] and tview[3] and tview[4] == 0
+                    and 'لن تنتقل تسجيلات زملاء موروثة' in gmsg and 'زميل مجهول' in gmsg
+                    and in_file == ([], False, 'الشيخ')
+                    and rv[0] == 'verified' and rv[1] and rv[2] == 0 and rv[3] != 'اسم شيخ محقون' and rv[4],
+                    (tview, gmsg[-160:], in_file, rv))
+
+                # R34 (ق1-ب): السلسلة المشروعة ما زالت تعمل — أ ← معلم ← ب ← معلم ← ج يرى تسجيلَي أ و ب، والمادة المدمجة موثّقة في كل حلقة
+                ctxA2, pA2, _ = await ctx_page(b)
+                await pA2.goto(BASE + '/open.html?src=app'); fA2 = await appframe(pA2)
+                await setup_student(fA2, 'آمنة'); await record(fA2)
+                subA = await export_from(pA2, fA2, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/r34_subA.html')
+                await ctxA2.close()
+                # تثبيت التطبيق لدى المعلم يسجّل مفتاحه هو أيضًا (كما في النشر الفعلي)
+                await ctxT3.unroute('**/trusted-teachers.json'); await ctxT3.route('**/trusted-teachers.json', trust_route([jwkT], [DUMMY_SUP]))
+                await pT3.goto(BASE + '/open.html'); fT3 = await open_file(pT3, subA)
+                t_ref = await ev(fT3, "REF_TRUST")
+                await fT3.fill('#review-teacher-name', 'الشيخ محمود')
+                await fT3.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await fT3.wait_for_timeout(300)
+                gift1 = await export_from(pT3, fT3, GIFT_EXPORT_JS, f'{OUT}/r34_gift1.html')
+                ctxB, pB, _ = await configured_page(b, keys=[jwkT], sups=[DUMMY_SUP])
+                await pB.goto(BASE + '/open.html'); fB = await open_file(pB, gift1)
+                b_view = await ev(fB, "[GIFT_TRUST, REF_TRUST, peerAudioBlocks('r2_1').indexOf('آمنة') >= 0]")
+                await setup_student(fB, 'بشرى'); await record(fB, 's3_idgham', 'r3_1')
+                subB = await export_from(pB, fB, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/r34_subB.html')
+                await ctxB.close()
+                fT3 = await open_file(pT3, subB)
+                await fT3.fill('#review-teacher-name', 'الشيخ محمود')
+                await fT3.click('[data-call*="setReview\\",\\"r3_1\\",\\"approved"]'); await fT3.wait_for_timeout(300)
+                gift2 = await export_from(pT3, fT3, GIFT_EXPORT_JS, f'{OUT}/r34_gift2.html')
+                await ctxT3.close()
+                ctxC, pC, _ = await configured_page(b, keys=[jwkT], sups=[DUMMY_SUP])
+                await pC.goto(BASE + '/open.html'); fC = await open_file(pC, gift2)
+                c_view = await ev(fC, "[GIFT_TRUST, REF_TRUST, peerAudioBlocks('r2_1').indexOf('آمنة') >= 0, peerAudioBlocks('r3_1').indexOf('بشرى') >= 0, normalizePeerGroups().map(function(g){ return PEER_TRUST.get(g); })]")
+                await ctxC.close()
+                rec('R34 legitimate chain A→teacher→B→teacher→C: inherited group keeps its teacher certificate; built-in reference stays trusted',
+                    t_ref == 'builtin' and b_view == ['verified', 'builtin', True] and c_view[:4] == ['verified', 'builtin', True, True] and c_view[4] == ['verified', 'verified'],
+                    (t_ref, b_view, c_view))
+            except Exception as e:
+                rec('R33/R34 (exception)', False, repr(e)[:200])
+
+            # R35 (ق1-ب): توقيع المشرف من الاستوديو — يُتحقق منه عبر الطالب ← المعلم ← المهدى إليه، ويكشف أي تعديل
+            try:
+                ctxU, pU, errsU = await ctx_page(b)
+                await pU.goto(BASE + '/open.html?src=studio'); await pU.wait_for_timeout(1500)
+                st = [f for f in pU.frames if '/studio/index.html' in f.url][0]
+                await st.fill('#in-sheikh-name', 'الشيخ أيمن'); await st.fill('#in-supervisor-name', 'فراس')
+                await st.click('text=ابدأ الاستوديو'); await pU.wait_for_timeout(800)
+                recs = await st.query_selector_all('button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(2500)
+                recs = await st.query_selector_all('button:has-text("إيقاف"), button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(1200)
+                await st.click('#btn-sup-key'); await pU.wait_for_timeout(500)
+                supJwk = json.loads(await st.inner_text('#sup-key-json'))
+                async with pU.expect_download(timeout=30000) as dl:
+                    await st.click('#btn-export')
+                spack = f'{OUT}/r35_studio_pack.html'; await (await dl.value).save_as(spack)
+                await ctxU.close()
+                sp = pack_of(spack)
+                MEDIA = "[REF_TRUST, REF_HIDDEN, Object.keys(PACK_DATA.masterAudios||{}).length + (PACK_DATA.welcomeAudioNeutral||PACK_DATA.welcomeAudioMale||PACK_DATA.welcomeAudioFemale ? 1 : 0), PACK_DATA.sheikhName]"
+                ctxS5, pS5, _ = await configured_page(b, sups=[supJwk])
+                await pS5.goto(BASE + '/open.html'); fS5 = await open_file(pS5, spack)
+                s_view = await ev(fS5, MEDIA)
+                await setup_student(fS5, 'سلمى'); await record(fS5)
+                subS = await export_from(pS5, fS5, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/r35_sub.html')
+                await ctxS5.close()
+                ctxT5, pT5, _ = await configured_page(b, sups=[supJwk])
+                await pT5.goto(BASE + '/open.html'); fT5 = await open_file(pT5, subS)
+                t_view = await ev(fT5, MEDIA)
+                await fT5.fill('#review-teacher-name', 'الشيخ محمود')
+                await fT5.click('[data-call*="setReview\\",\\"r2_1\\",\\"approved"]'); await fT5.wait_for_timeout(300)
+                giftS = await export_from(pT5, fT5, GIFT_EXPORT_JS, f'{OUT}/r35_gift.html')
+                jwk5 = json.loads(await ev(fT5, "keyDbGet(SIG_KEY_ID).then(r=>JSON.stringify(r.publicJwk))"))
+                await ctxT5.close()
+                ctxR5, pR5, _ = await configured_page(b, keys=[jwk5], sups=[supJwk])
+                await pR5.goto(BASE + '/open.html'); fR5 = await open_file(pR5, giftS)
+                r_view = await ev(fR5, MEDIA)
+                await ctxR5.close()
+                sp2 = json.loads(json.dumps(sp)); sp2['sheikhName'] = 'شيخ آخر'
+                tampered = with_pack(spack, sp2, f'{OUT}/r35_tampered.html')
+                ctxX, pX, _ = await configured_page(b, sups=[supJwk])
+                await pX.goto(BASE + '/open.html'); fX = await open_file(pX, tampered)
+                x_view = await ev(fX, MEDIA); await ctxX.close()
+                ctxY, pY, _ = await configured_page(b, sups=[DUMMY_SUP])
+                await pY.goto(BASE + '/open.html'); fY = await open_file(pY, spack)
+                y_view = await ev(fY, MEDIA); await ctxY.close()
+                ctxN, pN, _ = await ctx_page(b)
+                await pN.goto(BASE + '/open.html'); fN = await open_file(pN, spack)
+                n_view = await ev(fN, MEDIA + ".concat([REF_SIG])"); await ctxN.close()
+                rec('R35 studio supervisor signature verified through student→teacher→recipient; tampering or unregistered supervisor hides reference media',
+                    sp.get('refCert', {}).get('key', {}).get('x') == supJwk['x']
+                    and s_view[:2] == ['verified', False] and s_view[2] >= 1 and s_view[3] == 'الشيخ أيمن'
+                    and t_view[:2] == ['verified', False] and t_view[2] >= 1 and r_view[:2] == ['verified', False] and r_view[2] >= 1
+                    and x_view[:3] == ['invalid', True, 0] and x_view[3] == 'الشيخ' and y_view[:3] == ['untrusted', True, 0]
+                    and n_view[:3] == ['unconfigured', False, n_view[2]] and n_view[2] >= 1 and n_view[4] == 'valid' and not errsU,
+                    (s_view, t_view, r_view, x_view, y_view, n_view, errsU[:2]))
+            except Exception as e:
+                rec('R35 (exception)', False, repr(e)[:200])
+
+            # R36 (ق2-ب): الاختبار أداة قياس — بعد الدروس كلها، من البنك المحجوز، بلا كشف أثناءه، وملخص بعده،
+            # والإعادة بالمجموعة الأخرى لكل ما لم يُتقن، ونجوم الدرس من المحاولة الأولى، والشهادة من الإتقان وتقييم المعلم
+            try:
+                ctxQ, pQ, errsQ = await ctx_page(b)
+                await pQ.goto(BASE + '/open.html?src=app'); fQ = await appframe(pQ)
+                await setup_student(fQ, 'نور')
+                locked = await ev(fQ, "showProfile(); [document.getElementById('btn-final-exam').classList.contains('hidden'), (document.getElementById('final-exam-locked')||{}).textContent||'']")
+                await ev(fQ, "startFinalExam(1)"); started_locked = await ev(fQ, "!!(CURRENT.section && CURRENT.section.id === 'final_exam')")
+                # نجوم المحاولة الأولى
+                stars = await ev(fQ, """(() => { openSection('s2_idhhar'); startQuiz(); CURRENT.score = 0; finishQuiz(); var a = Object.assign({}, STATE.progress.s2_idhhar);
+                  startQuiz(); CURRENT.score = CURRENT.section.questions.reduce(function(x, q){ return x + q.points; }, 0); finishQuiz();
+                  var b2 = STATE.progress.s2_idhhar; return [a.stars, b2.stars, b2.bestStars, b2.bestScore > 0, !!document.getElementById('first-attempt-note')]; })()""")
+                await ev(fQ, "realSections().forEach(function(s){ STATE.progress[s.id] = STATE.progress[s.id] || {stars: 1, attempts: 1, bestScore: 0}; }); save(); recalcStats(); showProfile()")
+                unlocked = await ev(fQ, "[document.getElementById('btn-final-exam').classList.contains('hidden'), document.getElementById('final-exam-locked').classList.contains('hidden')]")
+                await ev(fQ, "startFinalExam(1)"); await fQ.wait_for_timeout(200)
+                plan = await ev(fQ, """(() => { var les = {}; realSections().forEach(function(s){ s.questions.forEach(function(q){ les[q.id] = 1; }); });
+                  var sp = assessSplit(assessSections()), qs = CURRENT.section.questions, m = CURRENT.section._map;
+                  return [CURRENT.section._exam === true, qs.length, qs.every(function(q){ return !les[q.id]; }), qs.every(function(q){ return sp[m[q.id]].A.indexOf(q.id) >= 0; })]; })()""")
+                # النقر الحقيقي على خيار: لا تلوين صح/خطأ ولا شرح
+                q0 = await ev(fQ, "(() => { var q = CURRENT.section.questions[0]; return [q.type, String(q.explanation || '')]; })()")
+                if q0[0] in ('multiple_choice', 'extraction', 'true_false'):
+                    await fQ.click('#options .option-btn >> nth=0'); await fQ.wait_for_timeout(200)
+                    noreveal = await ev(fQ, "[document.querySelectorAll('#options .correct, #options .wrong').length, document.getElementById('feedback-box').innerText, document.getElementById('quiz-points').textContent]")
+                    noreveal_ok = noreveal[0] == 0 and 'سُجّلت إجابتك' in noreveal[1] and noreveal[2] == '+0'
+                    await ev(fQ, "document.querySelector('#feedback-box button').click()")
+                    await ev(fQ, "CURRENT.examResults[0].ok = false; CURRENT.examWrong = [CURRENT.section.questions[0]]; CURRENT.correct = 0; CURRENT.wrong = 1; CURRENT.score = 0")
+                    await ev(fQ, RUN_SESSION_JS, False)
+                else:
+                    noreveal_ok = True; await ev(fQ, RUN_SESSION_JS, True)
+                await fQ.wait_for_timeout(300)
+                s1 = await ev(fQ, """(() => { var v = STATE.assess.lastVerdict, ks = Object.keys(v), rep = document.getElementById('exam-report');
+                  return [ks.filter(function(k){ return !v[k].ok; }).length, ks.filter(function(k){ return v[k].mastered; }).length, ks.every(function(k){ return STATE.assess.pendingRetest.indexOf(k) >= 0; }),
+                    !!rep && rep.innerText.indexOf('الإجابة الصحيحة') >= 0, document.getElementById('result-stars').innerHTML === '', !!STATE.assess.examDone[1]]; })()""")
+                await ev(fQ, "startFinalExam(2)"); await fQ.wait_for_timeout(200)
+                await ev(fQ, RUN_SESSION_JS, False); await fQ.wait_for_timeout(300)
+                fin = await ev(fQ, "showProfile(); [STATE.assess.finalDone === true, document.getElementById('btn-final-exam').classList.contains('hidden'), STATE.assess.pendingRetest.length, realSections().length]")
+                await ev(fQ, "startRetest()"); await fQ.wait_for_timeout(200)
+                rt = await ev(fQ, """(() => { var sp = assessSplit(assessSections()), qs = CURRENT.section.questions, m = CURRENT.section._map;
+                  return [CURRENT.section.id, qs.length, qs.every(function(q){ return sp[m[q.id]].B.indexOf(q.id) >= 0; })]; })()""")
+                await ev(fQ, RUN_SESSION_JS, False); await fQ.wait_for_timeout(300)
+                mast = await ev(fQ, "Object.keys(STATE.assess.concepts).filter(function(k){ return STATE.assess.concepts[k].mastered; }).length")
+                cert = await ev(fQ, """(() => { realSections().forEach(function(s){ assessConcept(STATE.assess, s.id).mastered = true; });
+                  STATE.teacherRatings = {}; var a = buildCertData().role; STATE.teacherRatings = {r2_1: 'mastered'}; var b2 = buildCertData().role;
+                  STATE.teacherRatings = {r2_1: 'mastered', r3_1: 'needs'}; var c = buildCertData(); return [a, b2, c.role, c.desc]; })()""")
+                await ctxQ.close()
+                rec('R36 final exam = measurement: unlocks after all lessons, reserved bank set A, no reveal, summary after, retest on set B, first-attempt stars, certificate from mastery + teacher rating',
+                    locked[0] is True and 'بعد إكمال الدروس' in locked[1] and not started_locked
+                    and stars[0] == 1 and stars[1] == 1 and stars[2] == 3 and stars[3] and stars[4]
+                    and unlocked == [False, True] and plan[0] and plan[2] and plan[3] and noreveal_ok
+                    and s1[0] == 1 and s1[1] == 0 and s1[2] and s1[3] and s1[4] and s1[5]
+                    and fin[0] and fin[1] and fin[2] == fin[3] and rt[0] == 'retest_session' and 0 < rt[1] <= 21 and rt[2] and mast >= 1
+                    and 'لأحكام المنهج' in cert[0] and 'بإتقان تام' in cert[1] and 'بإتقان تام' not in cert[2] and 'تدريبًا في موضع واحد' in cert[3] and not errsQ,
+                    (locked, started_locked, stars, unlocked, plan, noreveal_ok, s1, fin, rt, mast, cert, errsQ[:2]))
+            except Exception as e:
+                rec('R36 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]

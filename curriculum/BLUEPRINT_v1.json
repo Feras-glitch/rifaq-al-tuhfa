@@ -5,113 +5,178 @@
    "title": "مقدمة المتن",
    "questions": 8,
    "minRequired": 2,
-   "typeCount": 5
+   "typeCount": 5,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   },
   {
    "id": "s1_intro",
    "title": "النون الساكنة والتنوين",
    "questions": 6,
    "minRequired": 3,
-   "typeCount": 3
+   "typeCount": 3,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s2_idhhar",
    "title": "الإظهار",
-   "questions": 13,
+   "questions": 17,
    "minRequired": 2,
-   "typeCount": 6
+   "typeCount": 6,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   },
   {
    "id": "s3_idgham",
    "title": "الإدغام",
-   "questions": 18,
+   "questions": 30,
    "minRequired": 3,
-   "typeCount": 5
+   "typeCount": 5,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s4_iqlab",
    "title": "الإقلاب",
-   "questions": 12,
+   "questions": 18,
    "minRequired": 2,
-   "typeCount": 4
+   "typeCount": 4,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   },
   {
    "id": "s5_ikhfa",
    "title": "الإخفاء",
-   "questions": 14,
+   "questions": 21,
    "minRequired": 3,
-   "typeCount": 7
+   "typeCount": 7,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s6_ghunna",
    "title": "النون والميم المشددتان",
    "questions": 4,
    "minRequired": 2,
-   "typeCount": 4
+   "typeCount": 4,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   },
   {
    "id": "s7_meem",
    "title": "الميم الساكنة",
-   "questions": 9,
+   "questions": 13,
    "minRequired": 2,
-   "typeCount": 6
+   "typeCount": 6,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   },
   {
    "id": "s8_lam",
    "title": "لام «أل»",
    "questions": 10,
    "minRequired": 2,
-   "typeCount": 6
+   "typeCount": 6,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   },
   {
    "id": "s8b_mithl",
    "title": "المثلان والمتقاربان والمتجانسان",
    "questions": 10,
    "minRequired": 2,
-   "typeCount": 6
+   "typeCount": 6,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   },
   {
    "id": "s9_madd1",
    "title": "المد الطبيعي والبدل والعوض",
    "questions": 8,
    "minRequired": 3,
-   "typeCount": 6
+   "typeCount": 6,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s10_madd2",
    "title": "المد المتصل والمنفصل",
    "questions": 7,
    "minRequired": 3,
-   "typeCount": 5
+   "typeCount": 5,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s11_madd3",
    "title": "المد العارض واللين والصلة",
    "questions": 8,
    "minRequired": 3,
-   "typeCount": 5
+   "typeCount": 5,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s12_lazim",
    "title": "المد اللازم",
    "questions": 6,
    "minRequired": 3,
-   "typeCount": 5
+   "typeCount": 5,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s12b_fawatih",
    "title": "فواتح السور واللازم الحرفي",
    "questions": 10,
    "minRequired": 3,
-   "typeCount": 6
+   "typeCount": 6,
+   "examBank": {
+    "A": 3,
+    "B": 3
+   }
   },
   {
    "id": "s13_khatima",
    "title": "خاتمة المتن",
    "questions": 6,
    "minRequired": 2,
-   "typeCount": 4
+   "typeCount": 4,
+   "examBank": {
+    "A": 2,
+    "B": 2
+   }
   }
  ],
- "note_9_39_10": "حُدّث من المنهج المعتمد v1.3 بعد تصحيحات 9.39.10 ومن ASSESS_CFG في التطبيق: عدد الأسئلة وأنواعها والحد الأدنى لكل مفهوم (3 للمفاهيم الكبيرة). كل الأسئلة 10 نقاط."
+ "note_9_39_10": "حُدّث من المنهج المعتمد v1.3 بعد تصحيحات 9.39.10 ومن ASSESS_CFG في التطبيق: عدد الأسئلة وأنواعها والحد الأدنى لكل مفهوم (3 للمفاهيم الكبيرة). كل الأسئلة 10 نقاط.",
+ "note_9_39_11": "ق2-ب: لكل مفهوم بنك محجوز examQuestions بمجموعتين A وB، في كل منهما عدد minRequired بالضبط (المجموع 80). الاختبار النهائي 40 سؤالًا من مجموعة واحدة لكل مفهوم، والإعادة والمراجعة من المجموعة الأخرى. ق3-ب: أُضيف 33 سؤال استخراج مختلطًا بالرسم الإملائي (mx_*) إلى s2 وs3 وs4 وs5 وs7، فتغيّر عدد أسئلتها. المسودتان تنتظران مراجعة الشيخ."
 }

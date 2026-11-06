@@ -16,15 +16,31 @@ ok(disjoint, 'versions A/B are disjoint for every concept');
 // 2 blueprint gaps
 const gaps = A.assessBlueprintGaps(secs);
 console.log('gaps:', JSON.stringify(gaps));
-// 3 final exam: size 70, no repeats, minimums met
+// 3 (9.39.11، ق2-ب) final exam = measurement round: one set per concept, exactly its required count, no repeats
 let seed = 7; const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const size = A.assessExamSize(secs);
 const exam = A.assessBuildFinal(secs, rng);
-ok(exam.length === 70, 'final exam has 70 items (got ' + exam.length + ')');
+ok(exam.length === size && size === 40, 'final exam has one required-count block per concept = 40 items (got ' + exam.length + ')');
 ok(new Set(exam.map(e => e.q)).size === exam.length, 'no duplicate items in final exam');
 const perSec = {}; exam.forEach(e => perSec[e.sec] = (perSec[e.sec] || 0) + 1);
-const minOk = secs.every(s => (perSec[s.id] || 0) >= A.assessRequired(s.id) || (A.assessSplit(secs)[s.id].A.length + A.assessSplit(secs)[s.id].B.length) < A.assessRequired(s.id));
-ok(minOk, 'every concept meets its minimum in the final exam');
-ok(secs.every(s => (perSec[s.id] || 0) >= 2), 'every concept appears at least twice');
+ok(secs.every(s => perSec[s.id] === A.assessRequired(s.id)), 'every concept gets exactly its required count');
+ok(exam.every(e => e.set === 'A' && sp[e.sec].A.includes(e.q)), 'first exam draws every concept from set A');
+const allB = {}; secs.forEach(s => allB[s.id] = 'B');
+const examB = A.assessBuildFinal(secs, rng, allB);
+ok(examB.every(e => e.set === 'B' && sp[e.sec].B.includes(e.q)) && !examB.some(e => exam.some(x => x.q === e.q)), 'the other set shares no question with the first exam');
+// 3b the reserved bank never appears in lessons, and the engine uses it when present
+const lessonIds = new Set(secs.flatMap(s => (s.questions || []).map(q => q.id)));
+const hasBank = secs.every(s => Array.isArray(s.examQuestions) && s.examQuestions.length);
+ok(hasBank && exam.concat(examB).every(e => !lessonIds.has(e.q)), 'every concept has a reserved bank, and exam questions never come from lessons');
+ok(secs.every(s => ['A', 'B'].every(k => sp[s.id][k].length === A.assessRequired(s.id))), 'bank: each set holds exactly the concept\'s required count');
+// 3d a curriculum without a bank still works (lesson questions, alternating split)
+const legacy = secs.map(s => Object.assign({}, s, {examQuestions: undefined}));
+ok(A.assessBuildFinal(legacy, rng).every(e => lessonIds.has(e.q)), 'legacy curriculum without bank falls back to lesson questions');
+// 3c next set alternates after a round
+let st0 = A.assessEmptyState();
+ok(A.assessNextSet(st0, 's2_idhhar') === 'A', 'a concept never tested starts with set A');
+A.assessRecordRound(st0, 's2_idhhar', 'A', true, '2026-10-01T00:00:00Z', ['x']);
+ok(A.assessNextSet(st0, 's2_idhhar') === 'B', 'after a round on A the next round uses B');
 // 4 mastery rule: two consecutive passes with different versions
 let st = A.assessEmptyState();
 A.assessRecordRound(st,'s2_idhhar','A',true,'2026-10-01T00:00:00Z');

@@ -107,34 +107,72 @@
     return { kind: kind, who: String(who).slice(0, 60) };
   }
 
-  /* 9.39.2: مرساة الثقة — مفاتيح المعلمين المسجَّلين في هذا التطبيق المثبَّت (لا في الملف المفتوح) */
-  var pinnedPromise = null;
+  /* 9.39.2: مرساة الثقة — مفاتيح المعلمين المسجَّلين في هذا التطبيق المثبَّت (لا في الملف المفتوح)
+     9.39.11 (ق1-ب): ومفاتيح المشرفين (supervisors) لتوقيع المادة المرجعية، وبصمات المادة المدمجة في هذا الإصدار */
+  var trustPromise = null;
   function validJwk(k) {
     return k && typeof k === 'object' && k.kty === 'EC' && k.crv === 'P-256' &&
       /^[A-Za-z0-9_-]{43}$/.test(String(k.x)) && /^[A-Za-z0-9_-]{43}$/.test(String(k.y));
   }
-  function getPinned() {
-    if (!pinnedPromise) {
-      pinnedPromise = fetch('./trusted-teachers.json', { cache: 'no-cache' })
-        .then(function (r) { return r.ok ? r.json() : { keys: [] }; })
-        .then(function (j) {
-          var ks = (j && Array.isArray(j.keys) ? j.keys : []).filter(validJwk)
-            .map(function (k) { return { kty: 'EC', crv: 'P-256', x: k.x, y: k.y }; });
-          return ks;
-        })
-        .catch(function () { return []; });
-    }
-    return pinnedPromise;
+  function cleanKeys(a) {
+    return (Array.isArray(a) ? a : []).filter(validJwk).map(function (k) { return { kty: 'EC', crv: 'P-256', x: k.x, y: k.y }; });
   }
+  function getTrust() {
+    if (!trustPromise) {
+      trustPromise = fetch('./trusted-teachers.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : {}; })
+        .then(function (j) { return { keys: cleanKeys(j && j.keys), supervisors: cleanKeys(j && j.supervisors) }; })
+        .catch(function () { return { keys: [], supervisors: [] }; });
+    }
+    return trustPromise;
+  }
+  function getPinned() { return getTrust().then(function (t) { return t.keys; }); }
+
+  /* بصمة المادة المرجعية — مطابقة حرفيًا لـ canonJSON/refFieldsOf في التطبيق */
+  var REF_KEYS = ['curriculum', 'masterAudios', 'sheikhName', 'sheikhPhoto', 'sheikhGender', 'supervisorName', 'supervisorPhoto', 'supervisorGender', 'poemReciterName', 'poemReciterPhoto', 'schoolName', 'schoolLogo', 'welcomeAudioNeutral', 'welcomeAudioMale', 'welcomeAudioFemale', 'journeyTitle', 'projectTitle', 'trackTitle', 'seriesTitle'];
+  function canonJSON(v) {
+    function c(x) {
+      if (x === null || typeof x !== 'object') { var s = JSON.stringify(x); return s === undefined ? undefined : s; }
+      if (Array.isArray(x)) return '[' + x.map(function (e) { var s = c(e); return s === undefined ? 'null' : s; }).join(',') + ']';
+      var ks = Object.keys(x).sort(), out = [];
+      for (var i = 0; i < ks.length; i++) { var s = c(x[ks[i]]); if (s !== undefined) out.push(JSON.stringify(ks[i]) + ':' + s); }
+      return '{' + out.join(',') + '}';
+    }
+    return c(v);
+  }
+  function refDigest(pack) {
+    var o = {};
+    REF_KEYS.forEach(function (k) { if (pack && Object.prototype.hasOwnProperty.call(pack, k) && pack[k] !== undefined) o[k] = pack[k]; });
+    return sha256b64(canonJSON(o));
+  }
+  var builtinPromise = null;
+  function builtinRefDigests() {
+    if (!builtinPromise) {
+      var one = function (p) { return p.then(function (t) { return refDigest(extractPack(t)); }).catch(function () { return null; }); };
+      builtinPromise = Promise.all([
+        one(getTemplate()),
+        one(fetch('./trial/index.html', { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error('trial'); return r.text(); }))
+      ]).then(function (a) { return a.filter(Boolean); });
+    }
+    return builtinPromise;
+  }
+  function getSupervisorPin() {
+    return Promise.all([getTrust(), builtinRefDigests()]).then(function (r) { return { keys: r[0].supervisors, refDigests: r[1] }; });
+  }
+
   var PIN_RE = /var PINNED_TEACHER_KEYS = [^\n]*?; \/\* RIFAQ_PINNED_KEYS \*\//;
+  var SUP_RE = /var PINNED_SUPERVISOR = [^\n]*?; \/\* RIFAQ_PINNED_SUPERVISOR \*\//;
   /* 9.39.3 (RT9392-01): مرساة الثقة تُحقن في القالب الموثوق قبل إدخال أي بيانات من الملف المفتوح،
-     فلا يمكن لنص داخل البيانات أن يطابق موضع الحقن. القالب يجب أن يحوي الموضع مرة واحدة بالضبط. */
+     فلا يمكن لنص داخل البيانات أن يطابق موضع الحقن. القالب يجب أن يحوي كل موضع مرة واحدة بالضبط. */
   function pinTemplate(tpl) {
-    return getPinned().then(function (keys) {
-      var n = (tpl.match(new RegExp(PIN_RE.source, 'g')) || []).length;
-      if (n !== 1) throw new Error('template trust anchor slot count = ' + n);
-      var pinned = JSON.stringify(keys).replace(/<\//g, '<\\/');
-      return tpl.replace(PIN_RE, function () { return 'var PINNED_TEACHER_KEYS = ' + pinned + '; /* RIFAQ_PINNED_KEYS */'; });
+    return Promise.all([getPinned(), getSupervisorPin()]).then(function (r) {
+      [[PIN_RE, 'template trust anchor'], [SUP_RE, 'template supervisor anchor']].forEach(function (p) {
+        var n = (tpl.match(new RegExp(p[0].source, 'g')) || []).length;
+        if (n !== 1) throw new Error(p[1] + ' slot count = ' + n);
+      });
+      var esc = function (v) { return JSON.stringify(v).replace(/<\//g, '<\\/'); };
+      return tpl.replace(PIN_RE, function () { return 'var PINNED_TEACHER_KEYS = ' + esc(r[0]) + '; /* RIFAQ_PINNED_KEYS */'; })
+        .replace(SUP_RE, function () { return 'var PINNED_SUPERVISOR = ' + esc(r[1]) + '; /* RIFAQ_PINNED_SUPERVISOR */'; });
     });
   }
   /* يعيد حساب تجزئة السكربت في CSP (بالطريقة نفسها التي يصدّر بها التطبيق) */

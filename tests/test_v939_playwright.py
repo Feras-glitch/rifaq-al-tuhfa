@@ -105,6 +105,8 @@ async def main():
         fb = await page.inner_text('#feedback-box')
         rec('T7 wrong-answer feedback in feminine', 'انظري' in fb and 'انتقلي' in fb, fb[:120])  # 9.39.10: صياغة أبسط للطفل
         # T8: final exam then reload -> assess persists (R01)
+        # 9.39.11 (ق2-ب): الاختبار النهائي يُفتح بعد إكمال الدروس كلها
+        await page.evaluate("realSections().forEach(function(s){ STATE.progress[s.id] = STATE.progress[s.id] || {stars: 1, attempts: 1, bestScore: 0}; }); save()")
         await page.evaluate("startFinalExam(1)"); await page.wait_for_timeout(300)
         n = await page.evaluate("CURRENT.section.questions.length")
         for i in range(n):
@@ -171,6 +173,7 @@ async def main():
         ctxS, pS, errsS = await newpage(b)
         await pS.goto(f'file://{D}/t_studio_pack.html'); await setup_student(pS, share=True)
         tk0 = await pS.evaluate("JSON.stringify(PACK_DATA.trustedTeacherKeys)")
+        ref_student = await pS.evaluate("[REF_SIG, REF_TRUST, !!(PACK_DATA.refCert && PACK_DATA.refCert.sig)]")
         await record(pS, 's2_idhhar', 'r2_1')
         sub1 = await export_student(pS, f'{D}/t_sub1.html')
         await ctxS.close()
@@ -194,6 +197,9 @@ async def main():
         trust = await pR.evaluate("GIFT_TRUST")
         pd = json.loads(await pR.evaluate("JSON.stringify(PACK_DATA)"))
         rec('T12 gift verified with studio-trusted key', trust == 'verified', trust)
+        ref_recipient = await pR.evaluate("[REF_SIG, REF_TRUST]")
+        # 9.39.11 (ق1-ب): توقيع المشرف من الاستوديو يبقى صحيحًا عبر الطالب ← المعلم ← المهدى إليه (الملف المستقل بلا مرساة: «غير مهيأ»)
+        rec('T12b studio supervisor signature stays valid through student -> teacher -> recipient', ref_student == ['valid', 'unconfigured', True] and ref_recipient == ['valid', 'unconfigured'], (ref_student, ref_recipient))
         leak_fields = [k for k in ['studentName', 'studentId', 'studentPhoto', 'studentAssessment', 'teacherRatings', 'teacherNotes', 'teacherFeedbacks', 'studentConsent'] if pd.get(k)]
         rec('T13 R07 gift carries no private fields', not leak_fields and pd.get('sourceGiftStudentName') == 'مريم أحمد', (leak_fields, pd.get('sourceGiftStudentName')))
         # 9.39.3: التلاعب يكون في الملف نفسه (كما يفعل المهاجم) مع إعادة حساب تجزئة CSP؛ التحقق يجري على الملف كما وصل
