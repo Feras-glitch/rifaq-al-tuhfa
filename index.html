@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<title>رفاق التحفة — تعليم التجويد للأطفال</title>
+<meta name="description" content="رفاق التحفة: تطبيق تعليم التجويد للأطفال على متن تحفة الأطفال. يعمل دون إنترنت.">
+<meta name="theme-color" content="#283593">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/favicon.ico" sizes="any">
+<link rel="icon" href="./icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="رفاق التحفة">
+<link rel="stylesheet" href="./launcher.css">
+</head>
+<body>
+<main class="wrap">
+
+  <header class="hero">
+    <img class="logo" src="./icons/icon-192.png" width="96" height="96" alt="">
+    <h1>رفاق التحفة</h1>
+    <p class="sub">تعليم التجويد للأطفال على متن <strong>تحفة الأطفال</strong></p>
+    <p class="ver" id="ver">الإصدار 9.39</p>
+  </header>
+
+  <div class="notice" id="install-box" hidden>
+    <div class="notice-t">📲 ثبّت التطبيق على جهازك</div>
+    <p>بعد التثبيت يعمل دون إنترنت ويفتح كتطبيق مستقل.</p>
+    <button class="btn gold" id="install-btn" type="button">تثبيت التطبيق</button>
+  </div>
+
+  <section class="cards">
+
+    <a class="card primary" href="./app/" data-src="app">
+      <div class="ico">👦</div>
+      <div class="body">
+        <h2>تطبيق الطالب والمعلم</h2>
+        <p>الدروس والأبيات والأسئلة والتسجيل الصوتي، وشاشة مراجعة المعلم واعتماد التسجيلات.</p>
+        <span class="go">افتح التطبيق ←</span>
+      </div>
+    </a>
+
+    <a class="card" href="./studio/" data-src="studio">
+      <div class="ico">🎙️</div>
+      <div class="body">
+        <h2>استوديو المشرف</h2>
+        <p>تجهيز الرحلة: تسجيلات الشيخ والمنشد، ومفاتيح المعلمين الموثوقة، وتصدير ملف تعليمي مستقل.</p>
+        <span class="go">افتح الاستوديو ←</span>
+      </div>
+    </a>
+
+    <a class="card" href="./open.html" id="card-open">
+      <div class="ico">📂</div>
+      <div class="body">
+        <h2>فتح ملف وصلك</h2>
+        <p>ملف إرسال للمراجعة (للمعلم)، أو ملف معاد للتعديل، أو إهداء، أو إعداد المشرف. يُفتح هنا مباشرة ويُحفظ في «الملفات الأخيرة».</p>
+        <span class="go">اختر الملف ←</span>
+      </div>
+    </a>
+
+    <a class="card" href="./trial/" data-src="trial">
+      <div class="ico">🧪</div>
+      <div class="body">
+        <h2>تجربة المرحلة الأولى</h2>
+        <p>نسخة تجريبية للهاتف لاستعراض المنهج كاملًا دون إعداد.</p>
+        <span class="go">افتح التجربة ←</span>
+      </div>
+    </a>
+
+  </section>
+
+  <section class="info">
+    <h3>قبل أن تبدأ</h3>
+    <ul>
+      <li><b>الخصوصية:</b> كل شيء يبقى على جهازك. لا يُرسل أي تسجيل أو بيانات إلى أي خادم.</li>
+      <li><b>الميكروفون:</b> يطلب التطبيق إذن الميكروفون عند أول تسجيل، وبعد موافقة ولي الأمر.</li>
+      <li class="web-only"><b>دون إنترنت:</b> بعد أول فتح يعمل الموقع كاملًا بلا اتصال.</li>
+      <li><b>المراجعة العلمية للمنهج لم تكتمل بعد</b> — الاستخدام الحالي للتجربة داخل الأسرة.</li>
+    </ul>
+    <p class="src">المصدر وسجل التغييرات: <a href="https://github.com/Feras-glitch/rifaq-al-tuhfa">github.com/Feras-glitch/rifaq-al-tuhfa</a><br>
+    نص القرآن من مشروع تنزيل (tanzil.net) برخصة CC BY 3.0.</p>
+  </section>
+
+  <div class="status" id="sw-status" hidden></div>
+
+</main>
+<script src="./launcher.js"></script>
+</body>
+</html>
