@@ -6,6 +6,7 @@
 <!-- 'unsafe-inline' هنا ضروري: المستند المفتوح داخل الإطار (blob:) يرث سياسة هذه الصفحة إضافةً إلى سياسته الصارمة.
      الحماية الفعلية: كود الملف المفتوح لا يُشغَّل؛ تُستخرج بياناته فقط وتُحقن في قالب التطبيق الموثوق. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; frame-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- 9.39.12: unsafe-inline هنا ضروري لا تساهل: إطار التطبيق (blob:) يرث سياسة هذه الصفحة، وسكربت التطبيق مضمَّن وبصمته تتغير مع كل ملف. والتطبيق نفسه يحمل CSP صارمة ببصمة، فتُطبَّق السياستان معًا عليه. وهذه الصفحة لا تحوي سكربتًا مضمَّنًا ولا تبني DOM من نص خام. -->
 <title>رفاق التحفة</title>
 <meta name="theme-color" content="#283593">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -28,6 +29,7 @@
   <input type="file" id="file-in" accept=".html,.htm,text/html" hidden>
 
   <div class="err" id="err" hidden></div>
+  <p class="hint" id="ios-note" hidden>📱 على iPhone وiPad: افتح الملفات من هذا الزر دائمًا، لا من واتساب أو «الملفات» مباشرة، لأنها هناك تُعرض معاينةً لا تعمل. وأضف الموقع إلى الشاشة الرئيسية حتى لا يمحو Safari تقدّم الطفل بعد أسبوع دون استعمال.</p>
 
   <div class="recent" id="recent-box" hidden>
     <h2>الملفات المفتوحة مؤخرًا</h2>

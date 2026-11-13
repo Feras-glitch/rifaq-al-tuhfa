@@ -51,6 +51,27 @@ jobs:
           RIFAQ_TEST_OUT: ${{ runner.temp }}/hosttest
         run: python3 tests/test_host_playwright.py
 
+  webkit:
+    # 9.39.12: محرك Safari (آيفون). لا يمنع النشر حتى يستقر؛ فشله ظاهر في نتيجة التشغيل.
+    name: دخان WebKit (محرك Safari)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: بناء الموقع
+        run: python3 tools/build_web.py _site
+      - name: تثبيت Playwright وWebKit
+        run: |
+          pip install playwright==1.48.0
+          python -m playwright install --with-deps webkit
+      - name: اختبار الدخان على WebKit
+        env:
+          RIFAQ_SITE: ${{ github.workspace }}/_site
+          RIFAQ_BROWSER: webkit
+        run: python3 -I tests/test_webkit_smoke.py
+
   web:
     name: الويب (GitHub Pages)
     needs: [web-tests, android-emulator, windows]  # 9.39.3: لا نشر للموقع قبل نجاح كل الاختبارات

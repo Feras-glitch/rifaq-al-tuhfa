@@ -72,7 +72,8 @@
   });
 
   /* 3) على iPhone/iPad لا يوجد beforeinstallprompt: نشرح الطريقة اليدوية. */
-  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  /* 9.39.12: iPadOS يعرّف نفسه «Macintosh» مع شاشة لمس */
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var standalone = window.matchMedia('(display-mode: standalone)').matches ||
                    navigator.standalone === true;
   if (isIOS && !standalone && box) {
@@ -80,7 +81,7 @@
     var t = box.querySelector('.notice-t');
     var p = box.querySelector('p');
     if (t) t.textContent = '📲 للتثبيت على iPhone / iPad';
-    if (p) p.textContent = 'من شريط Safari: زر المشاركة ⬆️ ثم «إضافة إلى الشاشة الرئيسية».';
+    if (p) p.textContent = 'من شريط Safari: زر المشاركة ⬆️ ثم «إضافة إلى الشاشة الرئيسية». هذا ضروري: بدونه قد يمحو Safari تقدّم الطفل وتسجيلاته بعد أسبوع دون استعمال. ولفتح ملف وصلك استعمل «فتح ملف وصلك» هنا، لا واتساب مباشرة.';
     if (btn) btn.hidden = true;
   }
 })();

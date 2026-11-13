@@ -15,4 +15,5 @@ st=open(S,encoding='utf-8').read()
 m=re.search(r"(EMBEDDED_STUDENT_TEMPLATE_B64\s*=\s*['\"])([A-Za-z0-9+/=]+)(['\"])",st)
 st=st[:m.start(2)]+base64.b64encode(app.encode()).decode()+st[m.end(2):]
 open(S,'w',encoding='utf-8').write(st)
+st=set_csp(S)  # 9.39.12 (E1): الاستوديو صار له CSP ببصمة سكربته (بعد تضمين القالب لأنه جزء من السكربت)
 print('rebuilt; studio template matches:', base64.b64decode(re.search(r"EMBEDDED_STUDENT_TEMPLATE_B64\s*=\s*['\"]([A-Za-z0-9+/=]+)",st).group(1)).decode()==app)

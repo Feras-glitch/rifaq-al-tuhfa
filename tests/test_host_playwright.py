@@ -874,6 +874,97 @@ async def main():
             except Exception as e:
                 rec('R36 (exception)', False, repr(e)[:200])
 
+            # R37 (9.39.12، I1): الكلمة المسؤول عنها ظاهرة فعلًا (لون وخلفية مختلفان عن بقية الآية) في كل سؤال استخراج، دروسًا وبنكًا
+            try:
+                ctxV, pV, errsV = await ctx_page(b)
+                await pV.goto(BASE + '/open.html?src=app'); fV = await appframe(pV)
+                await setup_student(fV, 'دلال')
+                vis = await ev(fV, """(() => { var out = {n: 0, bad: [], word: []};
+                  function chk(q){ CURRENT.section.questions = [q]; CURRENT.qIdx = 0; renderQuestion();
+                    var vt = document.querySelector('#view-quiz .verse-text'), b = vt && vt.querySelector('b');
+                    if (!vt || !b){ out.bad.push(q.id + ':nob'); return; }
+                    var a = getComputedStyle(vt), c = getComputedStyle(b); out.n++;
+                    if (a.color === c.color && a.backgroundColor === c.backgroundColor) out.bad.push(q.id);
+                    if (/الغامق/.test(q.question || '')) out.word.push(q.id); }
+                  openSection('s2_idhhar'); startQuiz();
+                  realSections().forEach(function(s){ (s.questions || []).concat(s.examQuestions || []).forEach(function(q){ if (q.type === 'extraction') chk(Object.assign({}, q)); }); });
+                  return out; })()""")
+                await ctxV.close()
+                rec('R37 target word visibly highlighted in every extraction question (lessons + bank); no "bold" wording left',
+                    vis['n'] >= 110 and not vis['bad'] and not vis['word'] and not errsV, (vis['n'], vis['bad'][:5], vis['word'][:5], errsV[:2]))
+            except Exception as e:
+                rec('R37 (exception)', False, repr(e)[:200])
+
+            # R38 (9.39.12، O3): لا «إهداء» من ملف الطالب — لا زر، ولا ملف يخرج بصوت الطفل من هذا المسار
+            try:
+                ctxW, pW, _ = await ctx_page(b)
+                await pW.goto(BASE + '/open.html?src=app'); fW = await appframe(pW)
+                await setup_student(fW, 'سارة', share=False); await record(fW)
+                nobtn = await ev(fW, "document.getElementById('btn-export-home') === null")
+                downloads = []
+                pW.on('download', lambda d: downloads.append(d))
+                await ev(fW, "doExportStudent('gift')"); await fW.wait_for_timeout(2500)
+                modal = await ev(fW, "(document.getElementById('modal') || {innerText: ''}).innerText")
+                await ctxW.close()
+                rec('R38 student-side gift export removed: no button, no file, explanation shown',
+                    nobtn and not downloads and 'يصدره المعلم' in modal, (nobtn, len(downloads), modal[:80]))
+            except Exception as e:
+                rec('R38 (exception)', False, repr(e)[:200])
+
+            # R39 (9.39.12): تقييم المعلم المحفوظ عند الطالب يبقى بعد إعادة التحميل (كان normalizeState يُسقطه)، وسجل الإجابات كذلك
+            # R40 (9.39.12، A6): جلسة القياس المقطوعة تُستأنف من السؤال التالي ولا تُعاد أسئلتها
+            # R41 (9.39.12، A4): سجل الإجابات يصل المعلم معقَّمًا مع ملف الإرسال
+            try:
+                ctxX, pX, errsX = await ctx_page(b)
+                await pX.goto(BASE + '/open.html?src=app'); fX = await appframe(pX)
+                await setup_student(fX, 'هند'); await record(fX)
+                await ev(fX, "openSection('s2_idhhar'); startQuiz()")
+                await ev(fX, """(async () => { const sleep = ms => new Promise(r => setTimeout(r, ms));
+                  for (let i = 0; i < 3; i++){ const q = CURRENT.section.questions[CURRENT.qIdx]; if (QX.has(q.type)) finishCustom(q, 0); else answer(q.answer); await sleep(20);
+                    const b2 = document.querySelector('#feedback-box button'); if (b2) b2.click(); await sleep(20); } })()""")
+                await ev(fX, "STATE.teacherRatings = {r2_1: 'mastered'}; realSections().forEach(function(s){ STATE.progress[s.id] = STATE.progress[s.id] || {stars: 1, attempts: 1, bestScore: 0}; }); save(); startFinalExam(1)")
+                await fX.wait_for_timeout(200)
+                first3 = await ev(fX, """(async () => { const sleep = ms => new Promise(r => setTimeout(r, ms)); var ids = [];
+                  for (let i = 0; i < 3; i++){ const q = CURRENT.section.questions[CURRENT.qIdx]; ids.push(q.id); if (QX.has(q.type)) finishCustom(q, 0); else answer(q.answer); await sleep(20);
+                    const b2 = document.querySelector('#feedback-box button'); if (b2) b2.click(); await sleep(20); } return ids; })()""")
+                await pX.goto(BASE + '/open.html?src=app'); fX = await appframe(pX)
+                await ev(fX, "continueFromSplash()"); await fX.wait_for_timeout(300)
+                after = await ev(fX, "[Object.keys(STATE.teacherRatings || {}).length, (STATE.respLog || []).length, !!(STATE.assess && STATE.assess.inProgress)]")
+                await ev(fX, "startFinalExam(1)"); await fX.wait_for_timeout(300)
+                res = await ev(fX, "[CURRENT.section.id, CURRENT.qIdx, (CURRENT.examResults || []).length, CURRENT.section.questions.slice(0, 3).map(function(q){ return q.id; })]")
+                await ev(fX, RUN_SESSION_JS, False); await fX.wait_for_timeout(300)
+                done = await ev(fX, "[!!(STATE.assess.examDone || {})[1], STATE.assess.inProgress === null || STATE.assess.inProgress === undefined, (STATE.respLog || []).filter(function(e){ return e.k === 'F1'; }).length, (STATE.respLog || []).filter(function(e){ return e.k === 'L'; }).length]")
+                subX = await export_from(pX, fX, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/r41_sub.html')
+                await ctxX.close()
+                ctxY2, pY2, _ = await ctx_page(b)
+                await pY2.goto(BASE + '/open.html'); fY2 = await open_file(pY2, subX)
+                tlog = await ev(fY2, "(function(){ var l = (PACK_DATA.studentAssessment || {}).log || []; return [l.length, l.filter(function(e){ return e.k === 'F1'; }).length, l.every(function(e){ return /^[A-Za-z0-9_\\-]+$/.test(e.q) && (e.c === 0 || e.c === 1); })]; })()")
+                await ctxY2.close()
+                rec('R39 teacher rating and response log persist across reload', after[0] == 1 and after[1] >= 6 and after[2], after)
+                rec('R40 interrupted exam session resumes at the next question without repeating answered ones',
+                    res[0] == 'final_exam' and res[1] == 3 and res[2] == 3 and res[3] == first3 and done[0] and done[1], (res, first3, done))
+                rec('R41 per-item response log (lessons + exam rounds) reaches the teacher sanitized',
+                    done[2] >= 20 and done[3] >= 3 and tlog[0] >= 23 and tlog[1] == done[2] and tlog[2] and not errsX, (done, tlog, errsX[:2]))
+            except Exception as e:
+                rec('R39-R41 (exception)', False, repr(e)[:200])
+
+            # R42 (9.39.12): الاستوديو بلا معالجات مضمَّنة وله CSP؛ صفحتا المضيف بلا unsafe-inline؛ رقم الإصدار الكامل؛ لا أسماء عامة في البداية
+            try:
+                ctxZ, pZ2, errsZ = await ctx_page(b)
+                await pZ2.goto(BASE + '/studio/index.html'); await pZ2.wait_for_timeout(800)
+                st_csp = await pZ2.evaluate("[!!document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]'), document.documentElement.outerHTML.search(/\\son(click|change|input|load)=\"/) < 0, typeof STUDIO_CALLABLE !== 'undefined']")
+                await pZ2.goto(BASE + '/index.html'); await pZ2.wait_for_timeout(300)
+                launcher = await pZ2.evaluate("[document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]').content.indexOf('unsafe-inline') < 0, document.getElementById('ver').textContent]")
+                await pZ2.goto(BASE + '/open.html?src=app'); fZ2 = await appframe(pZ2)
+                hostcsp = True  # open.html يحتاج unsafe-inline: إطار blob يرث سياسته (انظر التعليق في open.html)
+                splash = await ev(fZ2, "[document.getElementById('splash-role').textContent, document.getElementById('splash-name').textContent, APP_VERSION]")
+                await ctxZ.close()
+                rec('R42 studio CSP + no inline handlers; launcher without unsafe-inline; full version shown; no generic names on splash',
+                    all(st_csp) and launcher[0] and launcher[1].endswith(splash[2]) and hostcsp and splash[0] == 'رفاق التحفة' and 'الشيخ' not in splash[1] and not errsZ,
+                    (st_csp, launcher, hostcsp, splash, errsZ[:2]))
+            except Exception as e:
+                rec('R42 (exception)', False, repr(e)[:200])
+
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
             grp3['audios']['__proto__'] = {'r3_1': {'audio': 'data:audio/webm;base64,' + 'QUJD' * 10, 'status': 'approved'}}

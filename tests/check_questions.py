@@ -41,6 +41,16 @@ for s in S:
                 expect=rule(nxt.group(0)) if nxt else None
                 got=q['options'][q['answer']]
                 if expect and expect!=got: errs.append((q['id'],f'rule mismatch: expected {expect} got {got}'))
+# 9.39.12 (I1): السؤال الذي يحيل إلى «الكلمة الملوّنة» يحوي إبرازًا واحدًا بالضبط (اثنين لـ«الكلمتين»)، ولا تبقى «الغامقة»
+for s in S:
+    for q in s.get('questions',[]) + s.get('examQuestions',[]):
+        qt = q.get('question','') or ''
+        if 'الغامق' in qt: errs.append((q['id'],'wording: الغامقة'))
+        if 'الملوّن' in qt:
+            hl = re.findall(r'<b>(.*?)</b>', q.get('text',''))
+            want = 2 if 'الكلمتين' in qt else 1
+            nw = sum(len(h.split()) for h in hl) if 'الكلم' in qt else len(hl)
+            if not hl or nw != want: errs.append((q['id'], f'highlighted: {nw} (want {want})'))
 print('checked extraction questions:',checked)
 print('problems:',len(errs))
 for e in errs[:30]: print(e)

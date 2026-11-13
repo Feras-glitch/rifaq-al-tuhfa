@@ -508,7 +508,7 @@ for sid, form, q in ALL:
             err(i, f'طول الجواب الصحيح يميّزه ({c} مقابل {oth})')
 
 # ------------------------------------------------------------------ 3) extraction items vs Tanzil + computed rules
-SRC = re.compile(r'^(.+) (\d+):(\d+) \(نص تنزيل(?:، بالرسم الإملائي)?\)$')
+SRC = re.compile(r'^(.+) (\d+):(\d+) \((?:نص تنزيل|رسم إملائي، قوبل بنص تنزيل)\)$')  # 9.39.12
 def nz(s): return re.sub('[أإآا]', 'ا', s.replace('ى', 'ي'))
 quran_checked = 0; rule_table = []
 for sid, form, q in ALL:

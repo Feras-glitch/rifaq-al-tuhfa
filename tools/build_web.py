@@ -64,11 +64,29 @@ def main():
     copied = []
 
     # 1) الملفات الثابتة لصفحة الإطلاق
+    # 9.39.12: رقم الإصدار واحد في كل مكان — التطبيق والاستوديو وحزمتا أندرويد وويندوز وصفحة الإطلاق
+    ver = app_version()
+    for pj in ("native/android/package.json", "native/windows/package.json"):
+        with open(os.path.join(ROOT, pj), encoding="utf-8") as fh:
+            pv = json.load(fh).get("version")
+        if pv != ver:
+            raise SystemExit("رقم الإصدار غير متسق: APP_VERSION=%s و%s=%s" % (ver, pj, pv))
+    with open(os.path.join(ROOT, "studio", "استوديو_المشرف_v9.39.html"), encoding="utf-8") as fh:
+        sm = re.search(r"var APP_VERSION = '([^']+)'", fh.read())
+    if not sm or sm.group(1) != ver:
+        raise SystemExit("رقم إصدار الاستوديو غير متسق مع التطبيق")
     for name in STATIC:
         src = os.path.join(ROOT, "web", name)
         dst = os.path.join(out, name)
         shutil.copy2(src, dst)
         copied.append("./" + name)
+    with open(os.path.join(out, "index.html"), encoding="utf-8") as fh:
+        idx = fh.read()
+    idx2 = re.sub(r'(<p class="ver" id="ver">)الإصدار [^<]*(</p>)', lambda m: m.group(1) + "الإصدار " + ver + m.group(2), idx)
+    if idx2 == idx and ("الإصدار " + ver) not in idx:
+        raise SystemExit("لم يُعثر على سطر الإصدار في صفحة الإطلاق")
+    with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as fh:
+        fh.write(idx2)
 
     # 2) الأيقونات
     icons_src = os.path.join(ROOT, "web", "icons")

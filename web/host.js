@@ -452,5 +452,13 @@
   else showPanel();
   if (NATIVE && typeof NATIVE.ready === 'function') NATIVE.ready();
 
+  /* 9.39.12: تنبيه آيفون — الملف المفتوح من واتساب يُعرض معاينة لا تعمل، وSafari يمحو التخزين بعد أسبوع دون استعمال */
+  try {
+    var iosDev = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var iosStandalone = navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    var iosNote = document.getElementById('ios-note');
+    if (iosNote && iosDev && !iosStandalone && !window.Capacitor && !window.rifaqNative) iosNote.hidden = false;
+  } catch (e) {}
+
   window.RIFAQ_HOST = { openText: openText, buildHtml: buildHtml, extractPack: extractPack, forgetPack: forgetPack };
 })();
