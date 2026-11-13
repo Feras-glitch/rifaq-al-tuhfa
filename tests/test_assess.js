@@ -84,5 +84,19 @@ A.assessRecordRound(st,'s6_ghunna','X999',true,'2026-10-02T00:00:00Z');
 ok(!st.concepts['s6_ghunna'].mastered, 'legacy exam rounds without question lists never count as different versions');
 // 9 (9.39.10) the blueprint still holds for the corrected curriculum
 ok(A.assessBlueprintGaps(secs).length === 0, 'every concept has enough questions in both sets');
+// 10 (9.39.13، D3) one wrong answer allowed in a 3-question round, none in a 2-question round
+ok(A.assessRoundPassed(3, 0) && A.assessRoundPassed(3, 1) && !A.assessRoundPassed(3, 2), '3-question round: passes with 0 or 1 wrong, fails with 2');
+ok(A.assessRoundPassed(2, 0) && !A.assessRoundPassed(2, 1), '2-question round: passes only with no wrong answer');
+ok(!A.assessRoundPassed(0, 0), 'an empty round never passes');
+// guessing at random (1/4 per question): one 3-question round passes with probability 10/64, two in a row stay under 3%
+const pGuess = 1/64 + 3*(1/16)*(3/4);
+ok(pGuess < 0.16 && pGuess*pGuess < 0.03, 'chance of mastery by pure guessing on 4-option items stays below 3% (' + (pGuess*pGuess).toFixed(4) + ')');
+// 11 (9.39.13، D4-ج) at least 24 hours between two rounds of the same concept
+st = A.assessEmptyState();
+ok(A.assessIsReady(st, 's4_iqlab', '2026-10-01T00:00:00Z'), 'a concept with no rounds is ready');
+A.assessRecordRound(st,'s4_iqlab','A',false,'2026-10-01T10:00:00Z',['a1','a2','a3']);
+ok(!A.assessIsReady(st, 's4_iqlab', '2026-10-02T09:59:00Z'), 'not ready 23h59m after its last round');
+ok(A.assessIsReady(st, 's4_iqlab', '2026-10-02T10:00:00Z'), 'ready 24h after its last round');
+ok(A.assessIsReady(st, 's5_ikhfa', '2026-10-01T10:00:01Z'), 'the gap applies per concept only');
 console.log(fails ? 'FAILURES: '+fails : 'ALL PASSED');
 process.exit(fails ? 1 : 0);

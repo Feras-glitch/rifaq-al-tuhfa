@@ -185,11 +185,27 @@
   }
   function trustedTemplate() { return getTemplate().then(pinTemplate); }
 
+  /* 9.39.13 (D6): منهج الإصدار نفسه يُحقن في التطبيق حين يختلف منهج الملف عنه وفي القائمة مشرف مسجَّل،
+     فيعرضه التطبيق بدل منهج غير موثّق (التطبيق يقرر بعد التحقق من التوقيع). */
+  var BUILTIN_RE = /var BUILTIN_CURRICULUM = [^\n]*?; \/\* RIFAQ_BUILTIN_CURRICULUM \*\//;
+  function scriptJson(v) {
+    return JSON.stringify(v).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--')
+      .replace(/[\u2028\u2029]/g, function (c) { return c === '\u2028' ? '\\u2028' : '\\u2029'; });
+  }
+  function withBuiltinCurriculum(tpl, pack) {
+    return getTrust().then(function (t) {
+      if (!t.supervisors.length || !BUILTIN_RE.test(tpl)) return tpl;
+      var own;
+      try { own = extractPack(tpl).curriculum; } catch (e) { return tpl; }
+      if (!Array.isArray(own) || canonJSON(own) === canonJSON(pack && pack.curriculum)) return tpl;
+      var j = scriptJson(own);
+      return tpl.replace(BUILTIN_RE, function () { return 'var BUILTIN_CURRICULUM = ' + j + '; /* RIFAQ_BUILTIN_CURRICULUM */'; });
+    });
+  }
   /* يحقن البيانات في القالب (بعد تثبيت مرساة الثقة) */
   function buildHtml(pack) {
-    return trustedTemplate().then(function (tpl) {
-      var json = JSON.stringify(pack).replace(/<\//g, '<\\/').replace(/<!--/g, '<\\!--')
-        .replace(/[\u2028\u2029]/g, function (c) { return c === '\u2028' ? '\\u2028' : '\\u2029'; });
+    return trustedTemplate().then(function (tpl) { return withBuiltinCurriculum(tpl, pack); }).then(function (tpl) {
+      var json = scriptJson(pack);
       var html = tpl.replace(PACK_RE, function () {
         return '/* ===PACK_DATA_START=== */\nvar PACK_DATA = ' + json + ';\n/* ===PACK_DATA_END=== */';
       });

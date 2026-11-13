@@ -13,6 +13,7 @@ def clean(t):
     t=re.sub(r'<[^>]+>','',t); t=re.sub(r'[﴿﴾\[\]]','',t)
     return unicodedata.normalize('NFC',re.sub(r'\s+',' ',ANN.sub('',unicodedata.normalize('NFC',t)))).strip()
 def skel(t): return re.sub(r'[\u064B-\u065F\u0670\u0654\u0655\s]','',clean(t)).replace('ئ','ي').replace('ؤ','و').replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ٱ','ا')
+def skel_imlai(t): return re.sub(r'[اءٱ]','',skel(re.sub('\u0649\u0670(?=[\u0621-\u064A])','ا',t))).replace('ى','ي')  # «ىٰ» وسط الكلمة ألف
 HALQ=set('ءهعحغخ'); G=set('ينمو'); N=set('لر'); Q=set('ب'); K=set('صذثكجشقسدطزفتضظ')
 def rule(l):
     l={'أ':'ء','إ':'ء','ؤ':'ء','ئ':'ء','آ':'ء'}.get(l,l)
@@ -32,7 +33,9 @@ for s in S:
         mm=re.search(r'(\d+):(\d+)',src)
         if mm:
             ref=T.get(f'{mm.group(1)}:{mm.group(2)}','')
-            if skel(plain) not in skel(ref): errs.append((q['id'],'ayah text not identical to Tanzil'))
+            if '(رسم إملائي' in src:  # 9.39.13: النص الإملائي يُقابل بهيكله الحرفي (صور الألف والهمزة تختلف بين الرسمين)
+                if skel_imlai(plain) not in skel_imlai(ref): errs.append((q['id'],'imla\'i text does not match Tanzil skeleton'))
+            elif skel(plain) not in skel(ref): errs.append((q['id'],'ayah text not identical to Tanzil'))
         if q['id'].startswith('ex_'):
             words=plain.split(' ')
             idx=[i for i,w in enumerate(words) if word and word in w]

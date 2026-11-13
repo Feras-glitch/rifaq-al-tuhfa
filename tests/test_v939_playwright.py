@@ -25,6 +25,8 @@ async def setup_student(page, name='مريم أحمد', gender='girl', consent=T
     await page.evaluate("saveSetup()"); await page.wait_for_timeout(500)
     if consent:
         await page.fill('#consent-name', 'أحمد محمود')
+        if await page.evaluate("!!document.getElementById('consent-pin')"):  # 9.39.13 (D7)
+            await page.fill('#consent-pin', '2580'); await page.fill('#consent-pin2', '2580')
         cbs = await page.query_selector_all('input[type=checkbox]')
         vis = [c for c in cbs if await c.is_visible()]
         for i, c in enumerate(vis):
@@ -81,7 +83,7 @@ async def main():
         for s in cur:
             await page.evaluate(f"openSection('{s['id']}')"); await page.wait_for_timeout(60)
             lt = await page.inner_text('#view-lesson'); leaks += LEAK.findall(lt)
-            await page.evaluate("startQuiz()"); await page.wait_for_timeout(60)
+            await page.evaluate("startQuiz(); if (CURRENT.section._full) CURRENT.section.questions = CURRENT.section._full.questions.map(function(q){ return Object.assign({}, q); })"); await page.wait_for_timeout(60)  # 9.39.13: المحاولة عيّنة من 15، والفحص لكل الأسئلة
             for i, q in enumerate(s['questions']):
                 await page.evaluate(f"CURRENT.qIdx={i}; renderQuestion()"); await page.wait_for_timeout(30)
                 t = await page.inner_text('#view-quiz')
@@ -92,7 +94,7 @@ async def main():
         rec('T4 no undefined/leaks in all 148 renders', not bad and not leaks, (bad[:5], leaks[:5]))
         rec('T5 options shuffled (not always natural order)', any(o != ''.join(str(i) for i in range(len(o))) for o in orders), orders[:8])
         # real click on correct answer in shuffled MC
-        await page.evaluate("openSection('s2_idhhar')"); await page.evaluate("startQuiz()"); await page.wait_for_timeout(200)
+        await page.evaluate("openSection('s2_idhhar')"); await page.evaluate("startQuiz(); if (CURRENT.section._full) CURRENT.section.questions = CURRENT.section._full.questions.map(function(q){ return Object.assign({}, q); })"); await page.wait_for_timeout(200)
         q = QS['q2_1']; idx = await page.evaluate("CURRENT.section.questions.findIndex(q=>q.id==='q2_1')")
         await page.evaluate(f"CURRENT.qIdx={idx}; renderQuestion()"); await page.wait_for_timeout(200)
         await page.locator(f'#options .option-btn[data-idx="{q["answer"]}"]').click(); await page.wait_for_timeout(300)

@@ -59,6 +59,8 @@ async def main():
             await ev(fr, "continueFromSplash()"); await fr.fill('#setup-name', 'دلال'); await fr.click('#setup-girl')
             await ev(fr, "saveSetup()"); await fr.wait_for_timeout(500)
             await fr.fill('#consent-name', 'ولي الأمر')
+            if await ev(fr, "!!document.getElementById('consent-pin')"):  # 9.39.13 (D7)
+                await fr.fill('#consent-pin', '2580'); await fr.fill('#consent-pin2', '2580')
             for c in [c for c in await fr.query_selector_all('input[type=checkbox]') if await c.is_visible()]: await c.check()
             await fr.click('text=حفظ وابدأ'); await fr.wait_for_timeout(500)
             home = await ev(fr, "[STATE.student.name, !!(STATE.student.consent && STATE.student.consent.v), document.querySelectorAll('#section-list > *').length]")

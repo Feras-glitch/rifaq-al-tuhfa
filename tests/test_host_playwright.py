@@ -45,6 +45,8 @@ async def setup_student(fr, name='مريم أحمد', share=True):
     await fr.fill('#setup-name', name); await fr.click('#setup-girl')
     await fr.evaluate("saveSetup()"); await fr.wait_for_timeout(400)
     await fr.fill('#consent-name', 'أحمد محمود')
+    if await fr.evaluate("!!document.getElementById('consent-pin')"):  # 9.39.13 (D7)
+        await fr.fill('#consent-pin', GUARDIAN_PIN); await fr.fill('#consent-pin2', GUARDIAN_PIN)
     boxes = [c for c in await fr.query_selector_all('input[type=checkbox]') if await c.is_visible()]
     for i, c in enumerate(boxes):
         if i == 2 and not share: continue
@@ -85,9 +87,14 @@ def with_pack(path, pack, out):
 def ev(target, js, *a):
     return asyncio.wait_for(target.evaluate(js, *a), 20)
 
+GUARDIAN_PIN = '2580'
 async def solve_gate(fr, wrong=False):
-    """9.39.11 (ق5-أ): بوابة ولي الأمر — تقرأ المسألة وتكتب الناتج (أو ناتجًا خاطئًا)"""
-    await fr.wait_for_selector('#parent-gate-q', timeout=5000)
+    """بوابة ولي الأمر: 9.39.13 (D7) الرمز إن وُضع عند الموافقة، وإلا (ق5-أ) المسألة الحسابية — صحيحًا أو خطأً"""
+    await fr.wait_for_selector('#parent-gate-pin, #parent-gate-q', timeout=5000)
+    if await fr.evaluate("!!document.getElementById('parent-gate-pin')"):
+        await fr.fill('#parent-gate-pin', '1111' if wrong else GUARDIAN_PIN)
+        await fr.click('#parent-gate-ok'); await fr.wait_for_timeout(300)
+        return 'PIN'
     q = await fr.inner_text('#parent-gate-q')
     m = re.search(r'(\d+)\s*×\s*(\d+)', q)
     ans = int(m.group(1)) * int(m.group(2))
@@ -573,7 +580,7 @@ async def main():
                 await pH2.goto(BASE + '/open.html?src=app'); fH2 = await appframe(pH2)
                 await ev(fH2, """(()=>{ STATE.student={name:'هند',gender:'girl',id:'stu_h'}; STATE.role='student';
                   var sec=CURRICULUM.find(function(s){ return s.questions.some(function(q){ return q.type==='hunt'; }); });
-                  openSection(sec.id); startQuiz(); CURRENT.qIdx=sec.questions.findIndex(function(q){ return q.type==='hunt'; }); renderQuestion(); })()""")
+                  openSection(sec.id); startQuiz(); CURRENT.section.questions=[Object.assign({}, sec.questions.find(function(q){ return q.type==='hunt'; }))]; CURRENT.qIdx=0; renderQuestion(); })()""")  # 9.39.13: المحاولة عيّنة من 15
                 idx = await ev(fH2, """(()=>{ var q=CURRENT.section.questions[CURRENT.qIdx], toks=[]; q._x.words.forEach(function(w){ w.forEach(function(p){ toks.push(!!p.hit); }); }); return toks.indexOf(false); })()""")
                 tok = fH2.locator('#options .qx-tok').nth(idx)
                 await tok.click(); await fH2.wait_for_timeout(120); await tok.click(); await fH2.wait_for_timeout(900); await tok.click(); await fH2.wait_for_timeout(200)
@@ -684,13 +691,15 @@ async def main():
                 ctxG2, pG2, _ = await ctx_page(b)
                 await pG2.goto(BASE + '/open.html?src=app'); fG2 = await appframe(pG2)
                 await setup_student(fG2, 'ريم')
-                await ev(fG2, "openGuardianSettings()"); await solve_gate(fG2)
-                full = await ev(fG2, "[!!document.getElementById('gs-share'), (document.getElementById('gs-delete')||{}).textContent||'']")
+                await ev(fG2, "openGuardianSettings()"); await fG2.wait_for_timeout(200)
+                pin_gate = await ev(fG2, "[!!document.getElementById('parent-gate-pin'), !document.getElementById('parent-gate-q')]")
+                gq2 = await solve_gate(fG2)
+                full = await ev(fG2, "[!!document.getElementById('gs-share'), (document.getElementById('gs-delete')||{}).textContent||'', !!document.getElementById('gs-backup')]")
                 await ctxG2.close()
-                rec('R32 no home reset; guardian settings behind arithmetic gate; reset-only without consent',
+                rec('R32 no home reset; guardian settings behind a gate (arithmetic before consent, guardian PIN after); reset-only without consent',
                     no_home_reset and gate_first == [True, True] and after_wrong[0] and after_wrong[1] and 'غير صحيحة' in after_wrong[2]
-                    and reduced[:3] == [True, True, True] and 'تصفير' in reduced[3] and full[0] and 'تصفير' in full[1],
-                    (no_home_reset, gate_first, after_wrong, reduced, full, q1))
+                    and reduced[:3] == [True, True, True] and 'تصفير' in reduced[3] and pin_gate == [True, True] and gq2 == 'PIN' and full[0] and 'تصفير' in full[1] and full[2],
+                    (no_home_reset, gate_first, after_wrong, reduced, pin_gate, gq2, full, q1))
             except Exception as e:
                 rec('R32 (exception)', False, repr(e)[:200])
 
@@ -849,12 +858,15 @@ async def main():
                     noreveal_ok = True; await ev(fQ, RUN_SESSION_JS, True)
                 await fQ.wait_for_timeout(300)
                 s1 = await ev(fQ, """(() => { var v = STATE.assess.lastVerdict, ks = Object.keys(v), rep = document.getElementById('exam-report');
-                  return [ks.filter(function(k){ return !v[k].ok; }).length, ks.filter(function(k){ return v[k].mastered; }).length, ks.every(function(k){ return STATE.assess.pendingRetest.indexOf(k) >= 0; }),
-                    !!rep && rep.innerText.indexOf('الإجابة الصحيحة') >= 0, document.getElementById('result-stars').innerHTML === '', !!STATE.assess.examDone[1]]; })()""")
+                  var q0 = CURRENT.section.questions[0], c0 = CURRENT.section._map[q0.id], expFail = assessRequired(c0) === 3 ? 0 : 1; // 9.39.13 (D3)
+                  return [ks.filter(function(k){ return !v[k].ok; }).length === expFail, ks.filter(function(k){ return v[k].mastered; }).length, ks.every(function(k){ return STATE.assess.pendingRetest.indexOf(k) >= 0; }),
+                    !!rep && rep.innerText.indexOf('الإجابة الصحيحة') < 0 && rep.innerText.indexOf('للمراجعة: درس') >= 0, document.getElementById('result-stars').innerHTML === '', !!STATE.assess.examDone[1]]; })()""")
                 await ev(fQ, "startFinalExam(2)"); await fQ.wait_for_timeout(200)
                 await ev(fQ, RUN_SESSION_JS, False); await fQ.wait_for_timeout(300)
                 fin = await ev(fQ, "showProfile(); [STATE.assess.finalDone === true, document.getElementById('btn-final-exam').classList.contains('hidden'), STATE.assess.pendingRetest.length, realSections().length]")
                 await ev(fQ, "startRetest()"); await fQ.wait_for_timeout(200)
+                blocked = await ev(fQ, "[CURRENT.section.id !== 'retest_session', showProfile() || document.getElementById('btn-retest').textContent]")  # 9.39.13 (D4-ج)
+                await ev(fQ, "Object.keys(STATE.assess.concepts).forEach(function(k){ STATE.assess.concepts[k].lastAt = new Date(Date.now() - 25 * 3600000).toISOString(); }); save(); startRetest()"); await fQ.wait_for_timeout(200)
                 rt = await ev(fQ, """(() => { var sp = assessSplit(assessSections()), qs = CURRENT.section.questions, m = CURRENT.section._map;
                   return [CURRENT.section.id, qs.length, qs.every(function(q){ return sp[m[q.id]].B.indexOf(q.id) >= 0; })]; })()""")
                 await ev(fQ, RUN_SESSION_JS, False); await fQ.wait_for_timeout(300)
@@ -867,10 +879,10 @@ async def main():
                     locked[0] is True and 'بعد إكمال الدروس' in locked[1] and not started_locked
                     and stars[0] == 1 and stars[1] == 1 and stars[2] == 3 and stars[3] and stars[4]
                     and unlocked == [False, True] and plan[0] and plan[2] and plan[3] and noreveal_ok
-                    and s1[0] == 1 and s1[1] == 0 and s1[2] and s1[3] and s1[4] and s1[5]
+                    and s1[0] is True and s1[1] == 0 and s1[2] and s1[3] and s1[4] and s1[5] and blocked[0] and 'بعد' in blocked[1]
                     and fin[0] and fin[1] and fin[2] == fin[3] and rt[0] == 'retest_session' and 0 < rt[1] <= 21 and rt[2] and mast >= 1
                     and 'لأحكام المنهج' in cert[0] and 'بإتقان تام' in cert[1] and 'بإتقان تام' not in cert[2] and 'تدريبًا في موضع واحد' in cert[3] and not errsQ,
-                    (locked, started_locked, stars, unlocked, plan, noreveal_ok, s1, fin, rt, mast, cert, errsQ[:2]))
+                    (locked, started_locked, stars, unlocked, plan, noreveal_ok, s1, blocked, fin, rt, mast, cert, errsQ[:2]))
             except Exception as e:
                 rec('R36 (exception)', False, repr(e)[:200])
 
@@ -964,6 +976,133 @@ async def main():
                     (st_csp, launcher, hostcsp, splash, errsZ[:2]))
             except Exception as e:
                 rec('R42 (exception)', False, repr(e)[:200])
+
+            # R43 (9.39.13، ق3-ب): اختبار الدرس الطويل 15 سؤالًا بنسبة أنواعه، والأسئلة غير المرئية أولًا، والمنهج لا يتغير
+            try:
+                ctxS, pS, errsS = await ctx_page(b)
+                await pS.goto(BASE + '/open.html?src=app'); fS = await appframe(pS)
+                await setup_student(fS, 'لينة')
+                smp = await ev(fS, """(() => { var full = realSections().find(function(s){ return s.id === 's3_idgham'; }), n0 = full.questions.length, ref0 = full.questions;
+                  function kinds(qs){ var o = {}; qs.forEach(function(q){ var k = lessonQuizKind(q); o[k] = (o[k] || 0) + 1; }); return o; }
+                  var kf = kinds(full.questions), seenAll = {}, sizes = [], ratioOk = true, firstTwo = {};
+                  openSection('s3_idgham'); var label = (document.querySelector('#lesson-content [data-call*="startQuiz"]') || {}).textContent || '';
+                  for (var t = 0; t < 3; t++){
+                    openSection('s3_idgham'); startQuiz(); var qs = CURRENT.section.questions; sizes.push(qs.length);
+                    var ka = kinds(qs); Object.keys(kf).forEach(function(k){ if (Math.abs((ka[k] || 0) - kf[k] * 15 / n0) > 1) ratioOk = false; });
+                    qs.forEach(function(q){ seenAll[q.id] = 1; if (t < 2) firstTwo[q.id] = 1; });
+                  }
+                  return [n0, sizes, Object.keys(firstTwo).length, Object.keys(seenAll).length, ratioOk, full.questions === ref0 && full.questions.length === n0, CURRENT.section._full === full, label]; })()""")
+                await ctxS.close()
+                rec('R43 lesson quiz draws 15 questions in the lesson\'s proportions, unseen first, without touching the curriculum',
+                    smp[0] == 30 and smp[1] == [15, 15, 15] and smp[2] == 30 and smp[3] == 30 and smp[4] and smp[5] and smp[6] and '15' in smp[7] and not errsS, (smp, errsS[:2]))
+            except Exception as e:
+                rec('R43 (exception)', False, repr(e)[:200])
+
+            # R44 (9.39.13، D7): رمز ولي الأمر يوضع عند الموافقة (لا رمز ضعيف، ولا يُحفظ كما هو)، والبوابة تطلبه، والنسيان مسألة بعد انتظار
+            try:
+                ctxP, pP, errsP = await ctx_page(b)
+                await pP.goto(BASE + '/open.html?src=app'); fP = await appframe(pP)
+                await ev(fP, "continueFromSplash()"); await fP.fill('#setup-name', 'جنى'); await ev(fP, "saveSetup()"); await fP.wait_for_timeout(400)
+                await fP.fill('#consent-name', 'أبو جنى')
+                for c in [c for c in await fP.query_selector_all('input[type=checkbox]') if await c.is_visible()][:2]: await c.check()
+                errs_pin = []
+                for a1, a2 in (('2580', '2581'), ('1234', '1234'), ('7777', '7777')):
+                    await fP.fill('#consent-pin', a1); await fP.fill('#consent-pin2', a2); await fP.click('#consent-ok'); await fP.wait_for_timeout(200)
+                    errs_pin.append(await ev(fP, "(document.getElementById('consent-err') || {}).textContent || ''"))
+                await fP.fill('#consent-pin', GUARDIAN_PIN); await fP.fill('#consent-pin2', GUARDIAN_PIN); await fP.click('#consent-ok'); await fP.wait_for_timeout(400)
+                stored = await ev(fP, "[hasConsent(), guardianPinSet(), JSON.stringify(STATE).indexOf('" + GUARDIAN_PIN + "') < 0, !document.getElementById('consent-overlay')]")
+                await ev(fP, "openGuardianSettings()"); await fP.wait_for_timeout(200)
+                bad = await solve_gate(fP, wrong=True)
+                after_bad = await ev(fP, "[!!document.getElementById('parent-gate-pin'), !document.getElementById('guardian-overlay'), document.getElementById('parent-gate-msg').textContent]")
+                await solve_gate(fP)
+                opened = await ev(fP, "!!document.getElementById('guardian-overlay') && !!document.getElementById('gs-pin')")
+                await ev(fP, "document.getElementById('guardian-overlay').remove(); openGuardianSettings()"); await fP.wait_for_timeout(200)
+                await fP.click('#parent-gate-forgot'); await fP.wait_for_timeout(1300)
+                forgot = await ev(fP, "[!!document.getElementById('parent-gate-q'), document.getElementById('parent-gate-ok').disabled, document.getElementById('parent-gate-msg').textContent]")
+                await ctxP.close()
+                rec('R44 guardian PIN: set at consent (mismatch/weak refused, stored hashed), required by the gate, forgotten PIN = arithmetic after a 60 s wait',
+                    'غير متطابقين' in errs_pin[0] and 'لا يسهل' in errs_pin[1] and 'لا يسهل' in errs_pin[2] and stored == [True, True, True, True]
+                    and bad == 'PIN' and after_bad[0] and after_bad[1] and 'غير صحيح' in after_bad[2] and opened
+                    and forgot[0] and forgot[1] and 'انتظر' in forgot[2] and not errsP, (errs_pin, stored, after_bad, opened, forgot, errsP[:2]))
+            except Exception as e:
+                rec('R44 (exception)', False, repr(e)[:200])
+
+            # R45 (9.39.13، D6): ملف بمنهج معدَّل غير موقّع، وفي التطبيق مشرف مسجَّل ← يُعرض المنهج المعتمد المدمج؛ وبلا مشرف ← منهج الملف كما كان
+            try:
+                tpl_path = os.path.join(SITE, 'app', 'template.txt')
+                pk = pack_of(tpl_path)
+                s4 = [x for x in pk['curriculum'] if x['id'] == 's4_iqlab'][0]
+                orig_expl = [q for q in s4['questions'] if q['id'] == 'q4_1'][0]['explanation']
+                [q for q in s4['questions'] if q['id'] == 'q4_1'][0]['explanation'] = 'TAMPERED_RULE'
+                pk['refCert'] = None
+                bad_file = with_pack(tpl_path, pk, f'{OUT}/r45_tampered.html')
+                same_file = with_pack(tpl_path, pack_of(tpl_path), f'{OUT}/r45_same.html')
+                probe = "(() => { var s = CURRICULUM.find(function(x){ return x.id === 's4_iqlab'; }), q = s && s.questions.find(function(x){ return x.id === 'q4_1'; }); var l = refStatusLine(); return [REF_TRUST, REF_HIDDEN, REF_CURRICULUM_REPLACED, q ? q.explanation : null, l ? l.text : '', Array.isArray(BUILTIN_CURRICULUM)]; })()"
+                ctxD, pD, errsD = await configured_page(b, sups=[DUMMY_SUP])
+                await pD.goto(BASE + '/open.html'); fD = await open_file(pD, bad_file); await fD.wait_for_timeout(500)
+                withsup = await ev(fD, probe)
+                fD2 = await open_file(pD, same_file); await fD2.wait_for_timeout(500)
+                samesup = await ev(fD2, probe)
+                await ctxD.close()
+                ctxD3, pD3, _ = await ctx_page(b)
+                await pD3.goto(BASE + '/open.html'); fD3 = await open_file(pD3, bad_file); await fD3.wait_for_timeout(500)
+                nosup = await ev(fD3, probe)
+                await ctxD3.close()
+                rec('R45 unsigned modified curriculum is replaced by the built-in one once a supervisor is registered; untouched otherwise',
+                    withsup[1] and withsup[2] and withsup[3] == orig_expl and 'المنهج المعتمد' in withsup[4] and withsup[5]
+                    and samesup[0] == 'builtin' and not samesup[2] and not samesup[5]
+                    and nosup[0] == 'unconfigured' and not nosup[2] and nosup[3] == 'TAMPERED_RULE' and not errsD,
+                    (withsup[:4], samesup[:4], nosup[:4], errsD[:2]))
+            except Exception as e:
+                rec('R45 (exception)', False, repr(e)[:200])
+
+            # R46 (9.39.13، D12): تذكير بعد درسين؛ نسخة احتياطية (بلا رمز ولي الأمر) ← استعادة على جهاز جديد بالتسجيلات والتقدّم، ومعرّفات خبيثة تُسقط، والمعلم يرى «مستعاد»
+            try:
+                ctxB, pB, errsB = await ctx_page(b)
+                await pB.goto(BASE + '/open.html?src=app'); fB = await appframe(pB)
+                await setup_student(fB, 'سلمى'); await record(fB)
+                remind = await ev(fB, """(() => { var out = [];
+                  ['s0_muqaddima', 's1_intro'].forEach(function(id){ openSection(id); startQuiz(); CURRENT.score = CURRENT.section.questions.reduce(function(x, q){ return x + q.points; }, 0); finishQuiz(); out.push(!!document.getElementById('backup-reminder')); });
+                  assessRecordRound(STATE.assess = STATE.assess || assessEmptyState(), 's6_ghunna', 'A', true, '2026-11-01T00:00:00Z', ['a']); assessRecordRound(STATE.assess, 's6_ghunna', 'B', true, '2026-11-02T00:00:00Z', ['b']); save();
+                  return out; })()""")
+                await ev(fB, "openGuardianSettings()"); await solve_gate(fB)
+                await fB.check('#gs-backup-audio')
+                async with pB.expect_download(timeout=30000) as dl:
+                    await fB.click('#gs-backup')
+                bk_path = f'{OUT}/r46_backup.json'; await (await dl.value).save_as(bk_path)
+                bk = json.load(open(bk_path, encoding='utf-8'))
+                bk_ok = [bk.get('type') == 'rifaq_backup', 'guardianPin' not in json.dumps(bk), 'r2_1' in bk.get('audios', {}), (bk['state']['progress'].get('s1_intro') or {}).get('stars', 0) >= 1]
+                await ctxB.close()
+                bk['state']['progress']['<img src=x onerror=alert(1)>'] = {'stars': 3}
+                bk['state']['studentAudios']['bad"x'] = {'status': 'approved'}
+                bk['state']['teacherRatings'] = {'r2_1': 'mastered', '__proto__x': 'mastered'}
+                evil_path = f'{OUT}/r46_backup_evil.json'; json.dump(bk, open(evil_path, 'w', encoding='utf-8'), ensure_ascii=False)
+                ctxN, pN, errsN = await ctx_page(b)
+                await pN.goto(BASE + '/open.html?src=app'); fN = await appframe(pN)
+                await ev(fN, "continueFromSplash()"); await fN.wait_for_timeout(200)
+                await ev(fN, "openGuardianSettings()"); await solve_gate(fN)
+                async with pN.expect_file_chooser() as fc:
+                    await fN.click('#gs-restore')
+                await (await fc.value).set_files(evil_path)
+                await fN.wait_for_selector('#pin-new', timeout=8000)
+                await fN.fill('#pin-new', GUARDIAN_PIN); await fN.fill('#pin-new2', GUARDIAN_PIN); await fN.click('#pin-new-ok')
+                await pN.wait_for_timeout(2500); fN = await appframe(pN)
+                got = await ev(fN, """(async () => { var a = null; try { a = await dbGet('r2_1'); } catch(e){}
+                  return [STATE.student.name, (STATE.progress.s1_intro || {}).stars || 0, !!(STATE.studentAudios.r2_1), !!a && a.size > 0, !!STATE.restored, (STATE.restored || {}).lessons,
+                    Object.keys(STATE.progress).every(function(k){ return /^[A-Za-z0-9_\\-]+$/.test(k); }), !STATE.studentAudios['bad"x'], guardianPinSet(), hasConsent(),
+                    !!(STATE.assess.concepts.s6_ghunna || {}).mastered, (STATE.restored || {}).mastered.indexOf('s6_ghunna') >= 0, Object.keys(STATE.teacherRatings || {})]; })()""")
+                subN = await export_from(pN, fN, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/r46_sub.html')
+                await ctxN.close()
+                ctxT, pT, _ = await ctx_page(b)
+                await pT.goto(BASE + '/open.html'); fT = await open_file(pT, subN)
+                tview = await ev(fT, "(function(){ var r = (PACK_DATA.studentAssessment || {}).restored; return [!!r, r ? restoredNote(r) : '']; })()")
+                await ctxT.close()
+                rec('R46 backup reminder after two lessons; backup (with audio, no PIN) restores progress, mastery and recordings on a new device; unsafe ids dropped; teacher sees "restored"',
+                    remind == [False, True] and all(bk_ok) and got[0] == 'سلمى' and got[1] >= 1 and got[2] and got[3] and got[4] and got[5] >= 2 and got[6] and got[7]
+                    and got[8] and got[9] and got[10] and got[11] and 'r2_1' in got[12] and all(re.fullmatch(r'[A-Za-z0-9_\-]{1,64}', k) for k in got[12]) and tview[0] and 'مستعاد من نسخة احتياطية' in tview[1] and not errsB and not errsN,
+                    (remind, bk_ok, got, tview, errsB[:2], errsN[:2]))
+            except Exception as e:
+                rec('R46 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
