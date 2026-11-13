@@ -1138,6 +1138,50 @@ async def main():
             except Exception as e:
                 rec('R47 (exception)', False, repr(e)[:200])
 
+            # R48 (9.39.16، ق4): المتن بيتًا بيتًا — كل بيت بمشغّله و«×3»، والبيت الجاري مظلَّل، و«الأبيات كلها» بالترتيب؛ والقسم بلا تسجيل أبيات كما كان
+            try:
+                tpl_path = os.path.join(SITE, 'app', 'template.txt')
+                pk = pack_of(tpl_path); pk['masterAudios'] = dict(pk.get('masterAudios') or {}, **{'s2_idhhar_matn__v1': EVIL_WAV, 's2_idhhar_matn__v2': EVIL_WAV}); pk['refCert'] = None
+                vfile = with_pack(tpl_path, pk, f'{OUT}/r48_verses.html')
+                ctxV8, pV8, errsV8 = await ctx_page(b)
+                await pV8.goto(BASE + '/open.html'); fV8 = await open_file(pV8, vfile)
+                await setup_student(fV8, 'يارا')
+                await ev(fV8, """(() => { window.__plays = []; window.Audio = function(src){ var self = this; this.src = src;
+                  this.play = function(){ var el = document.querySelector('.matn-verse.playing'); window.__plays.push(el ? el.id : '?'); setTimeout(function(){ if (self.onended) self.onended(); }, 20); return Promise.resolve(); };
+                  this.pause = function(){}; }; openSection('s2_idhhar'); })()"""); await fV8.wait_for_timeout(300)
+                lay = await ev(fV8, "[document.querySelectorAll('#lesson-content .matn-verse').length, document.querySelectorAll('#lesson-content .mv-btns').length, !!document.querySelector('#lesson-content .matn-head')]")
+                await ev(fV8, "playVerse('s2_idhhar_matn', '1', '3')"); await fV8.wait_for_timeout(2500)
+                rep3 = await ev(fV8, "window.__plays.slice()")
+                await ev(fV8, "window.__plays = []; playVerse('s2_idhhar_matn', '0', '1')"); await fV8.wait_for_timeout(1800)
+                allv = await ev(fV8, "[window.__plays.slice(), document.querySelectorAll('.matn-verse.playing').length]")
+                await ev(fV8, "openSection('s3_idgham')"); await fV8.wait_for_timeout(200)
+                plain = await ev(fV8, "[document.querySelectorAll('#lesson-content .matn-verse').length, document.querySelectorAll('#lesson-content .content-text').length > 0]")
+                await ctxV8.close()
+                v1 = 'mv-s2_idhhar_matn__v1'; v2 = 'mv-s2_idhhar_matn__v2'
+                rec('R48 matn verse by verse: a player and ×3 per verse, the playing verse highlighted, play-all in order; sections without verse audio unchanged',
+                    lay == [2, 2, True] and rep3 == [v1, v1, v1] and allv == [[v1, v2], 0] and plain == [0, True] and not errsV8, (lay, rep3, allv, plain, errsV8[:2]))
+            except Exception as e:
+                rec('R48 (exception)', False, repr(e)[:200])
+
+            # R49 (9.39.16، ق4): الاستوديو يسجّل المتن بيتًا بيتًا (61)، و«سجّل البيت التالي» يتقدّم، وتسجيل القسم القديم يبقى ظاهرًا
+            try:
+                ctxW9, pW9, errsW9 = await ctx_page(b)
+                await pW9.goto(BASE + '/studio/index.html'); await pW9.wait_for_timeout(800)
+                await pW9.fill('#in-sheikh-name', 'الشيخ أيمن'); await pW9.fill('#in-supervisor-name', 'فراس')
+                await pW9.click('text=ابدأ الاستوديو'); await pW9.wait_for_timeout(800)
+                st9 = await pW9.evaluate("""(() => { var vs = RECORDING_LIST.filter(function(x){ return x.group === 'matn' && x.verse; });
+                  var b1 = (document.getElementById('btn-next-verse') || {}).textContent || '';
+                  STATE.recordings['s0_muqaddima_matn__v1'] = new Blob(['x'], {type: 'audio/webm'}); STATE.recordings['s2_idhhar_matn'] = new Blob(['y'], {type: 'audio/webm'}); renderStudio();
+                  var b2 = (document.getElementById('btn-next-verse') || {}).textContent || '';
+                  var legacy = RECORDING_LIST.filter(function(x){ return x.legacy; }).map(function(x){ return x.id; });
+                  return [vs.length, vs[0].id, vs[60].id, b1, b2, legacy, STUDIO_CALLABLE.indexOf('recordNextVerse') >= 0]; })()""")
+                await ctxW9.close()
+                rec('R49 studio records the matn verse by verse (61), "record next verse" advances, a legacy whole-section recording stays visible',
+                    st9[0] == 61 and st9[1] == 's0_muqaddima_matn__v1' and st9[2] == 's13_khatima_matn__v4' and 'البيت 1' in st9[3] and 'البيت 2' in st9[4]
+                    and st9[5] == ['s2_idhhar_matn'] and st9[6] and not errsW9, (st9, errsW9[:2]))
+            except Exception as e:
+                rec('R49 (exception)', False, repr(e)[:200])
+
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
             grp3['audios']['__proto__'] = {'r3_1': {'audio': 'data:audio/webm;base64,' + 'QUJD' * 10, 'status': 'approved'}}

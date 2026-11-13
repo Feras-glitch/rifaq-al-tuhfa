@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-GKcOMkGLGAfpXruNeu38mwdgUeUfCCUvIMDIreEUETI='; style-src 'sha256-3fBNHCMwk4hmZ7TubgXLTNQmwduszsMOazbxdTJB3OA='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UwoyuUkre0HjdYJATrDnrQp/ZTT/OzyUSYGdgdJLXiA='; style-src 'sha256-4yMSsdGXz7rTmvUaYJ+HwRvVWu/BlSvPi1eYvqqXDXI='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -123,6 +123,10 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .verse-box{background:linear-gradient(135deg,#fffdf5,#fff8e1);border:2px solid var(--accent);border-radius:16px;padding:18px 14px;margin:12px 0;text-align:center;width:100%}
 .verse-box.quran{background:linear-gradient(135deg,#f1f8e9,#e8f5e9);border-color:#4CAF50}
 .verse-text{font-family:'Traditional Arabic','Amiri',Tahoma,serif;font-size:1.7rem;line-height:2;color:#1a237e;font-weight:700;display:block}
+.matn-verse{padding:4px 6px;border-radius:10px;transition:background .2s}
+.matn-verse.playing{background:#fff59d;box-shadow:0 0 0 2px #f9a825 inset}
+.mv-btns{display:inline-flex;gap:4px;margin-inline-start:6px;vertical-align:middle}
+.mv-btns .btn{padding:4px 8px;font-size:.8rem;min-height:0}
 mark.pivot{background:#fff59d;color:inherit;border-bottom:3px solid #f9a825;border-radius:4px;padding:0 .15em}
 .rubric{font-size:.85rem;margin:6px 0;background:#f7f9fc;border-radius:10px;padding:6px 10px}
 .rubric div{margin:3px 0}
@@ -572,7 +576,7 @@ var TEMPLATE_HEAD = null, TEMPLATE_TAIL = null;
   } catch(e) { console.warn('template snapshot failed', e); }
 })();
 var MAX_HTML_WARN_BYTES = 25 * 1024 * 1024;
-var APP_VERSION = '9.39.15';
+var APP_VERSION = '9.39.16';
 var SCHEMA_VERSION = 2;
 var PACK_SOURCE_VERSION = '';
 var PACK_COMPATIBLE = true;
@@ -1966,10 +1970,11 @@ function renderLesson(){
 
   var html = '';
   sec.items.forEach(function(item){
-    html += '<div class="content-text">' + item.text + '</div>';
+    html += verseAudioCount(item) ? matnVersesHTML(item) : '<div class="content-text">' + item.text + '</div>'; // 9.39.16 (ق4)
     if (item.desc) html += '<div class="desc-text">💡 ' + GT(item.desc) + '</div>';
 
-    if (PACK_DATA.masterAudios && PACK_DATA.masterAudios[item.id]){
+    if (verseAudioCount(item)){ html += matnHeaderHTML(item); }
+    else if (PACK_DATA.masterAudios && PACK_DATA.masterAudios[item.id]){
       var itemType = detectTextType({text: item.text});
       var masterPhoto = itemType === 'quran' ? PACK_DATA.sheikhPhoto : PACK_DATA.poemReciterPhoto;
       var masterGender = itemType === 'quran' ? 'boy' : 'boy';
@@ -2402,7 +2407,7 @@ function audSrc(v){ v = (v === null || v === undefined) ? '' : String(v); return
    كل زر يحمل data-call="[اسم, وسيط, ...]". المُرسِل يحدد الدالة بالاسم، والمُنفِّذ يتحقق من أنها دالة معروفة. */
 function ACT(name){ var args = Array.prototype.slice.call(arguments, 1); var payload = JSON.stringify([name].concat(args)); return ' data-call="' + String(payload).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '"'; }
 function clickById(id){ var el = document.getElementById(id); if (el) el.click(); }
-var CALLABLE_ALLOW = ["showGiftContents", "toggleOtherRule", "answer", "applyNoteCode", "cancelTeacherFeedback", "clickById", "closeCertificate", "closePreview", "confirmTeacherRejection", "continueFromSplash", "deleteStudentRec", "doDownloadPreview", "doSharePreview", "downloadCertificate", "editProfile", "exportApprovedPack", "exportReturnedPack", "goHome", "handleReviewTeacherPhoto", "handleSetupPhoto", "markRosterDeleted", "nextFromResults", "openGuardianSettings", "openRoster", "openSection", "playStudentRec", "printCertificate", "saveSetup", "setRating", "setReview", "setReplyChannel", "setSetupGender", "shareCertificate", "showCertificate", "showExportDialog", "showProfile", "showReset", "startFinalExam", "startNewStudent", "startQuiz", "startRec", "startRetest", "startReviewSession", "toggleTeacherFeedbackRecording", "uploadReplacementAudio"]; /* 9.39: قائمة الدوال التي يجوز استدعاؤها من data-call/data-change */
+var CALLABLE_ALLOW = ["showGiftContents", "toggleOtherRule", "playVerse", "stopVerse", "answer", "applyNoteCode", "cancelTeacherFeedback", "clickById", "closeCertificate", "closePreview", "confirmTeacherRejection", "continueFromSplash", "deleteStudentRec", "doDownloadPreview", "doSharePreview", "downloadCertificate", "editProfile", "exportApprovedPack", "exportReturnedPack", "goHome", "handleReviewTeacherPhoto", "handleSetupPhoto", "markRosterDeleted", "nextFromResults", "openGuardianSettings", "openRoster", "openSection", "playStudentRec", "printCertificate", "saveSetup", "setRating", "setReview", "setReplyChannel", "setSetupGender", "shareCertificate", "showCertificate", "showExportDialog", "showProfile", "showReset", "startFinalExam", "startNewStudent", "startQuiz", "startRec", "startRetest", "startReviewSession", "toggleTeacherFeedbackRecording", "uploadReplacementAudio"]; /* 9.39: قائمة الدوال التي يجوز استدعاؤها من data-call/data-change */
 document.addEventListener('click', function(ev){
   var el = ev.target && ev.target.closest ? ev.target.closest('[data-call]') : null;
   if (!el) return;
@@ -3974,6 +3979,58 @@ var RATING_STATES = {mastered: '✅ متقن', good: '👍 جيد', needs: '🔁
 var RATING_UNUSABLE = '🔇 لا يصلح للتقييم'; // ليس درجة: ضجيج أو صمت أو انقطاع، ويُطلب إعادة التسجيل
 /* يُستدعى أثناء تعقيم الملف عند الإقلاع، قبل تعريف RATING_STATES، فلا يعتمد عليه */
 function normRating(v){ v = String(v || ''); if (v === 'notapplied') return 'needs'; return ({mastered: 1, good: 1, needs: 1, unusable: 1})[v] ? v : ''; }
+/* ===== 9.39.16 (ق4): المتن بيتًا بيتًا ===== */
+function matnVerses(item){ return String((item && item.text) || '').split(/<br\s*\/?>/i).map(function(v){ return v.trim(); }).filter(Boolean); }
+function verseKey(id, n){ return String(id) + '__v' + n; }
+function verseAudioCount(item){
+  if (!item || detectTextType({text: item.text}) === 'quran' || !PACK_DATA.masterAudios) return 0;
+  var n = 0; matnVerses(item).forEach(function(_, i){ if (audSrc(PACK_DATA.masterAudios[verseKey(item.id, i + 1)])) n++; }); return n;
+}
+function matnVersesHTML(item){
+  var h = '<div class="content-text matn-verses">';
+  matnVerses(item).forEach(function(v, i){
+    var k = verseKey(item.id, i + 1), has = !!audSrc(PACK_DATA.masterAudios[k]);
+    h += '<div class="matn-verse" id="mv-' + safeIdString(k) + '">' + v + (has ? '<span class="mv-btns"><button class="btn ghost" ' + ACT('playVerse', item.id, String(i + 1), '1') + ' type="button" aria-label="استمع للبيت">▶️</button><button class="btn ghost" ' + ACT('playVerse', item.id, String(i + 1), '3') + ' type="button" aria-label="كرّر البيت ثلاث مرات">🔁 ×3</button></span>' : '') + '</div>';
+  });
+  return h + '</div>';
+}
+function matnHeaderHTML(item){
+  var name = PACK_DATA.poemReciterName || '';
+  return '<div class="master-person-audio matn-head" data-style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">' +
+    (PACK_DATA.poemReciterPhoto ? '<img data-media="' + mediaRef('img', PACK_DATA.poemReciterPhoto) + '" alt="" data-style="width:40px;height:40px;border-radius:50%;object-fit:cover">' : '<span>🎧</span>') +
+    '<span>' + GT('إنشاد الأبيات') + (name && !isGenericName(name) ? ': ' + escapeHTML(name) : '') + '</span>' +
+    '<button class="btn primary sm" ' + ACT('playVerse', item.id, '0', '1') + ' type="button">▶️ ' + GT('{استمع|استمعي} للأبيات كلها') + '</button>' +
+    '<button class="btn ghost sm" ' + ACT('stopVerse') + ' type="button">⏹️</button></div>';
+}
+var VERSE_PLAYER = null;
+function stopVerse(){
+  var p = VERSE_PLAYER; VERSE_PLAYER = null;
+  if (p && p.a){ try { p.a.pause(); } catch(e){} }
+  Array.prototype.forEach.call(document.querySelectorAll('.matn-verse.playing'), function(el){ el.classList.remove('playing'); });
+}
+function playVerse(id, n, times){
+  n = Number(n) || 0; times = Math.max(1, Math.min(5, Number(times) || 1));
+  var item = null; CURRICULUM.forEach(function(s){ (s.items || []).forEach(function(x){ if (x.id === id) item = x; }); });
+  if (!item) return;
+  var queue = [];
+  if (n === 0) matnVerses(item).forEach(function(_, i){ if (audSrc(PACK_DATA.masterAudios[verseKey(id, i + 1)])) queue.push(i + 1); });
+  else for (var t = 0; t < times; t++) queue.push(n);
+  stopVerse();
+  Array.prototype.forEach.call(document.querySelectorAll('audio'), function(a){ try { a.pause(); } catch(e){} });
+  var token = {played: []}; VERSE_PLAYER = token;
+  (function next(){
+    if (VERSE_PLAYER !== token) return;
+    Array.prototype.forEach.call(document.querySelectorAll('.matn-verse.playing'), function(el){ el.classList.remove('playing'); });
+    var m = queue.shift(); if (!m){ VERSE_PLAYER = null; return; }
+    var el = document.getElementById('mv-' + safeIdString(verseKey(id, m)));
+    if (el){ el.classList.add('playing'); try { el.scrollIntoView({block: 'nearest'}); } catch(e){} }
+    var a = new Audio(audSrc(PACK_DATA.masterAudios[verseKey(id, m)])); token.a = a; token.played.push(m);
+    var fired = false, go = function(){ if (fired) return; fired = true; if (VERSE_PLAYER === token) setTimeout(next, 450); };
+    a.onended = go; a.onerror = go;
+    var pr = a.play(); if (pr && pr.catch) pr.catch(go);
+  })();
+  return token;
+}
 function arSkel(w){ return String(w || '').replace(/<[^>]+>/g, '').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640﴿﴾«»()،.]/g, '').replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').trim(); }
 /* العبارات بين «» في سطر «🎯 مهمتك» هي موضع الحكم المحوري */
 function pivotPhrases(id){
