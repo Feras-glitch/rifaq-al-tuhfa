@@ -3,8 +3,13 @@
 'use strict';
 
 const VERSION = '__VERSION__';
-const CACHE = 'rifaq-' + VERSION;
+/* 9.39.14 (D8): الموقع الرئيسي والتجريبي (/beta/) على أصل واحد يتشاركان مخزن الذاكرة؛ لكل منهما بادئة لا يمسح غيرها،
+   وعامل الرئيسي (نطاقه الجذر) لا يتدخل في طلبات /beta/ فلها عاملها. */
+const PREFIX = '__CACHE_PREFIX__';
+const CACHE = PREFIX + VERSION;
 const PRECACHE = __PRECACHE__;
+const MINE = (k) => k.startsWith(PREFIX) && !(PREFIX === 'rifaq-' && k.startsWith('rifaq-beta-'));
+const BETA_PATH = new URL('./beta/', self.registration.scope).pathname;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -18,7 +23,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k.startsWith('rifaq-') && k !== CACHE)
+        keys.filter((k) => MINE(k) && k !== CACHE)
             .map((k) => caches.delete(k))
       ))
       .then(() => self.clients.claim())
@@ -31,6 +36,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (PREFIX === 'rifaq-' && url.pathname.startsWith(BETA_PATH)) return; // 9.39.14 (D8): للتجريبي عامله
 
   /* التنقل: نخدم الصفحة من المخزن، فإن لم تكن فيه نرجع لصفحة الإطلاق. */
   if (req.mode === 'navigate') {

@@ -18,7 +18,9 @@
   var frame = $('frame'), panel = $('panel'), loading = $('loading'), errBox = $('err');
   var CAP = window.Capacitor;
   var IS_CAP = !!(CAP && typeof CAP.isNativePlatform === 'function' && CAP.isNativePlatform());
-  var NATIVE = window.rifaqNative || null; // Electron preload
+  var NATIVE = window.rifaqNative || null; // Electron preload (توقفت نسخة ويندوز في 9.39.14، والمسار خامل)
+  var RIFAQ_CHANNEL = 'main'; /* RIFAQ_CHANNEL */
+  var BETA = RIFAQ_CHANNEL === 'beta'; // 9.39.14 (D8): نسخة /beta/
   var MAX_BYTES = 80 * 1024 * 1024;
   var currentBlobUrl = null;
 
@@ -38,7 +40,7 @@
   }
   function showError(msg) { errBox.textContent = msg; errBox.hidden = false; showPanel(); }
   function clearError() { errBox.hidden = true; errBox.textContent = ''; }
-  function setTitle(s) { $('cur-title').textContent = s || 'رفاق التحفة'; document.title = s ? s + ' — رفاق التحفة' : 'رفاق التحفة'; }
+  function setTitle(s) { var app = 'رفاق التحفة' + (BETA ? ' (تجريبي)' : ''); $('cur-title').textContent = s ? s + (BETA ? ' — تجريبي' : '') : app; document.title = s ? s + ' — ' + app : app; }
 
   function b64(bytes) {
     var s = '', CH = 0x8000;
@@ -278,7 +280,7 @@
   }
 
   /* ---------- الملفات الأخيرة (IndexedDB على هذا الجهاز) ---------- */
-  var DB = 'rifaq_host_v1', STORE = 'recent', MAX_RECENT = 12;
+  var DB = (BETA ? 'beta_' : '') + 'rifaq_host_v1', STORE = 'recent', MAX_RECENT = 12; // 9.39.14 (D8): «الأخيرة» منفصلة في التجريبي
   // DECISION-003: تسجيلات الطلاب لا تبقى على جهاز المعلم أكثر من 30 يومًا؛ نسخ «الملفات الأخيرة» تُحذف تلقائيًا بعدها
   var RECENT_TTL_MS = 30 * 24 * 3600 * 1000;
   function db() {
@@ -476,5 +478,5 @@
     if (iosNote && iosDev && !iosStandalone && !window.Capacitor && !window.rifaqNative) iosNote.hidden = false;
   } catch (e) {}
 
-  window.RIFAQ_HOST = { openText: openText, buildHtml: buildHtml, extractPack: extractPack, forgetPack: forgetPack };
+  window.RIFAQ_HOST = { openText: openText, buildHtml: buildHtml, extractPack: extractPack, forgetPack: forgetPack, db: DB, channel: RIFAQ_CHANNEL };
 })();

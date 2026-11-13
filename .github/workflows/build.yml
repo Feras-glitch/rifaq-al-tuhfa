@@ -1,7 +1,9 @@
-name: بناء الويب وأندرويد وويندوز
+name: بناء الويب وأندرويد
 
-# دفع وسم v* أو تشغيل يدوي من main: اختبارات ← نشر الموقع ← APK وبرنامج ويندوز (مع اختبارات تشغيل فعلية) ← إصدار GitHub.
+# دفع وسم v* أو تشغيل يدوي من main: اختبارات ← نشر الموقع ← APK (مع تشغيل فعلي على محاكي) ← إصدار GitHub.
 # لا يُنشر الموقع ولا يُنشأ إصدار إلا بعد نجاح كل الاختبارات، ومن main أو وسم فقط.
+# 9.39.14 (D8): كل تشغيل ينشر النسخة التجريبية في /beta/ فقط. الموقع الرئيسي لا يتغير إلا بخيار «نشر للجميع» أو بوسم.
+# 9.39.14 (D9): توقفت نسخة ويندوز؛ على ويندوز يُثبَّت الموقع من Edge أو Chrome.
 on:
   push:
     tags: ['v*']
@@ -11,6 +13,10 @@ on:
         description: 'إنشاء إصدار GitHub بالملفات (وسم v + رقم الإصدار)'
         type: boolean
         default: true
+      publish_main:
+        description: 'نشر للجميع: تحديث الموقع الرئيسي (وإلا تُحدَّث /beta/ وحدها)'
+        type: boolean
+        default: false
 
 # الافتراضي قراءة فقط؛ الكتابة لمهمتي النشر والإصدار وحدهما (npm install في المهام الأخرى لا يرى رمزًا يكتب)
 permissions:
@@ -29,8 +35,8 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - name: بناء الموقع
-        run: python3 tools/build_web.py _site
+      - name: بناء الموقع (النسخة التجريبية، فالمحتوى كله ظاهر للاختبارات)
+        run: python3 tools/build_web.py _site --channel beta
       - name: فحص المنهج ومحرك التقييم
         run: |
           node tools/qx_validate.js "curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json"
@@ -52,6 +58,8 @@ jobs:
           RIFAQ_SITE: ${{ github.workspace }}/_site
           RIFAQ_TEST_OUT: ${{ runner.temp }}/hosttest
         run: python3 tests/test_host_playwright.py
+      - name: القناتان (الرئيسي يخفي غير المراجَع، والتجريبي منفصل)
+        run: python3 -I tests/test_channels.py
 
   webkit:
     # 9.39.12: محرك Safari (آيفون). لا يمنع النشر حتى يستقر؛ فشله ظاهر في نتيجة التشغيل.
@@ -64,7 +72,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: بناء الموقع
-        run: python3 tools/build_web.py _site
+        run: python3 tools/build_web.py _site --channel beta
       - name: تثبيت Playwright وWebKit
         run: |
           pip install playwright==1.48.0
@@ -77,7 +85,7 @@ jobs:
 
   web:
     name: الويب (GitHub Pages)
-    needs: [web-tests, android-emulator, windows]  # 9.39.3: لا نشر للموقع قبل نجاح كل الاختبارات
+    needs: [web-tests, android-emulator]  # 9.39.3: لا نشر للموقع قبل نجاح كل الاختبارات
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -85,15 +93,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - name: بناء الموقع
-        run: python3 tools/build_web.py _site
-      - name: نشر على فرع gh-pages
+      - name: بناء النسخة التجريبية
+        run: python3 tools/build_web.py _beta --channel beta
+      - name: نشر للجميع (الرئيسي + التجريبي)
+        if: inputs.publish_main || startsWith(github.ref, 'refs/tags/')
+        run: |
+          python3 tools/build_web.py _site
+          cp -r _beta _site/beta
+      - name: نشر الموقع كاملًا على gh-pages
+        if: inputs.publish_main || startsWith(github.ref, 'refs/tags/')
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
           force_orphan: true
-          commit_message: 'نشر الموقع ${{ github.sha }}'
+          commit_message: 'نشر الموقع للجميع ${{ github.sha }}'
+      - name: نشر النسخة التجريبية وحدها في /beta/
+        if: ${{ !(inputs.publish_main || startsWith(github.ref, 'refs/tags/')) }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_beta
+          destination_dir: beta
+          keep_files: true
+          commit_message: 'نشر النسخة التجريبية ${{ github.sha }}'
 
   android:
     name: أندرويد (APK)
@@ -189,47 +212,10 @@ jobs:
           path: '*.png'
           if-no-files-found: ignore
 
-  windows:
-    name: ويندوز (EXE)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - name: بناء الموقع داخل برنامج ويندوز
-        run: |
-          python tools/build_web.py native/windows/site
-          New-Item -ItemType Directory -Force native/windows/build | Out-Null
-          Copy-Item web/icons/icon-512.png native/windows/build/icon.png
-      - name: بناء المثبّت والنسخة المحمولة
-        working-directory: native/windows
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: |
-          npm install --no-audit --no-fund
-          npx electron-builder --win --x64 --publish never
-          Get-ChildItem dist -Filter *.exe | Format-Table Name, Length
-      - name: فحص ذاتي للبرنامج المبني (تشغيل فعلي)
-        working-directory: native/windows
-        run: |
-          $out = Join-Path $env:RUNNER_TEMP 'smoke.json'
-          $env:RIFAQ_SMOKE_OUT = $out
-          $p = Start-Process -FilePath 'dist\win-unpacked\RifaqAlTuhfa.exe' -ArgumentList '--rifaq-self-test' -PassThru -Wait
-          if (Test-Path $out) { Get-Content $out -Encoding UTF8 } else { Write-Host 'لا يوجد ملف نتائج' }
-          if ($p.ExitCode -ne 0) { throw "الفحص الذاتي فشل: $($p.ExitCode)" }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-exe
-          path: native/windows/dist/*.exe
-          if-no-files-found: error
-
   release:
     name: إصدار GitHub
     if: (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.release) || startsWith(github.ref, 'refs/tags/')
-    needs: [web-tests, web, android, android-emulator, windows]
+    needs: [web-tests, web, android, android-emulator]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -240,8 +226,6 @@ jobs:
         run: echo "tag=v$(node -p "require('./native/android/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with: { name: android-apk, path: dist }
-      - uses: actions/download-artifact@v4
-        with: { name: windows-exe, path: dist }
       - run: ls -la dist
       - uses: softprops/action-gh-release@v2
         with:
@@ -256,12 +240,10 @@ jobs:
             | المنصة | الملف |
             |---|---|
             | أندرويد (هاتف وتابلت) | `Rifaq-al-Tuhfa-*.apk` |
-            | ويندوز — مثبّت | `Rifaq-al-Tuhfa-Setup-*.exe` |
-            | ويندوز — نسخة محمولة بلا تثبيت | `Rifaq-al-Tuhfa-Portable-*.exe` |
-            | الويب | https://feras-glitch.github.io/rifaq-al-tuhfa/ |
+            | ويندوز، آيفون، وأي جهاز | الموقع، ثم «تثبيت التطبيق» من المتصفح: https://feras-glitch.github.io/rifaq-al-tuhfa/ |
+            | النسخة التجريبية (للأسرة والمراجعة) | https://feras-glitch.github.io/rifaq-al-tuhfa/beta/ |
 
             ${{ needs.android.outputs.signed != 'true' && '> ⚠️ **APK للاختبار فقط** (اسمه ينتهي بـ TEST-ONLY): موقَّع بمفتاح مؤقت. تحديثه إلى إصدار لاحق يتطلب إزالته، وهذا **يمسح تسجيلات الأطفال وتقدّمهم** على الجهاز. لا توزّعه على الأسر قبل إضافة مفتاح التوقيع الثابت.' || '' }}
 
-            برنامج ويندوز غير موقَّع: عند أول تشغيل قد يظهر تحذير SmartScreen («More info» ثم «Run anyway»).
             الإهداء يظهر «موثّقًا» فقط إن وقّعه معلم مسجَّل في `web/trusted-teachers.json` داخل هذا الإصدار.
             سجل التغييرات: `docs/CHANGELOG_9.39.md`. المنهج لم يُعتمد علميًا بعد؛ الاستخدام الحالي للتجربة داخل الأسرة.

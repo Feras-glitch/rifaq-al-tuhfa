@@ -2,6 +2,12 @@
 (function () {
   'use strict';
 
+  var RIFAQ_CHANNEL = 'main'; /* RIFAQ_CHANNEL */
+  /* 9.39.14 (D8): في النسخة التجريبية تنبيه ظاهر بأنها تجريبية، وأن تقدّم الطفل فيها منفصل عن الموقع الرئيسي */
+  if (RIFAQ_CHANNEL === 'beta') {
+    var bn = document.getElementById('beta-note'); if (bn) bn.hidden = false;
+    document.documentElement.classList.add('beta');
+  }
   var status = document.getElementById('sw-status');
   function say(msg) {
     if (!status) return;
@@ -9,7 +15,7 @@
     status.hidden = false;
   }
 
-  /* 0) داخل تطبيق أندرويد أو برنامج ويندوز: كل شيء يمر عبر الصفحة المضيفة (open.html)
+  /* 0) داخل تطبيق أندرويد: كل شيء يمر عبر الصفحة المضيفة (open.html)
         لأنها تعالج حفظ الملفات وفتحها، ولا حاجة لعامل الخدمة ولا لزر التثبيت. */
   var CAP = window.Capacitor;
   var NATIVE = !!(window.rifaqNative || (CAP && typeof CAP.isNativePlatform === 'function' && CAP.isNativePlatform()));

@@ -4,7 +4,11 @@
 لا يعدّل أي ملف من ملفات التطبيق — ينسخها كما هي إلى مسارات لاتينية نظيفة،
 ثم يحقن في عامل الخدمة قائمة الملفات ورقم إصدار مشتق من محتواها.
 
-التشغيل:  python3 tools/build_web.py  [مجلد الخرج]
+التشغيل:  python3 tools/build_web.py  [مجلد الخرج]  [--channel main|beta]
+
+9.39.14 (D8): --channel beta يبني النسخة التجريبية لمسار /beta/: RIFAQ_CHANNEL = 'beta' في التطبيق والتجربة
+والصفحة المضيفة وصفحة الإطلاق (مع إعادة حساب CSP)، وبادئة مخزن مستقلة لعامل الخدمة، واسم «تجريبي» في البيان.
+والرئيسي (الافتراضي) ينسخ الملفات كما هي بايتًا بايت.
 """
 import hashlib
 import json
@@ -55,8 +59,38 @@ def check_csp(path):
     assert b"\r\n" not in raw[:4000], "نهايات أسطر CRLF في: " + path
 
 
+CHANNEL_RE = re.compile(r"var RIFAQ_CHANNEL = 'main'; /\* RIFAQ_CHANNEL \*/")
+
+
+def set_channel(path, channel, html=False):
+    """يكتب القناة في ملف منسوخ؛ وفي صفحة HTML يعيد حساب تجزئة السكربت في CSP."""
+    import base64
+    if channel == "main":
+        return
+    with open(path, encoding="utf-8") as fh:
+        s = fh.read()
+    s2, n = CHANNEL_RE.subn("var RIFAQ_CHANNEL = '%s'; /* RIFAQ_CHANNEL */" % channel, s)
+    if n != 1:
+        raise SystemExit("علامة القناة غير موجودة مرة واحدة في: " + path)
+    if html:
+        a, b = s2.find("<script>"), s2.rfind("</script>")
+        h = base64.b64encode(hashlib.sha256(s2[a + 8:b].encode("utf-8")).digest()).decode()
+        s2, k = re.subn(r"script-src 'sha256-[A-Za-z0-9+/=]+'", "script-src 'sha256-" + h + "'", s2, count=1)
+        if k != 1:
+            raise SystemExit("CSP غير موجودة في: " + path)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(s2)
+
+
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "_site")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    channel = "main"
+    if "--channel" in sys.argv:
+        channel = sys.argv[sys.argv.index("--channel") + 1]
+        args = [a for a in args if a != channel]
+    if channel not in ("main", "beta"):
+        raise SystemExit("القناة: main أو beta")
+    out = args[0] if args else os.path.join(ROOT, "_site")
     if os.path.isdir(out):
         shutil.rmtree(out)
     os.makedirs(out)
@@ -66,7 +100,7 @@ def main():
     # 1) الملفات الثابتة لصفحة الإطلاق
     # 9.39.12: رقم الإصدار واحد في كل مكان — التطبيق والاستوديو وحزمتا أندرويد وويندوز وصفحة الإطلاق
     ver = app_version()
-    for pj in ("native/android/package.json", "native/windows/package.json"):
+    for pj in ("native/android/package.json",):  # 9.39.14 (D9): لا نسخة ويندوز
         with open(os.path.join(ROOT, pj), encoding="utf-8") as fh:
             pv = json.load(fh).get("version")
         if pv != ver:
@@ -82,11 +116,22 @@ def main():
         copied.append("./" + name)
     with open(os.path.join(out, "index.html"), encoding="utf-8") as fh:
         idx = fh.read()
-    idx2 = re.sub(r'(<p class="ver" id="ver">)الإصدار [^<]*(</p>)', lambda m: m.group(1) + "الإصدار " + ver + m.group(2), idx)
+    label = "الإصدار " + ver + (" — تجريبي" if channel == "beta" else "")
+    idx2 = re.sub(r'(<p class="ver" id="ver">)الإصدار [^<]*(</p>)', lambda m: m.group(1) + label + m.group(2), idx)
     if idx2 == idx and ("الإصدار " + ver) not in idx:
         raise SystemExit("لم يُعثر على سطر الإصدار في صفحة الإطلاق")
     with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(idx2)
+    for name in ("host.js", "launcher.js"):
+        set_channel(os.path.join(out, name), channel)
+    if channel == "beta":
+        mp = os.path.join(out, "manifest.webmanifest")
+        with open(mp, encoding="utf-8") as fh:
+            man = json.load(fh)
+        man["name"] = man["name"] + " (تجريبي)"
+        man["short_name"] = man["short_name"] + " 🧪"
+        with open(mp, "w", encoding="utf-8") as fh:
+            json.dump(man, fh, ensure_ascii=False, indent=2)
 
     # 2) الأيقونات
     icons_src = os.path.join(ROOT, "web", "icons")
@@ -106,6 +151,8 @@ def main():
         shutil.copy2(src, dst)
         with open(src, "rb") as a, open(dst, "rb") as b:
             assert a.read() == b.read(), "نسخة الموقع لا تطابق المصدر: " + src_rel
+        if not src_rel.startswith("studio/"):
+            set_channel(dst, channel, html=True)
         check_csp(dst)
         copied.append("./" + dst_rel)
         # المسار المختصر الذي يستعمله الزائر (/app/) يُخدم من نفس الملف
@@ -114,6 +161,8 @@ def main():
     # 3ب) قالب التطبيق الموثوق للصفحة المضيفة (نص خام، فلا يحقن فيه غلاف أندرويد شيئًا)
     tpl_src = os.path.join(ROOT, "app/تطبيق_الطالب_والمعلم_v9.39.html")
     shutil.copy2(tpl_src, os.path.join(out, "app", "template.txt"))
+    set_channel(os.path.join(out, "app", "template.txt"), channel, html=True)
+    check_csp(os.path.join(out, "app", "template.txt"))
     copied.append("./app/template.txt")
 
     # 4) ملف يمنع Jekyll من تجاهل الملفات التي تبدأ بشرطة سفلية
@@ -134,6 +183,7 @@ def main():
     precache = sorted(set(copied))
     sw = sw.replace("'__VERSION__'", json.dumps(version, ensure_ascii=False))
     sw = sw.replace("__PRECACHE__", json.dumps(precache, ensure_ascii=False, indent=2))
+    sw = sw.replace("'__CACHE_PREFIX__'", json.dumps("rifaq-beta-" if channel == "beta" else "rifaq-"))
     with open(os.path.join(out, "sw.js"), "w", encoding="utf-8") as fh:
         fh.write(sw)
 
@@ -141,7 +191,7 @@ def main():
         os.path.getsize(os.path.join(r, f))
         for r, _d, fs in os.walk(out) for f in fs
     )
-    print("الإصدار:", version, "| CSP: مطابقة")
+    print("الإصدار:", version, "| القناة:", channel, "| CSP: مطابقة")
     print("الملفات:", len(precache), "| الحجم:", round(total / 1024 / 1024, 2), "ميغابايت")
     print("الخرج:", out)
 

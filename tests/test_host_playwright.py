@@ -174,7 +174,7 @@ async def main():
             await pT.click('#recent li .r-open'); frT2 = await appframe(pT)
             sid = await frT2.evaluate("PACK_DATA.studentId")
             await frT2.evaluate(f"markRosterDeleted({json.dumps(sid)})"); await pT.wait_for_timeout(800)
-            left = await pT.evaluate("window.RIFAQ_HOST && indexedDB.open('rifaq_host_v1') && new Promise(r=>{var q=indexedDB.open('rifaq_host_v1');q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').getAll();t.onsuccess=()=>r(t.result.map(x=>x.kind))}})")
+            left = await pT.evaluate("window.RIFAQ_HOST && indexedDB.open(RIFAQ_HOST.db) && new Promise(r=>{var q=indexedDB.open(RIFAQ_HOST.db);q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').getAll();t.onsuccess=()=>r(t.result.map(x=>x.kind))}})")
             rec('R4a teacher «تم الحذف» purges the stored copy', not any('إرسال' in k for k in left), left)
             await ctxT.close()
 
@@ -313,7 +313,7 @@ async def main():
                     if not sid: q['packageType'] = 'student_fresh'
                     await pK.evaluate('(x)=>RIFAQ_HOST.openText(x.n, x.t)', {'n': nm + '.html', 't': open(with_pack(sub, q, f'{OUT}/k_{nm}.html'), encoding='utf-8').read()})
                     await pK.wait_for_timeout(300)
-                listing = """async(a)=>{let c=()=>new Promise(r=>{let o=indexedDB.open('rifaq_host_v1');o.onsuccess=()=>{let q=o.result.transaction('recent').objectStore('recent').getAll();
+                listing = """async(a)=>{let c=()=>new Promise(r=>{let o=indexedDB.open(RIFAQ_HOST.db);o.onsuccess=()=>{let q=o.result.transaction('recent').objectStore('recent').getAll();
                     q.onsuccess=()=>{o.result.close();r(q.result.map(x=>{let p=JSON.parse(x.json);return (p.studentId||'-')+'@'+p.packageId}).sort())}}});
                     let before=await c(); let n=await RIFAQ_HOST.forgetPack(a[0],a[1]); return [before,n,await c()]}"""
                 r1 = await pK.evaluate(listing, ['shared-package', 'child-A'])
@@ -972,7 +972,7 @@ async def main():
                 splash = await ev(fZ2, "[document.getElementById('splash-role').textContent, document.getElementById('splash-name').textContent, APP_VERSION]")
                 await ctxZ.close()
                 rec('R42 studio CSP + no inline handlers; launcher without unsafe-inline; full version shown; no generic names on splash',
-                    all(st_csp) and launcher[0] and launcher[1].endswith(splash[2]) and hostcsp and splash[0] == 'رفاق التحفة' and 'الشيخ' not in splash[1] and not errsZ,
+                    all(st_csp) and launcher[0] and ('الإصدار ' + splash[2]) in launcher[1] and hostcsp and splash[0] == 'رفاق التحفة' and 'الشيخ' not in splash[1] and not errsZ,
                     (st_csp, launcher, hostcsp, splash, errsZ[:2]))
             except Exception as e:
                 rec('R42 (exception)', False, repr(e)[:200])
@@ -1160,16 +1160,16 @@ async def main():
             await pD.goto(BASE + '/open.html'); frD = await open_file(pD, gift)
             await frD.evaluate("continueFromSplash()"); await frD.fill('#setup-name', 'سارة'); await frD.evaluate("saveSetup()"); await pD.wait_for_timeout(400)
             await frD.evaluate("document.getElementById('consent-no') && document.getElementById('consent-no').click()")
-            n_before = await pD.evaluate("new Promise(r=>{var q=indexedDB.open('rifaq_host_v1');q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').count();t.onsuccess=()=>r(t.result)}})")
+            n_before = await pD.evaluate("new Promise(r=>{var q=indexedDB.open(RIFAQ_HOST.db);q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').count();t.onsuccess=()=>r(t.result)}})")
             await frD.evaluate("deleteChildDataOnDevice()"); await pD.wait_for_timeout(2500)
-            n_after = await pD.evaluate("new Promise(r=>{var q=indexedDB.open('rifaq_host_v1');q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').count();t.onsuccess=()=>r(t.result)}})")
+            n_after = await pD.evaluate("new Promise(r=>{var q=indexedDB.open(RIFAQ_HOST.db);q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').count();t.onsuccess=()=>r(t.result)}})")
             rec('R4b «حذف بيانات الطالب» also removes the stored copy', n_before >= 1 and n_after == n_before - 1, (n_before, n_after))
             # R6 expiry after 30 days
-            await pD.evaluate("""new Promise(r=>{var q=indexedDB.open('rifaq_host_v1');q.onsuccess=()=>{var tx=q.result.transaction('recent','readwrite');
+            await pD.evaluate("""new Promise(r=>{var q=indexedDB.open(RIFAQ_HOST.db);q.onsuccess=()=>{var tx=q.result.transaction('recent','readwrite');
                 tx.objectStore('recent').put({id:'old1',name:'old.html',kind:'📨',who:'قديم',savedAt:Date.now(),firstAt:Date.now()-31*86400000,size:10,json:'{}'});tx.oncomplete=()=>r(1)}})""")
             await pD.goto(BASE + '/open.html'); await pD.wait_for_timeout(800)
             names = await pD.eval_on_selector_all('#recent li .r-name', 'els=>els.map(e=>e.textContent)')
-            still = await pD.evaluate("new Promise(r=>{var q=indexedDB.open('rifaq_host_v1');q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').get('old1');t.onsuccess=()=>r(!!t.result)}})")
+            still = await pD.evaluate("new Promise(r=>{var q=indexedDB.open(RIFAQ_HOST.db);q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').get('old1');t.onsuccess=()=>r(!!t.result)}})")
             rec('R6 copies older than 30 days are purged', not any('قديم' in n for n in names) and still is False, names)
             await ctxD.close()
 

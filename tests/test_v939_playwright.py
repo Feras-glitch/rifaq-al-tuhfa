@@ -2,6 +2,8 @@ GIFT_EXPORT_JS = "(function(){ exportApprovedPack(); (function w(n){ var m=docum
 import asyncio, json, re, os, html as H
 from playwright.async_api import async_playwright
 D = '/home/claude/v939'
+# 9.39.14: out_app.html وout_mobile.html تُنسخان من بناء القناة التجريبية (_site/app/index.html و_site/trial/index.html بعد
+# build_web.py --channel beta)، لأن الفحص يمر على كل أسئلة المنهج، والرئيسي يخفي ما لم يراجعه الشيخ (يغطيه tests/test_channels.py).
 RESULTS = []
 def rec(name, ok, detail=''):
     RESULTS.append((name, bool(ok), detail)); print(('PASS' if ok else 'FAIL'), name, '|', str(detail)[:200])
