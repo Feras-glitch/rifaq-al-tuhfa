@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-AHSCgQhCJf/zXSwBn4gPrFjtQg60JHxZiCLPVexUxeA='; style-src 'sha256-XZKE4MsM4Q2UrC6e4nYwraY+/AmlrkhZK04Ju+Bfqwc='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-GKcOMkGLGAfpXruNeu38mwdgUeUfCCUvIMDIreEUETI='; style-src 'sha256-3fBNHCMwk4hmZ7TubgXLTNQmwduszsMOazbxdTJB3OA='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -123,6 +123,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .verse-box{background:linear-gradient(135deg,#fffdf5,#fff8e1);border:2px solid var(--accent);border-radius:16px;padding:18px 14px;margin:12px 0;text-align:center;width:100%}
 .verse-box.quran{background:linear-gradient(135deg,#f1f8e9,#e8f5e9);border-color:#4CAF50}
 .verse-text{font-family:'Traditional Arabic','Amiri',Tahoma,serif;font-size:1.7rem;line-height:2;color:#1a237e;font-weight:700;display:block}
+mark.pivot{background:#fff59d;color:inherit;border-bottom:3px solid #f9a825;border-radius:4px;padding:0 .15em}
+.rubric{font-size:.85rem;margin:6px 0;background:#f7f9fc;border-radius:10px;padding:6px 10px}
+.rubric div{margin:3px 0}
 .verse-text b,.verse-text strong{color:#b71c1c;background:#ffe082;border-radius:8px;padding:0 .2em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .verse-hint{display:block;margin-top:12px;padding:8px 12px;background:#e3f2fd;border-radius:10px;font-size:.85rem;color:#0d47a1;border-right:4px solid #1976d2}
 .verse-source{display:block;margin-top:6px;font-size:.75rem;color:var(--muted);font-family:inherit;direction:rtl}
@@ -569,7 +572,7 @@ var TEMPLATE_HEAD = null, TEMPLATE_TAIL = null;
   } catch(e) { console.warn('template snapshot failed', e); }
 })();
 var MAX_HTML_WARN_BYTES = 25 * 1024 * 1024;
-var APP_VERSION = '9.39.14';
+var APP_VERSION = '9.39.15';
 var SCHEMA_VERSION = 2;
 var PACK_SOURCE_VERSION = '';
 var PACK_COMPATIBLE = true;
@@ -601,6 +604,8 @@ var PINNED_TEACHER_KEYS = null; /* RIFAQ_PINNED_KEYS */
 var PINNED_SUPERVISOR = null; /* RIFAQ_PINNED_SUPERVISOR */
 var BUILTIN_CURRICULUM = null; /* RIFAQ_BUILTIN_CURRICULUM */
 var RIFAQ_CHANNEL = 'main'; /* RIFAQ_CHANNEL */
+/* 9.39.15 (ق6): الحكم المحوري لكل مهمة تسجيل ومعايير تقييمه (مسودة لاعتماد الشيخ)، من curriculum/rating_criteria_9.39.15.json */
+var RATING_CRITERIA = {"rules":{"idhhar":{"label":"الإظهار","listen":"النون الساكنة أو التنوين قبل حرف الحلق.","mastered":"النون تُنطق من طرف اللسان واضحة، بلا إطالة غنة ولا سكت، ثم حرف الحلق مباشرة.","good":"النون واضحة مع غنة يسيرة أو تردد قصير.","needs":"غنة ممدودة كأنه إخفاء، أو إدغام النون في حرف الحلق، أو حذفها، أو تحريكها."},"idgham_n":{"label":"الإدغام بلا غنة","listen":"النون الساكنة أو التنوين قبل اللام أو الراء.","mastered":"تُدغم النون فتُسمع لام أو راء مشددة، بلا أثر للنون ولا غنة.","good":"الإدغام صحيح مع أثر غنة خفيف.","needs":"إظهار النون، أو غنة واضحة، أو لام أو راء بلا تشديد."},"idgham_g":{"label":"الإدغام بغنة","listen":"النون الساكنة أو التنوين قبل الياء أو النون أو الميم أو الواو.","mastered":"تُدغم النون في الحرف التالي مع غنة بمقدار حركتين.","good":"الإدغام صحيح والغنة أقصر أو أطول قليلًا.","needs":"إظهار النون، أو إدغام بلا غنة."},"iqlab":{"label":"الإقلاب","listen":"النون الساكنة أو التنوين قبل الباء.","mastered":"تُقلب النون ميمًا مخفاة بغنة بمقدار حركتين، والشفتان منطبقتان بلا ضغط.","good":"القلب صحيح والغنة ناقصة قليلًا.","needs":"نون صريحة بلا قلب، أو إطباق بقوة مع ميم ظاهرة، أو غنة أقل من حركتين."},"ikhfa":{"label":"الإخفاء","listen":"النون الساكنة أو التنوين قبل أحد حروف الإخفاء الخمسة عشر.","mastered":"النون بين الإظهار والإدغام، بغنة بمقدار حركتين، واللسان يتهيأ لمخرج الحرف التالي.","good":"الإخفاء صحيح والغنة أقصر أو أطول قليلًا.","needs":"نون ظاهرة صريحة من طرف اللسان، أو إدغامها في الحرف التالي، أو حذف الغنة."},"ghunna":{"label":"الغنة في النون والميم المشددتين","listen":"النون أو الميم المشددة.","mastered":"غنة كاملة بمقدار حركتين في كل موضع.","good":"غنة أقصر قليلًا في موضع.","needs":"لا غنة، أو تشديد بلا غنة، أو إطالة مفرطة."},"ikhfa_sh":{"label":"الإخفاء الشفوي","listen":"الميم الساكنة قبل الباء.","mastered":"تُخفى الميم بغنة بمقدار حركتين، على الوجه الذي يعتمده الشيخ في الشفتين (إطباق خفيف أو فرجة يسيرة).","good":"الإخفاء صحيح والغنة ناقصة قليلًا.","needs":"ميم ظاهرة صريحة بلا غنة، أو ضغط الشفتين بقوة."},"idhhar_sh":{"label":"الإظهار الشفوي","listen":"الميم الساكنة قبل غير الباء والميم.","mastered":"الميم ساكنة واضحة من الشفتين، بلا غنة زائدة ولا سكت.","good":"واضحة مع غنة يسيرة.","needs":"إخفاء الميم، أو تحريكها، أو حذفها."},"lam_q":{"label":"اللام القمرية","listen":"لام «ال» قبل حرف قمري.","mastered":"اللام ساكنة واضحة، ثم الحرف التالي.","good":"واضحة مع تردد يسير.","needs":"إدغام اللام في الحرف التالي، أو تحريكها."},"lam_sh":{"label":"اللام الشمسية","listen":"لام «ال» قبل حرف شمسي.","mastered":"اللام لا تُنطق، والحرف بعدها مشدد.","good":"التشديد خفيف قليلًا.","needs":"نطق اللام، أو حرف بلا تشديد."},"lam_fil":{"label":"لام الفعل","listen":"اللام الساكنة في الفعل قبل غير اللام والراء.","mastered":"اللام ساكنة واضحة قبل الحرف التالي.","good":"واضحة مع تردد يسير.","needs":"إدغام اللام في الحرف التالي، أو تحريكها."},"mithl":{"label":"إدغام المثلين الصغير","listen":"الميم الساكنة قبل الميم.","mastered":"تُدغم الميم الأولى في الثانية فتُسمع ميم مشددة بغنة بمقدار حركتين.","good":"الإدغام صحيح والغنة أقصر قليلًا.","needs":"إظهار الميم الأولى، أو إدغام بلا غنة."},"badal":{"label":"مد البدل","listen":"حرف المد بعد همز.","mastered":"مد بمقدار حركتين.","good":"زيادة أو نقص يسير.","needs":"قصر شديد، أو مد أربع حركات فأكثر."},"iwad":{"label":"مد العوض","listen":"الوقف على تنوين النصب.","mastered":"يُبدل التنوين ألفًا تُمد حركتين عند الوقف.","good":"الألف أقصر أو أطول قليلًا.","needs":"الوقف بالتنوين، أو بالسكون بلا ألف."},"muttasil":{"label":"المد المتصل","listen":"حرف المد بعده همز في الكلمة نفسها.","mastered":"مد بمقدار أربع أو خمس حركات.","good":"المقدار قريب (ثلاث أو ست).","needs":"قصر إلى حركتين، أو مد مفرط."},"munfasil":{"label":"المد المنفصل","listen":"حرف المد في آخر كلمة والهمز في أول التالية.","mastered":"مد بمقدار أربع أو خمس حركات، مساويًا لما مُدّ به المتصل.","good":"المقدار صحيح مع اختلاف يسير عن المتصل.","needs":"قصر إلى حركتين، أو مد مفرط."},"leen":{"label":"مد اللين","listen":"الواو أو الياء الساكنة بعد فتح عند الوقف.","mastered":"الوقف بالسكون، والمد حركتان أو أربع أو ست، بمقدار ثابت.","good":"المقدار يتغير قليلًا بين الموضعين.","needs":"الوقف بالحركة، أو مد مفرط، أو تحويل اللين إلى مد بحرف آخر."},"sila_s":{"label":"الصلة الصغرى","listen":"هاء الضمير بين متحركين وليس بعدها همز.","mastered":"تُوصل الهاء بواو أو ياء بمقدار حركتين في الوصل.","good":"الصلة أقصر أو أطول قليلًا.","needs":"حذف الصلة، أو مدها أربع حركات فأكثر."},"sila_k":{"label":"الصلة الكبرى","listen":"هاء الضمير بين متحركين وبعدها همزة قطع.","mastered":"تُوصل الهاء بمد بمقدار أربع أو خمس حركات، كالمنفصل.","good":"المقدار قريب.","needs":"مدها حركتين فقط، أو حذف الصلة."},"lazim_k":{"label":"المد اللازم الكلمي المثقل","listen":"حرف المد بعده حرف مشدد في الكلمة نفسها.","mastered":"مد بمقدار ست حركات، ثم الحرف المشدد.","good":"المقدار قريب من ست.","needs":"مد أقل من أربع، أو فك التشديد."},"lazim_h":{"label":"المد اللازم الحرفي","listen":"أسماء حروف فواتح السور التي هجاؤها ثلاثة أحرف أوسطها حرف مد.","mastered":"مد بمقدار ست حركات في كل حرف من هذه الحروف، مع نطق أسماء الحروف كاملة.","good":"المقدار قريب من ست في حرف أو أكثر.","needs":"قصر الحرف، أو قراءته كلمة لا أسماء حروف."}},"tasks":{"r2_1":"idhhar","r3_1":"idgham_n","r3_2":"idgham_g","r4_1":"iqlab","r5_1":"ikhfa","r5_2":"ikhfa","r6_1":"ghunna","r6_2":"ghunna","r7_1":"ikhfa_sh","r7_2":"idhhar_sh","r8_1":"lam_q","r8_2":"lam_sh","rec_lamfil_1":"lam_fil","rm_1":"mithl","r9_1":"badal","r9_2":"iwad","r10_1":"muttasil","r10_2":"munfasil","r11_1":"leen","r11_2":"sila_s","r11_3":"sila_k","rec_lin_1":"leen","r12_1":"lazim_k","rf_1":"lazim_h","rf_2":"lazim_h","rf_3":"lazim_h"},"other":{"idhhar":"الإظهار","idgham":"الإدغام","iqlab":"الإقلاب","ikhfa":"الإخفاء","ghunna":"الغنة","meem":"الميم الساكنة","lam":"اللام","madd":"المد","makhraj":"مخرج حرف","waqf":"الوقف والابتداء"}};
 /* 9.39.14 (D8): 'beta' في نسخة /beta/ فقط (يكتبها tools/build_web.py --channel beta). */
 /* 9.39.13 (D6): تحقنه الصفحة المضيفة (منهج الإصدار نفسه) حين يختلف منهج الملف عنه وفي التطبيق مشرف مسجَّل */
 /* 9.39.3 (RT9392-01): داخل الصفحة المضيفة تأتي الثقة منها وحدها؛ إن غابت المرساة فلا ثقة إطلاقًا (لا رجوع إلى قائمة الملف) */
@@ -965,10 +970,10 @@ function renderTFView(){
   renderTFViewInner();
   var tl = document.getElementById('tf-list');
   if (tl && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
-    var rc = {mastered: 0, needs: 0, notapplied: 0};
-    Object.keys(PACK_DATA.teacherRatings).forEach(function(k){ if (rc[PACK_DATA.teacherRatings[k]] !== undefined) rc[PACK_DATA.teacherRatings[k]]++; });
+    var rc = {mastered: 0, good: 0, needs: 0, unusable: 0};
+    Object.keys(PACK_DATA.teacherRatings).forEach(function(k){ var v = normRating(PACK_DATA.teacherRatings[k]); if (rc[v] !== undefined) rc[v]++; });
     var rn = document.createElement('div'); rn.className = 'notice'; rn.style.cssText = 'font-size:.85rem;margin-bottom:8px';
-    rn.textContent = '📋 تقييم المعلم: ' + RATING_STATES.mastered + ' ' + rc.mastered + ' · ' + RATING_STATES.needs + ' ' + rc.needs + ' · ' + RATING_STATES.notapplied + ' ' + rc.notapplied;
+    rn.textContent = '📋 تقييم المعلم: ' + RATING_STATES.mastered + ' ' + rc.mastered + ' · ' + RATING_STATES.good + ' ' + rc.good + ' · ' + RATING_STATES.needs + ' ' + rc.needs + (rc.unusable ? ' · ' + RATING_UNUSABLE + ' ' + rc.unusable : '');
     tl.insertBefore(rn, tl.firstChild);
   }
   if (tl && RETURN_TRUST){
@@ -1139,10 +1144,14 @@ function safeIdString(id){
     } else P.studentAssessment = null;
     P.submittedAt = P.submittedAt ? String(P.submittedAt).slice(0, 40) : null;
     if (P.teacherRatings && typeof P.teacherRatings === 'object'){
-      var okStates = {mastered: 1, needs: 1, notapplied: 1}, rr = {};
-      Object.keys(P.teacherRatings).slice(0, 300).forEach(function(k){ if (okStates[P.teacherRatings[k]]) rr[String(k).slice(0, 64)] = P.teacherRatings[k]; });
+      var rr = {}; // 9.39.15 (ق6-أ): «لم يُطبَّق» القديمة تصير «يحتاج تدريبًا»
+      Object.keys(P.teacherRatings).slice(0, 300).forEach(function(k){ var v = normRating(P.teacherRatings[k]); if (v) rr[safeIdString(k)] = v; });
       P.teacherRatings = rr;
     } else P.teacherRatings = {};
+    if (P.teacherOtherRules && typeof P.teacherOtherRules === 'object' && !Array.isArray(P.teacherOtherRules)){
+      var orr = {}; Object.keys(P.teacherOtherRules).slice(0, 300).forEach(function(k){ var a = P.teacherOtherRules[k]; if (!Array.isArray(a)) return; a = a.map(String).filter(function(x){ return RATING_CRITERIA.other[x]; }).slice(0, 12); if (a.length) orr[safeIdString(k)] = a; });
+      P.teacherOtherRules = orr;
+    } else P.teacherOtherRules = {};
     if (P.studentConsent && typeof P.studentConsent === 'object'){
       var pc = P.studentConsent.permissions || {}, exr = P.studentConsent.excludedRecordings || {};
       P.studentConsent = {v: Number(P.studentConsent.v) === 2 ? 2 : 1, guardian: String(P.studentConsent.guardian || '').replace(/[<>]/g, '').slice(0, 60), at: String(P.studentConsent.at || '').slice(0, 40),
@@ -1279,7 +1288,7 @@ function normalizeState(raw){
   if (raw.giftExcluded && typeof raw.giftExcluded === 'object') base.giftExcluded = raw.giftExcluded;
   /* 9.39.12: كان تقييم المعلم (9.39.11) يُسقَط عند كل تحميل فلا يصل إلى الشهادة؛ وسجل الإجابات جديد */
   if (raw.teacherRatings && typeof raw.teacherRatings === 'object' && !Array.isArray(raw.teacherRatings)){
-    base.teacherRatings = {}; Object.keys(raw.teacherRatings).slice(0, 200).forEach(function(k){ var v = raw.teacherRatings[k]; if (typeof v === 'string') base.teacherRatings[String(k).slice(0, 64)] = v.slice(0, 20); });
+    base.teacherRatings = {}; Object.keys(raw.teacherRatings).slice(0, 200).forEach(function(k){ var v = normRating(raw.teacherRatings[k]); if (v) base.teacherRatings[String(k).slice(0, 64)] = v; }); // 9.39.15: ترحيل «لم يُطبَّق»
   }
   if (Array.isArray(raw.respLog)) base.respLog = raw.respLog.slice(-1500);
   /* 9.39.13: الأسئلة التي رآها الطفل في كل درس (ق3-ب)، وآخر نسخة احتياطية وعلامة الاستعادة (D12) */
@@ -2393,7 +2402,7 @@ function audSrc(v){ v = (v === null || v === undefined) ? '' : String(v); return
    كل زر يحمل data-call="[اسم, وسيط, ...]". المُرسِل يحدد الدالة بالاسم، والمُنفِّذ يتحقق من أنها دالة معروفة. */
 function ACT(name){ var args = Array.prototype.slice.call(arguments, 1); var payload = JSON.stringify([name].concat(args)); return ' data-call="' + String(payload).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '"'; }
 function clickById(id){ var el = document.getElementById(id); if (el) el.click(); }
-var CALLABLE_ALLOW = ["showGiftContents", "answer", "applyNoteCode", "cancelTeacherFeedback", "clickById", "closeCertificate", "closePreview", "confirmTeacherRejection", "continueFromSplash", "deleteStudentRec", "doDownloadPreview", "doSharePreview", "downloadCertificate", "editProfile", "exportApprovedPack", "exportReturnedPack", "goHome", "handleReviewTeacherPhoto", "handleSetupPhoto", "markRosterDeleted", "nextFromResults", "openGuardianSettings", "openRoster", "openSection", "playStudentRec", "printCertificate", "saveSetup", "setRating", "setReview", "setReplyChannel", "setSetupGender", "shareCertificate", "showCertificate", "showExportDialog", "showProfile", "showReset", "startFinalExam", "startNewStudent", "startQuiz", "startRec", "startRetest", "startReviewSession", "toggleTeacherFeedbackRecording", "uploadReplacementAudio"]; /* 9.39: قائمة الدوال التي يجوز استدعاؤها من data-call/data-change */
+var CALLABLE_ALLOW = ["showGiftContents", "toggleOtherRule", "answer", "applyNoteCode", "cancelTeacherFeedback", "clickById", "closeCertificate", "closePreview", "confirmTeacherRejection", "continueFromSplash", "deleteStudentRec", "doDownloadPreview", "doSharePreview", "downloadCertificate", "editProfile", "exportApprovedPack", "exportReturnedPack", "goHome", "handleReviewTeacherPhoto", "handleSetupPhoto", "markRosterDeleted", "nextFromResults", "openGuardianSettings", "openRoster", "openSection", "playStudentRec", "printCertificate", "saveSetup", "setRating", "setReview", "setReplyChannel", "setSetupGender", "shareCertificate", "showCertificate", "showExportDialog", "showProfile", "showReset", "startFinalExam", "startNewStudent", "startQuiz", "startRec", "startRetest", "startReviewSession", "toggleTeacherFeedbackRecording", "uploadReplacementAudio"]; /* 9.39: قائمة الدوال التي يجوز استدعاؤها من data-call/data-change */
 document.addEventListener('click', function(ev){
   var el = ev.target && ev.target.closest ? ev.target.closest('[data-call]') : null;
   if (!el) return;
@@ -3943,14 +3952,11 @@ function showTeacherReview(){
     h += '<div class="review-item ' + (status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : '') + '">';
     h += '<div class="head"><div class="dot"></div><div class="label">' + escapeHTML(itemLabelById(it.id)) + '</div>';
     h += '<div class="status ' + status + '">' + (status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : '⏳ قيد المراجعة') + '</div></div>';
-    h += '<div class="text' + (it.type === 'quran' ? ' quran' : '') + '">' + it.text + '</div>';
+    h += '<div class="text' + (it.type === 'quran' ? ' quran' : '') + '">' + highlightPivot(it.text, it.id) + '</div>'; // 9.39.15 (ق6-ب)
     h += audioPersonBlock(PACK_DATA.studentPhoto, PACK_DATA.studentGender || 'boy', PACK_DATA.studentName || '', '🎙️ تسجيل الطالب / الطالبة', rec.audio, 'review-student-audio');
     if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id] && PACK_DATA.studentAudios[it.id].partial) h += '<div class="notice warn" data-style="font-size:.85rem">⚠️ هذا التسجيل ناقص: انقطع الميكروفون أو خرج الطفل من التطبيق أثناءه.</div>';
     if (PACK_DATA.teacherNotes && PACK_DATA.teacherNotes[it.id]) h += '<div class="teacher-comment"><b>📝 ملاحظتك المكتوبة:</b><div>' + escapeHTML(String(PACK_DATA.teacherNotes[it.id])) + '</div></div>';
-    var rstate = (PACK_DATA.teacherRatings || {})[it.id] || '';
-    h += '<div class="rating-row" data-style="margin:8px 0;display:flex;gap:6px;flex-wrap:wrap">';
-    Object.keys(RATING_STATES).forEach(function(k){ h += '<button class="btn ' + (rstate === k ? 'success' : 'ghost') + '" ' + ACT('setRating', it.id, k) + ' type="button">' + RATING_STATES[k] + '</button>'; });
-    h += '</div>';
+    h += ratingBlockHTML(it); // 9.39.15 (ق6)
     h += '<select class="note-bank" data-change="applyNoteCode" data-change-arg="' + it.id + '" data-style="width:100%;padding:8px;border-radius:10px;border:1px solid #cfd8dc;margin-bottom:6px"><option value="">— اختر ملاحظة جاهزة —</option>' + NOTE_BANK.map(function(n){ return '<option value="' + n + '">' + n + '</option>'; }).join('') + '</select>';
     h += '<div class="review-actions">';
     h += '<button class="btn success" ' + ACT('setReview', it.id, 'approved') + ' type="button">✅ اعتماد</button>';
@@ -3964,7 +3970,68 @@ function showTeacherReview(){
   requestAnimationFrame(function(){ window.scrollTo(0, previousScroll); });
 }
 var teacherFeedbackTarget = null, teacherFeedbackRecorder = null, teacherFeedbackStream = null, teacherFeedbackChunks = [], teacherFeedbackData = null;
-var RATING_STATES = {mastered: '✅ متقن', needs: '🔁 يحتاج تدريبًا', notapplied: '⛔ لم يُطبَّق'};
+var RATING_STATES = {mastered: '✅ متقن', good: '👍 جيد', needs: '🔁 يحتاج تدريبًا'}; // 9.39.15 (ق6-أ)
+var RATING_UNUSABLE = '🔇 لا يصلح للتقييم'; // ليس درجة: ضجيج أو صمت أو انقطاع، ويُطلب إعادة التسجيل
+/* يُستدعى أثناء تعقيم الملف عند الإقلاع، قبل تعريف RATING_STATES، فلا يعتمد عليه */
+function normRating(v){ v = String(v || ''); if (v === 'notapplied') return 'needs'; return ({mastered: 1, good: 1, needs: 1, unusable: 1})[v] ? v : ''; }
+function arSkel(w){ return String(w || '').replace(/<[^>]+>/g, '').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640﴿﴾«»()،.]/g, '').replace(/[ٱأإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').trim(); }
+/* العبارات بين «» في سطر «🎯 مهمتك» هي موضع الحكم المحوري */
+function pivotPhrases(id){
+  var it = null; CURRICULUM.forEach(function(s){ (s.items || []).forEach(function(x){ if (x.id === id) it = x; }); });
+  var m = String((it && it.desc) || '').replace(/<br>[\s\S]*$/, '').match(/«[^»]+»/g) || [];
+  return m.map(function(x){ return x.slice(1, -1).trim(); }).filter(Boolean);
+}
+function highlightPivot(html, id){
+  var phr = pivotPhrases(id); if (!phr.length || /<[a-z]/i.test(String(html))) return html;
+  var toks = String(html).split(' '), keys = toks.map(arSkel), hit = {};
+  /* الكلمة نفسها، أو بلا حرف عطف أو جر ملتصق في أولها، أو تزيد عليها حرفًا واحدًا في آخرها */
+  var same = function(k, w){ var k2 = k.replace(/^[وفبل]/, ''); var pre = function(x){ return x.indexOf(w) === 0 && x.length - w.length <= 1; }; return k === w || k2 === w || (w.length >= 3 && (pre(k) || pre(k2))); };
+  phr.forEach(function(p){
+    var ws = p.split(/\s+/).map(arSkel).filter(function(w){ return w.length >= 1; });
+    /* العبارة كاملة، وإلا أطول بداية منها (الرسم في سطر المهمة قد يختلف عن رسم المصحف في آخرها) */
+    for (var n = ws.length; n >= 1; n--){
+      var sub = ws.slice(0, n), found = false;
+      if (n === 1 && sub[0].length < 2) break;
+      for (var i = 0; i + n <= toks.length && !found; i++){
+        if (sub.every(function(w, j){ return same(keys[i + j], w); })){ for (var j = 0; j < n; j++) hit[i + j] = 1; found = true; }
+      }
+      if (found) break;
+    }
+  });
+  return toks.map(function(t, i){ return hit[i] ? '<mark class="pivot">' + t + '</mark>' : t; }).join(' ');
+}
+function otherRulesOf(id){ var o = (PACK_DATA.teacherOtherRules || {})[id]; return Array.isArray(o) ? o.filter(function(k){ return RATING_CRITERIA.other[k]; }) : []; }
+function toggleOtherRule(id, k){
+  if (!RATING_CRITERIA.other[k] || !PACK_DATA.studentAudios || !PACK_DATA.studentAudios[id]) return;
+  PACK_DATA.teacherOtherRules = PACK_DATA.teacherOtherRules || {};
+  var o = otherRulesOf(id), i = o.indexOf(k); if (i >= 0) o.splice(i, 1); else o.push(k);
+  if (o.length) PACK_DATA.teacherOtherRules[id] = o; else delete PACK_DATA.teacherOtherRules[id];
+  showTeacherReview();
+}
+function ratingBlockHTML(it){
+  var code = RATING_CRITERIA.tasks[it.id], rule = code && RATING_CRITERIA.rules[code], rstate = normRating((PACK_DATA.teacherRatings || {})[it.id]), h = '';
+  if (rule){
+    var phr = pivotPhrases(it.id);
+    h += '<div class="pivot-line" data-style="margin:6px 0;font-size:.92rem">🎯 الحكم المحوري: <b>' + escapeHTML(rule.label) + '</b>' + (phr.length ? ' — عند ' + phr.map(function(p){ return '«' + escapeHTML(p) + '»'; }).join(' و') : '') + '</div>';
+    h += '<details class="rubric"><summary>📏 معايير التقييم (مسودة تنتظر اعتماد الشيخ)</summary><div>👂 ' + escapeHTML(rule.listen) + '</div><div>✅ متقن: ' + escapeHTML(rule.mastered) + '</div><div>👍 جيد: ' + escapeHTML(rule.good) + '</div><div>🔁 يحتاج تدريبًا: ' + escapeHTML(rule.needs) + '</div></details>';
+  }
+  h += '<div class="rating-row" data-style="margin:8px 0;display:flex;gap:6px;flex-wrap:wrap">';
+  Object.keys(RATING_STATES).forEach(function(k){ h += '<button class="btn ' + (rstate === k ? 'success' : 'ghost') + '" ' + ACT('setRating', it.id, k) + ' type="button">' + RATING_STATES[k] + '</button>'; });
+  h += '<button class="btn ' + (rstate === 'unusable' ? 'gold' : 'ghost') + ' sm" ' + ACT('setRating', it.id, 'unusable') + ' type="button">' + RATING_UNUSABLE + '</button></div>';
+  if (rstate === 'unusable') h += '<div class="notice warn" data-style="font-size:.85rem">التسجيل لا يصلح للتقييم فلا يُحسب درجة. اضغط «❌ رفض» ليعيد الطفل التسجيل.</div>';
+  var others = otherRulesOf(it.id);
+  h += '<div class="other-rules" data-style="font-size:.85rem;margin:4px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center"><span>📌 ملاحظة على حكم آخر (لا تغيّر الدرجة):</span>';
+  Object.keys(RATING_CRITERIA.other).forEach(function(k){ h += '<button class="btn ' + (others.indexOf(k) >= 0 ? 'gold' : 'ghost') + ' sm" ' + ACT('toggleOtherRule', it.id, k) + ' type="button">' + escapeHTML(RATING_CRITERIA.other[k]) + '</button>'; });
+  return h + '</div>';
+}
+function studentRatingNote(id){
+  var r = normRating((PACK_DATA.teacherRatings || {})[id]), o = otherRulesOf(id), code = RATING_CRITERIA.tasks[id], rule = code && RATING_CRITERIA.rules[code], h = '';
+  var who = genderWord(PACK_DATA.teacherGender || 'boy', 'المعلم', 'المعلمة');
+  if (r === 'unusable') h += '<div class="notice warn" data-style="font-size:.85rem">🔇 لم يصلح التسجيل للتقييم (ضجيج أو صمت أو انقطاع). {أعد|أعيدي} التسجيل في مكان هادئ.</div>';
+  else if (r) h += '<div class="rating-note" data-style="font-size:.88rem;margin:4px 0">📋 تقييم ' + who + (rule ? ' في ' + escapeHTML(rule.label) : '') + ': <b>' + RATING_STATES[r] + '</b></div>';
+  if (o.length) h += '<div class="other-note" data-style="font-size:.85rem;color:#8a4b00;margin:2px 0">📌 {انتبه|انتبهي} أيضًا إلى: ' + o.map(function(k){ return escapeHTML(RATING_CRITERIA.other[k]); }).join('، ') + '</div>';
+  return h ? GT(h) : '';
+}
 var NOTE_BANK = ['الغنة قصيرة', 'المد أقل من المطلوب', 'الإدغام غير واضح', 'الإظهار غير واضح', 'الإقلاب يحتاج تكرارًا', 'الإخفاء ثقيل، خفّف الغنة', 'المخرج غير دقيق', 'أحسنتِ، أعيدي الحكم بتركيز أكبر'];
 
 /* ===== 9.25: قناة الرد، ولوحة المتابعة للمعلم، وملخص ولي الأمر ===== */
@@ -4008,10 +4075,10 @@ function buildParentSummary(){
   var st = STATE.assess || {}; var mastered = [], pending = [];
   var secs = (CURRICULUM || []).filter(function(s){ return !s._synthetic; });
   secs.forEach(function(s){ var c = (st.concepts || {})[s.id]; if (c && c.mastered) mastered.push(s.title); else pending.push(s.title); });
-  var rc = {mastered: 0, needs: 0, notapplied: 0};
-  Object.keys(PACK_DATA.teacherRatings || {}).forEach(function(k){ if (rc[PACK_DATA.teacherRatings[k]] !== undefined) rc[PACK_DATA.teacherRatings[k]]++; });
+  var rc = {mastered: 0, good: 0, needs: 0, unusable: 0};
+  Object.keys(PACK_DATA.teacherRatings || {}).forEach(function(k){ var v = normRating(PACK_DATA.teacherRatings[k]); if (rc[v] !== undefined) rc[v]++; });
   var lines = ['ملخص الأسبوع — ' + (STATE.student && STATE.student.name || ''), '', 'أحكام أتقنها: ' + (mastered.length ? mastered.join('، ') : 'لا يوجد بعد'), 'أحكام قيد التدريب: ' + (pending.length ? pending.join('، ') : 'لا يوجد'), '',
-    'تقييم المعلم للتلاوة: متقن ' + rc.mastered + ' · يحتاج تدريبًا ' + rc.needs + ' · لم يُطبَّق ' + rc.notapplied, '', 'ملاحظة: هذا الملخص لا يتضمن أي تسجيل صوتي.'];
+    'تقييم المعلم للتلاوة: متقن ' + rc.mastered + ' · جيد ' + rc.good + ' · يحتاج تدريبًا ' + rc.needs + (rc.unusable ? ' · لا يصلح للتقييم ' + rc.unusable : ''), '', 'ملاحظة: هذا الملخص لا يتضمن أي تسجيل صوتي.'];
   return lines.join('\n');
 }
 function showParentSummary(){
@@ -4024,7 +4091,7 @@ function showParentSummary(){
   document.getElementById('ps-close').onclick = function(){ ov.remove(); };
 }
 function setRating(id, state){
-  if (!RATING_STATES[state] || !PACK_DATA.studentAudios || !PACK_DATA.studentAudios[id]) return;
+  if ((!RATING_STATES[state] && state !== 'unusable') || !PACK_DATA.studentAudios || !PACK_DATA.studentAudios[id]) return;
   PACK_DATA.teacherRatings = PACK_DATA.teacherRatings || {};
   PACK_DATA.teacherRatings[id] = state;
   showTeacherReview();
@@ -4220,7 +4287,7 @@ async function buildAndDownload(opts){
   if (isGiftExport){
     // The recipient must enter a completely new identity when opening the gift.
     /* 9.39 (R07): بيانات الطفل الخاصة لا تنتقل إلى الإهداء إطلاقًا، واسمه وصورته فقط عند إذن المشاركة */
-    ['studentName','studentId','studentPhoto','studentGender','studentAssessment','teacherRatings','teacherNotes','teacherFeedbacks','reviewCount','submissionVersion','teacherRepliedAt','studentConsent'].forEach(function(k){ delete newPack[k]; });
+    ['studentName','studentId','studentPhoto','studentGender','studentAssessment','teacherRatings','teacherOtherRules','teacherNotes','teacherFeedbacks','reviewCount','submissionVersion','teacherRepliedAt','studentConsent'].forEach(function(k){ delete newPack[k]; });
     var _gc = PACK_DATA.studentConsent || {};
     var _gShare = !!(_gc.v === 2 && _gc.permissions && _gc.permissions.shareWithPeers === true);
     newPack.sourceGiftStudentName = _gShare ? (PACK_DATA.studentName || '') : '';
@@ -4314,7 +4381,8 @@ function renderTFViewInner(){
   $('tf-sub').textContent = (PACK_DATA.studentName || '') + ' — ' + rejectedCount + ' بحاجة لمراجعة';
 }
 
-function tfItemHTML(id, text, type, packStatus, localStatus){
+function tfItemHTML(id, text, type, packStatus, localStatus){ var h = tfItemHTMLInner(id, text, type, packStatus, localStatus), x = studentRatingNote(id); return x ? h.replace(/<\/div>\s*$/, x + '</div>') : h; } // 9.39.15 (ق6)
+function tfItemHTMLInner(id, text, type, packStatus, localStatus){
   var isApproved = packStatus === 'approved';
   var isRejected = packStatus === 'rejected';
   var wasRerecorded = localStatus === 'pending' && isRejected;
@@ -4550,7 +4618,8 @@ function certLevel(){
   var secs = realSections(), cs = (STATE.assess && STATE.assess.concepts) || {};
   var mastered = secs.filter(function(s){ return cs[s.id] && cs[s.id].mastered; }).length;
   var r = STATE.teacherRatings || {}, keys = Object.keys(r);
-  return {allMastered: secs.length > 0 && mastered === secs.length, mastered: mastered, rated: keys.length, needs: keys.filter(function(k){ return r[k] === 'needs'; }).length};
+  keys = keys.filter(function(k){ var v = normRating(r[k]); return v && v !== 'unusable'; }); // 9.39.15 (ق6-هـ): «جيد» يكفي، و«لا يصلح» ليس تقييمًا
+  return {allMastered: secs.length > 0 && mastered === secs.length, mastered: mastered, rated: keys.length, needs: keys.filter(function(k){ return normRating(r[k]) === 'needs'; }).length};
 }
 function buildCertData(){
   var s = STATE.student;

@@ -1104,6 +1104,40 @@ async def main():
             except Exception as e:
                 rec('R46 (exception)', False, repr(e)[:200])
 
+            # R47 (9.39.15، ق6): المعلم يرى الحكم المحوري مظللًا ومعاييره، ويقيّم بالمقياس الثلاثي + «لا يصلح»، ويعلّم حكمًا آخر؛
+            # الطفل يرى التقييم والتنبيه؛ «لم يُطبَّق» القديمة تصير «يحتاج تدريبًا»؛ «جيد» يكفي للإتقان التام و«لا يصلح» ليس تقييمًا
+            try:
+                ctxR, pR, errsR = await ctx_page(b)
+                await pR.goto(BASE + '/open.html?src=app'); fR = await appframe(pR)
+                await setup_student(fR, 'رقية'); await record(fR)
+                subR = await export_from(pR, fR, """(function(){ showExportDialog('submission'); setTimeout(function(){ document.querySelectorAll('#modal button').forEach(function(b){ if(b.textContent.indexOf('إرسال للمعلم')>=0) b.click(); }); }, 300); })()""", f'{OUT}/r47_sub.html')
+                await ctxR.close()
+                ctxT7, pT7, errsT7 = await ctx_page(b)
+                await pT7.goto(BASE + '/open.html'); fT7 = await open_file(pT7, subR)
+                await ev(fT7, "showTeacherReview()"); await fT7.wait_for_timeout(300)
+                tv = await ev(fT7, """(() => { var l = document.getElementById('review-list'), m = l.querySelector('mark.pivot');
+                  return [l.innerText.indexOf('الحكم المحوري: الإظهار') >= 0, m ? m.textContent : '', !!l.querySelector('details.rubric'), l.querySelectorAll('.rating-row button').length, l.innerText.indexOf('لم يُطبَّق') < 0]; })()""")
+                await ev(fT7, "setRating('r2_1', 'good'); toggleOtherRule('r2_1', 'madd'); setReview('r2_1', 'approved')"); await fT7.wait_for_timeout(300)
+                st7 = await ev(fT7, "[PACK_DATA.teacherRatings.r2_1, JSON.stringify(PACK_DATA.teacherOtherRules)]")
+                retR = await export_from(pT7, fT7, "exportReturnedPack()", f'{OUT}/r47_ret.html')
+                await ctxT7.close()
+                ctxS7, pS7, errsS7 = await ctx_page(b)
+                await pS7.goto(BASE + '/open.html'); fS7 = await open_file(pS7, retR)
+                await ev(fS7, "renderTFView()"); await fS7.wait_for_timeout(300)
+                sv = await ev(fS7, "document.getElementById('tf-list').innerText")
+                pk = pack_of(retR); pk['teacherRatings'] = {'r2_1': 'notapplied'}
+                old_ret = with_pack(retR, pk, f'{OUT}/r47_ret_old.html')
+                fS8 = await open_file(pS7, old_ret)
+                mig = await ev(fS8, "[PACK_DATA.teacherRatings.r2_1, (function(){ realSections().forEach(function(s){ assessConcept(STATE.assess = STATE.assess || assessEmptyState(), s.id).mastered = true; }); var o = []; [{r2_1: 'good'}, {r2_1: 'good', r3_1: 'needs'}, {r2_1: 'unusable'}, {r2_1: 'notapplied'}].forEach(function(t){ STATE.teacherRatings = t; var c = certLevel(); o.push([c.rated, c.needs]); }); return o; })()]")
+                await ctxS7.close()
+                rec('R47 recitation rating: pivot rule highlighted with criteria, 3-step scale + unusable, other-rule flags reach the child, legacy "not applied" migrates, "good" suffices',
+                    tv[0] and 'أَنْعَمْتَ' in tv[1] and tv[2] and tv[3] == 4 and tv[4] and st7 == ['good', '{"r2_1":["madd"]}']
+                    and 'تقييم المعلم في الإظهار' in sv and '👍 جيد' in sv and 'المد' in sv and mig[0] == 'needs'
+                    and mig[1] == [[1, 0], [2, 1], [0, 0], [1, 1]] and not errsT7 and not errsS7,
+                    (tv, st7, sv[:300], mig, errsT7[:2], errsS7[:2]))
+            except Exception as e:
+                rec('R47 (exception)', False, repr(e)[:200])
+
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
             grp3['audios']['__proto__'] = {'r3_1': {'audio': 'data:audio/webm;base64,' + 'QUJD' * 10, 'status': 'approved'}}
