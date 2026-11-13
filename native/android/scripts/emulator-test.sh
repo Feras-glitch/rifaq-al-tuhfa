@@ -39,7 +39,12 @@ else
   echo "FAIL: لم يُعثر على زر «تطبيق الطالب والمعلم»"; fail=1
 fi
 
-echo "== أخطاء WebView (Uncaught / Refused)"
-adb logcat -d | grep -E "Uncaught|Refused to|Content Security Policy" | head -30 | tee errors.txt
+echo "== أخطاء WebView وتعطّل التطبيق"
+# 9.39.16: كان الفحص يلتقط «Uncaught» من أي عملية في المحاكي، فأفشل تشغيلًا بسبب عطل في عملية نظام لا علاقة لها بالتطبيق.
+# الآن: رسائل وحدة التحكم في صفحات التطبيق (chromium وCapacitor)، وتعطّل عملية التطبيق نفسها فقط.
+adb logcat -d > logcat.txt
+grep -E "chromium|Capacitor|Console" logcat.txt | grep -E "Uncaught|Refused to|Content Security Policy" | head -30 | tee errors.txt
+grep -A3 "FATAL EXCEPTION" logcat.txt | grep -B1 -A2 "Process: $PKG" | head -20 | tee -a errors.txt
+grep -A2 "FATAL EXCEPTION" logcat.txt | grep "Process:" | grep -v "$PKG" | head -5 | sed 's/^/INFO: عطل في عملية أخرى في المحاكي (لا يُفشل الفحص): /'
 if [ -s errors.txt ]; then echo "FAIL: أخطاء في WebView"; fail=1; else echo "PASS: لا أخطاء في WebView"; fi
 exit $fail
