@@ -54,7 +54,8 @@ jobs:
   webkit:
     # 9.39.12: محرك Safari (آيفون). لا يمنع النشر حتى يستقر؛ فشله ظاهر في نتيجة التشغيل.
     name: دخان WebKit (محرك Safari)
-    runs-on: ubuntu-latest
+    # ubuntu-latest صار 26.04 ومكتبات WebKit في Playwright 1.48 (libicu74 وغيرها) غير متاحة فيه
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
