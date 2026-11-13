@@ -109,6 +109,18 @@ async def main():
                 loaded = False
             sw = await pg.evaluate("[document.readyState, !!(navigator.serviceWorker && navigator.serviceWorker.controller)]")
             rec('W6b reopened page finishes loading (no hung request)', loaded, (sw, list(pending.items())[:6]))
+            # W6c: تحديث الصفحة نفسها (السحب للتحديث في Safari). التنقّل لنفس العنوان في التبويب نفسه علِق مرة على WebKit.
+            pending.clear()
+            try:
+                await pg.reload(wait_until='domcontentloaded'); fr = await appframe(pg, 40)
+                try:
+                    await pg.wait_for_load_state('load', timeout=15000); loaded = True
+                except Exception:
+                    loaded = False
+                name = await ev(fr, "STATE.student.name")
+                rec('W6c same-tab reload brings the app back and finishes loading', loaded and name == 'دلال', (loaded, name, list(pending.items())[:6]))
+            except Exception as e:
+                rec('W6c same-tab reload brings the app back and finishes loading', False, (repr(e)[:200], list(pending.items())[:6]))
             await ctx.close()
 
             ctx = await b.new_context(viewport={'width': 390, 'height': 844}, locale='ar')
