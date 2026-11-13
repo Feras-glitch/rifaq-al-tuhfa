@@ -87,10 +87,28 @@ async def main():
             ex = await ev(fr, "[!!document.getElementById('exam-report'), !!(STATE.assess.examDone || {})[1]]")
             rec('W5 final exam session 1 completes with its summary', n2 >= 15 and ex[0] and ex[1] and not errs, (n2, ex, errs[:2]))
 
-            await pg.goto(BASE + '/open.html?src=app'); fr = await appframe(pg)
-            await ev(fr, "continueFromSplash()"); await fr.wait_for_timeout(300)
-            kept = await ev(fr, "[STATE.student.name, !!(STATE.assess && (STATE.assess.examDone || {})[1]), (STATE.respLog || []).length]")
-            rec('W6 progress survives a reload (localStorage)', kept[0] == 'دلال' and kept[1] and kept[2] > 20, kept)
+            # W6: إغلاق التطبيق وفتحه من جديد (صفحة جديدة في السياق نفسه، كما يفعل الطفل).
+            # في تشغيل CI الأول على WebKit لم ينطلق حدث load للتنقّل الثاني خلال 30 ثانية؛ فنفصل
+            # «التقدّم باقٍ» (W6) عن «اكتمال تحميل الصفحة» (W6b) ونسجّل الطلبات المعلّقة لتشخيصه.
+            await pg.close()
+            pg = await ctx.new_page(); pending = {}
+            pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+            pg.on('request', lambda r: pending.__setitem__(r.url[:100], r.resource_type))
+            pg.on('requestfinished', lambda r: pending.pop(r.url[:100], None))
+            pg.on('requestfailed', lambda r: pending.pop(r.url[:100], None))
+            try:
+                await pg.goto(BASE + '/open.html?src=app', wait_until='domcontentloaded'); fr = await appframe(pg, 40)
+                await ev(fr, "continueFromSplash()"); await fr.wait_for_timeout(300)
+                kept = await ev(fr, "[STATE.student.name, !!(STATE.assess && (STATE.assess.examDone || {})[1]), (STATE.respLog || []).length]")
+                rec('W6 progress survives closing and reopening (localStorage)', kept[0] == 'دلال' and kept[1] and kept[2] > 20, kept)
+            except Exception as e:
+                rec('W6 progress survives closing and reopening (localStorage)', False, (repr(e)[:200], list(pending.items())[:6]))
+            try:
+                await pg.wait_for_load_state('load', timeout=15000); loaded = True
+            except Exception:
+                loaded = False
+            sw = await pg.evaluate("[document.readyState, !!(navigator.serviceWorker && navigator.serviceWorker.controller)]")
+            rec('W6b reopened page finishes loading (no hung request)', loaded, (sw, list(pending.items())[:6]))
             await ctx.close()
 
             ctx = await b.new_context(viewport={'width': 390, 'height': 844}, locale='ar')
