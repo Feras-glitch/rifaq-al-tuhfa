@@ -1182,6 +1182,35 @@ async def main():
             except Exception as e:
                 rec('R49 (exception)', False, repr(e)[:200])
 
+            # R50 (9.39.17): الآيات العثمانية بخط المصحف (QPC V2): الخطوط تُحمَّل، وكل نص عثماني (71) يُعرض بها، والكلمة المقصودة ملوّنة على رموز المصحف،
+            # والحكم المحوري عند المعلم، ونص تنزيل لقارئ الشاشة؛ والنص المعدَّل بعد البناء والرموز الدخيلة ترجع إلى نص تنزيل؛ والرئيسي يعرض الصيغة السابقة بخطها
+            try:
+                ctxQ, pQ, errsQ2 = await ctx_page(b)
+                await pQ.goto(BASE + '/open.html?src=app'); fQ = await appframe(pQ)
+                await setup_student(fQ, 'دلال')
+                qp = await fQ.evaluate("""(async () => { await QPC_LOADING; var out = {pages: Object.keys(QPC_PROBE).length, ok: Object.keys(QPC_OK).length, n: 0, good: 0, bad: []};
+                  CURRICULUM.forEach(function(s){ (s.items || []).concat(s.questions || [], s.examQuestions || []).forEach(function(x){
+                    [x, x.prev].forEach(function(h, k){ if (!h || !h.qpc) return; out.n++; if (qpcHTML(h.text, h.qpc, k ? null : x.id)) out.good++; else out.bad.push(x.id); }); }); });
+                  var q = qpcHolder('x5_1'); openSection('s5_ikhfa'); startQuiz(); CURRENT.section.questions = [Object.assign({}, q)]; CURRENT.qIdx = 0; renderQuestion();
+                  var vt = document.querySelector('#view-quiz .verse-text'), g = vt.querySelector('.qpc .qg'), bb = vt.querySelector('.qpc b'), sr = vt.querySelector('.qpc-sr');
+                  out.font = g && getComputedStyle(g).fontFamily; out.loaded = !!g && document.fonts.check('20px ' + out.font, g.textContent);
+                  out.bold = !!bb && getComputedStyle(bb).color !== getComputedStyle(vt).color && !bb.querySelector('.qe');
+                  out.sr = !!sr && sr.textContent === plainText(q.text) && vt.querySelector('.qpc').getAttribute('aria-hidden') === 'true';
+                  out.endNb = /&nbsp;<span class="qg qp[0-9]+ qe">/.test(vt.innerHTML) && !/ <span class="qg qp[0-9]+ qe">/.test(vt.innerHTML);
+                  var it = qpcHolder('r2_1'); out.pivot = /<mark class="pivot">/.test(quranHTML(it.text, it, 'r2_1'));
+                  var edited = q.text.replace(/[\u0621-\u064A]/, 'ض'); out.edited0 = edited !== q.text; out.edited = qpcHTML(edited, q.qpc) === null && quranHTML(edited, q) === edited;
+                  out.evil = cleanQpc(Object.assign({}, q.qpc, {w: ['<img src=x onerror=alert(1)>']})) === null && cleanQpc(Object.assign({}, q.qpc, {p: 'x'})) === null && cleanQpc({p: 1, w: ['ﱁ'], k: 'x', wp: [1, 2]}) === null;
+                  var keep = RIFAQ_CHANNEL; RIFAQ_CHANNEL = 'main'; var cp = JSON.parse(JSON.stringify(CURRICULUM)); contentChannelFilter(cp); RIFAQ_CHANNEL = keep;
+                  var rev = 0, revOK = 0; cp.forEach(function(s){ (s.questions || []).forEach(function(x){ var o = qpcHolder(x.id); if (o && o.prev && o.prev.qpc){ rev++; if (JSON.stringify(x.qpc) === JSON.stringify(o.prev.qpc) && x.text === o.prev.text && qpcHTML(x.text, x.qpc)) revOK++; } }); });
+                  out.rev = [rev, revOK]; return out; })()""")
+                await ctxQ.close()
+                rec('R50 Uthmani verses render in the Mushaf font (QPC V2): fonts load, all 71 texts, target word colored, pivot, screen-reader text, safe fallbacks, main shows prev form in its font',
+                    qp['pages'] == 29 and qp['ok'] == 29 and qp['n'] == 71 and qp['good'] == 71 and qp['font'] == 'qpc604' and qp['loaded'] and qp['bold']
+                    and qp['sr'] and qp['endNb'] and qp['pivot'] and qp['edited0'] and qp['edited'] and qp['evil'] and qp['rev'][0] >= 10 and qp['rev'][0] == qp['rev'][1] and not errsQ2,
+                    ({k: v for k, v in qp.items() if k != 'bad'}, qp['bad'][:5], errsQ2[:2]))
+            except Exception as e:
+                rec('R50 (exception)', False, repr(e)[:200])
+
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]
             grp3['audios']['__proto__'] = {'r3_1': {'audio': 'data:audio/webm;base64,' + 'QUJD' * 10, 'status': 'approved'}}

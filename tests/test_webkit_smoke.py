@@ -138,6 +138,11 @@ async def main():
 
             await pg.goto(BASE + '/open.html?src=trial'); fr = await appframe(pg)
             rec('W8 trial file opens through the host', await ev(fr, "realSections().length") == 16 and not errs2, errs2[:2])
+            # W9 (9.39.17): خط المصحف يُحمَّل في محرك Safari، وتُعرض به الآيات العثمانية كلها
+            qp = await ev(fr, """(async () => { await QPC_LOADING; var n = 0, good = 0;
+              CURRICULUM.forEach(function(s){ (s.items || []).concat(s.questions || [], s.examQuestions || []).forEach(function(x){ [x, x.prev].forEach(function(h){ if (!h || !h.qpc) return; n++; if (qpcHTML(h.text, h.qpc)) good++; }); }); });
+              return [Object.keys(QPC_OK).length, Object.keys(QPC_PROBE).length, n, good]; })()""")
+            rec('W9 Mushaf font (QPC V2) loads in WebKit and renders every Uthmani text', qp[0] == qp[1] == 29 and qp[2] == qp[3] == 71 and not errs2, (qp, errs2[:2]))
             await b.close()
     finally:
         srv.terminate()
