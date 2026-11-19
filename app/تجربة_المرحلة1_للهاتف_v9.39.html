@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-qkRd0w2Sb6iL/QuGpa2Bpf+8zVwGtTopRPADI4R6OKg='; style-src 'sha256-Cvw7nx1F0TROqp8LGl94kEw2Oa2qTX7Y29+WVMIiq/g='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-xUzbc1ejhxGY2hzz9WENGEDGwrWEycp+LcT9Nkf5eHI='; style-src 'sha256-Cvw7nx1F0TROqp8LGl94kEw2Oa2qTX7Y29+WVMIiq/g='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -976,6 +976,11 @@ var QX_UI = {};
   };
 })();
 function renderTFView(){
+  try { // تقييم المعلم للتلاوة يُحفظ عند الطالب من ملف إعادة موثّق، لتُبنى عليه الشهادة
+    if (RETURN_TRUST === 'verified' && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
+      STATE.teacherRatings = Object.assign({}, STATE.teacherRatings || {}, PACK_DATA.teacherRatings); save();
+    }
+  } catch(e){}
   renderTFViewInner();
   var tl = document.getElementById('tf-list');
   if (tl && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
@@ -1029,6 +1034,7 @@ function renderQX(q){
   QX_UI[q.type](q, area, api);
 }
 function finishCustom(q, mistakes){
+  if (inExamMode()){ finishAnswer(mistakes === 0, q); return; } // 9.39.11: لا تسامح مع الخطأ في ألعاب الاختبار
   var correct = mistakes <= (typeof q.tolerance === 'number' ? q.tolerance : 1);
   finishAnswer(correct, q);
   if (!correct){ var t = document.querySelector('#feedback-box .feedback .title'); if (t) t.textContent = GT('⚠️ اكتملت المهمة مع بعض الأخطاء. {راجع|راجعي} التوضيح أدناه'); }
@@ -1870,6 +1876,7 @@ function saveSetup(){
     applyTheme();
     show('view-home'); renderHome();
     toast('🎁 أهلاً بك يا ' + name + '! هذه إعداداتك التعليمية الجديدة.'); confetti(30);
+    askConsentAfterSetup();
     return;
   }
   var curName = String(STATE.student.name || '').trim().toLowerCase();
@@ -1886,10 +1893,12 @@ function saveSetup(){
   applyTheme();
   if (currentMode === 'student-returned') {
     renderTFView(); show('view-tf'); toast('أهلاً يا ' + name + '! راجع ملاحظات المعلم.');
+    askConsentAfterSetup();
     return;
   }
   show('view-home'); renderHome();
   toast('🎉 أهلاً يا ' + name + '!'); confetti(30);
+  askConsentAfterSetup();
 }
 function applyTheme(){
   document.body.classList.remove('theme-boy','theme-girl');
@@ -1949,6 +1958,7 @@ function renderHome(){
   if (hasTeacherFeedbacks() && STATE.role !== 'friend'){
     // show feedback banner
   }
+  renderTrack();
 }
 function goHome(){ renderHome(); show('view-home'); }
 
@@ -1960,8 +1970,10 @@ function openSection(sid){
   CURRENT.section = sec;
   renderLesson();
   show('view-lesson');
+  var c = document.getElementById('lesson-content'); if (c) delete c.dataset.paged; // 9.28: بطاقات الدرس
+  setTimeout(paginateLessonCards, 0);
 }
-function renderLesson(){
+function renderLessonContent(){
   var sec = CURRENT.section;
   var s = STATE.student;
   var av = $('lesson-avatar');
@@ -2045,7 +2057,6 @@ function renderLesson(){
   $('lesson-content').innerHTML = html;
 }
 /* 9.39.5 (R08): بيان محتوى الإهداء — يُبنى عند الإصدار ويدخل في التوقيع، ويُعرض للمعلم قبل الإصدار وللمهدى إليه عند الفتح */
-function plainText(h){ return String(h || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); }
 function curriculumTasks(masters){
   masters = masters || {};
   var out = [];
@@ -2921,24 +2932,13 @@ function paginateLessonCards(){
   show(Math.min(startIdx, total - 1));
 }
 /* 9.39: إعادة عرض الدرس (بعد تسجيل أو حذف) تحافظ على تقسيم البطاقات والبطاقة الحالية */
-var _renderLessonBase = renderLesson;
-renderLesson = function(){
+function renderLesson(){
   var c0 = document.getElementById('lesson-content');
-  var keep = c0 && c0.dataset.paged === '1' ? (c0.dataset.pageIdx || '0') : null;
-  var r = _renderLessonBase.apply(this, arguments);
+  var keep = c0 && c0.dataset.paged === '1' ? (c0.dataset.pageIdx || '0') : null; // تبقى البطاقة نفسها بعد إعادة الرسم
+  renderLessonContent();
   var c = document.getElementById('lesson-content');
   if (c){ delete c.dataset.paged; if (keep !== null) c.dataset.pageIdx = keep; setTimeout(paginateLessonCards, 0); }
-  return r;
-};
-var _openSectionBase = openSection;
-openSection = function(sid){
-  var r = _openSectionBase.apply(this, arguments);
-  var c = document.getElementById('lesson-content'); if (c) delete c.dataset.paged;
-  setTimeout(paginateLessonCards, 0);
-  return r;
-};
-
-
+}
 /* ===== 9.32: شريط تنقل داخل الاختبار: الرئيسية، الدرس السابق، إعادة الاختبار ===== */
 function quizNavPrevSection(){
   var list = CURRICULUM.filter(function(s){ return !s._synthetic; });
@@ -2962,13 +2962,12 @@ function ensureQuizNav(){
   bar.appendChild(mk('‹ الدرس السابق', function(){ if (prev && confirmLeaveQuiz()) openSection(prev.id); }, !prev || synthetic));
   bar.appendChild(mk('↺ إعادة الاختبار', function(){ if (synthetic){ toast('الاختبار النهائي يُعاد من الخريطة بخطة جديدة.'); return; } if (confirmLeaveQuiz()) startQuiz(); }, synthetic));
   view.insertBefore(bar, view.firstChild);
+  var home = bar.firstChild; // تأكيد الخروج من اختبار جارٍ
+  if (home && !home._confirmBound){
+    home._confirmBound = true;
+    home.addEventListener('click', function(ev){ if (!confirmLeaveQuiz()){ ev.stopImmediatePropagation(); ev.preventDefault(); } }, true);
+  }
 }
-var _startQuizBase = startQuiz;
-startQuiz = function(){
-  var r = _startQuizBase.apply(this, arguments);
-  ensureQuizNav();
-  return r;
-};
 
 
 /* ===== 9.33: مسار الرحلة، وأزرار ما بعد الاختبار، ومراجعة الأخطاء، وتأكيد الخروج ===== */
@@ -3001,16 +3000,15 @@ function renderTrack(){
     : ((STATE.assess && STATE.assess.finalDone) ? 'الاختبار النهائي: اكتمل ✅' : ('الاختبار النهائي: ' + (fx[1] ? 'الجلسة الأولى ✅' : 'الجلسة الأولى ⚪') + ' · ' + (fx[2] ? 'الجلسة الثانية ✅' : 'الجلسة الثانية ⚪')));
   box.appendChild(note);
   home.insertBefore(box, home.firstChild);
+  /* 9.35: زر «ابدأ الدرس التالي» واضح في الشاشة الرئيسية */
+  var oldCta = document.getElementById('next-lesson-cta'); if (oldCta) oldCta.remove();
+  var next = secs.find(function(s){ return trackStatus(s) !== 'done'; }) || secs[0];
+  if (!next) return;
+  var cta = document.createElement('button'); cta.type = 'button'; cta.id = 'next-lesson-cta'; cta.className = 'btn success block';
+  cta.textContent = '▶ ابدأ: ' + next.title; cta.style.cssText = 'margin:0 0 12px;font-size:1.05rem';
+  cta.addEventListener('click', function(){ openSection(next.id); });
+  home.insertBefore(cta, box.nextSibling);
 }
-var _renderHomeBase = renderHome;
-renderHome = function(){ var r = _renderHomeBase.apply(this, arguments); renderTrack(); return r; };
-var _goHomeBase = goHome;
-goHome = function(){ var r = _goHomeBase.apply(this, arguments); renderTrack(); return r; };
-var _finishAnswerBase = finishAnswer;
-finishAnswer = function(correct, q){
-  if (!correct && CURRENT.section && !CURRENT.section._synthetic){ CURRENT.wrongIds = CURRENT.wrongIds || []; if (CURRENT.wrongIds.indexOf(q.id) < 0) CURRENT.wrongIds.push(q.id); }
-  return _finishAnswerBase.apply(this, arguments);
-};
 function nextSectionAfter(id){
   var list = CURRICULUM.filter(function(s){ return !s._synthetic; });
   var i = list.findIndex(function(s){ return s.id === id; });
@@ -3039,31 +3037,9 @@ function addResultsNav(){
   if (!sec._synthetic) box.appendChild(mk('↺ إعادة هذا الاختبار', function(){ startQuiz(); }));
   res.appendChild(box);
 }
-var _finishQuizBase = finishQuiz;
-finishQuiz = function(){
-  var r = _finishQuizBase.apply(this, arguments);
-  addResultsNav();
-  return r;
-};
-var _startQuizBase2 = startQuiz;
-startQuiz = function(){ CURRENT.wrongIds = []; CURRENT.examWrong = []; return _startQuizBase2.apply(this, arguments); };
 /* ===== 9.39.11 (ق2-ب): وضع القياس في الاختبار النهائي والإعادة والمراجعة ===== */
 function inExamMode(){ return !!(CURRENT.section && CURRENT.section._exam); }
-var _answerBase = answer;
-answer = function(choice){
-  if (!inExamMode()) return _answerBase.apply(this, arguments);
-  var q = CURRENT.section.questions[CURRENT.qIdx];
-  document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; if (String(b.dataset.idx) === String(choice)) b.classList.add('chosen'); });
-  finishAnswer(choice === q.answer, q);
-};
-var _finishCustomBase = finishCustom;
-finishCustom = function(q, mistakes){
-  if (!inExamMode()) return _finishCustomBase.apply(this, arguments);
-  finishAnswer(mistakes === 0, q); // لا تسامح مع الخطأ في ألعاب الاختبار
-};
-var _finishAnswerExamBase = finishAnswer;
-finishAnswer = function(correct, q){
-  if (!inExamMode()){ try { if (CURRENT.section && !CURRENT.section._synthetic) logResponse(q, correct); } catch(e){} return _finishAnswerExamBase.apply(this, arguments); }
+function finishAnswerExam(correct, q){
   CURRENT.examResults = CURRENT.examResults || []; CURRENT.examResults.push({id: q.id, ok: !!correct});
   if (correct){ CURRENT.score += q.points; CURRENT.correct++; }
   else { CURRENT.wrong++; CURRENT.examWrong = CURRENT.examWrong || []; CURRENT.examWrong.push(q); }
@@ -3076,7 +3052,7 @@ finishAnswer = function(correct, q){
   fb.appendChild(btn);
   try { fb.scrollIntoView({block: 'nearest'}); } catch(e){}
   try { logResponse(q, correct); examSnapshot(); } catch(e){} // 9.39.12 (A4، A6)
-};
+}
 /* ===== 9.39.12 (A4): سجل إجابات لكل سؤال — يُرسل مع ملف الطالب لحساب صعوبة كل سؤال وتمييزه بعد التجربة =====
    k: L درس، F1/F2 جلستا الاختبار النهائي، R إعادة، V مراجعة · s: المفهوم · q: السؤال · c: صحيح؟ · a: رقم محاولة الدرس */
 function logResponse(q, correct){
@@ -3159,29 +3135,7 @@ function assessWaitText(ids){
   var h = Math.max(1, Math.ceil((t - Date.now()) / 3600000));
   return 'بعد ' + (h === 1 ? 'ساعة' : h === 2 ? 'ساعتين' : arCount(h, 'ساعة', 'ساعتان', 'ساعات'));
 }
-var _finishQuizExamBase = finishQuiz;
-finishQuiz = function(){
-  var sec = CURRENT.section || {}, prev = (!sec._synthetic && STATE.progress[sec.id]) ? Object.assign({}, STATE.progress[sec.id]) : null;
-  var r = _finishQuizExamBase.apply(this, arguments);
-  if (sec._exam && STATE.assess && STATE.assess.inProgress){ STATE.assess.inProgress = null; save(); } // 9.39.12 (A6): اكتملت الجلسة
-  renderExamReport();
-  var note = document.getElementById('first-attempt-note'); if (note) note.remove();
-  if (prev && prev.attempts > 0 && prev.stars > 0){
-    note = document.createElement('div'); note.id = 'first-attempt-note'; note.className = 'notice info'; note.style.cssText = 'font-size:.85rem;margin-top:10px';
-    var pr = STATE.progress[sec.id] || {};
-    note.textContent = 'نجوم الدرس محسوبة من المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + '). أفضل نتيجة لك: ' + (pr.bestScore || 0) + ' نقطة.';
-    var nav2 = document.getElementById('results-nav'); var res2 = document.getElementById('view-results');
-    if (res2){ if (nav2 && nav2.parentNode === res2) res2.insertBefore(note, nav2); else res2.appendChild(note); }
-  }
-  return r;
-};
 /* بطاقة النتيجة في الاختبار: لا نجوم (القياس بالمفاهيم لا بالنجوم) */
-var _showResultsBase = showResults;
-showResults = function(stars, pct){
-  var r = _showResultsBase.apply(this, arguments);
-  if (inExamMode()){ $('result-stars').innerHTML = ''; $('result-title').textContent = '📋 انتهت الجلسة'; $('result-message').textContent = GT('{اقرأ|اقرئي} الملخص أدناه'); }
-  return r;
-};
 /* أزرار الاختبار في الملف الشخصي: بعد إكمال الدروس، ومرة واحدة */
 function updateExamButtons(){
   var st = STATE.assess || {}, done = allLessonsDone(), fd = !!st.finalDone, ed = st.examDone || {};
@@ -3198,34 +3152,13 @@ function updateExamButtons(){
     else lk.classList.add('hidden');
   }
 }
-var _showProfileExamBase = showProfile;
-showProfile = function(){ var r = _showProfileExamBase.apply(this, arguments); try { updateExamButtons(); } catch(e){} return r; };
 /* تقييم المعلم للتلاوة يُحفظ عند الطالب من ملف إعادة موثّق، لتُبنى عليه الشهادة */
-var _renderTFViewBase = renderTFView;
-renderTFView = function(){
-  try {
-    if (RETURN_TRUST === 'verified' && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
-      STATE.teacherRatings = Object.assign({}, STATE.teacherRatings || {}, PACK_DATA.teacherRatings); save();
-    }
-  } catch(e){}
-  return _renderTFViewBase.apply(this, arguments);
-};
 /* تأكيد الخروج من اختبار جارٍ */
 function confirmLeaveQuiz(){
   var qv = document.getElementById('view-quiz');
   var inProgress = qv && qv.offsetParent !== null && CURRENT.qIdx > 0 && CURRENT.qIdx < (CURRENT.section.questions || []).length;
   return !inProgress || confirm('ستخرج من الاختبار الحالي، وقد تفقد ما أنجزته فيه. هل تريد الخروج؟');
 }
-var _ensureQuizNavBase = ensureQuizNav;
-ensureQuizNav = function(){
-  _ensureQuizNavBase.apply(this, arguments);
-  var bar = document.getElementById('quiz-nav'); if (!bar) return;
-  var home = bar.firstChild;
-  if (home && !home._confirmBound){
-    home._confirmBound = true;
-    home.addEventListener('click', function(ev){ if (!confirmLeaveQuiz()){ ev.stopImmediatePropagation(); ev.preventDefault(); } }, true);
-  }
-};
 
 
 /* 9.34: تقرير شهري قابل للطباعة للأسرة (بلا تسجيلات) */
@@ -3245,58 +3178,30 @@ function showPrintableReport(){
   document.getElementById('pr-print').addEventListener('click', function(){ window.print(); });
   document.getElementById('pr-close').addEventListener('click', function(){ ov.remove(); });
 }
-
-/* ===== 9.35: مراجعة بعين الطفل والأسرة والمعلم ===== */
-/* 1) زر "اسمع الشرح" يقرأ الشرح بصوت الجهاز بالعربية (إن توفّر صوت عربي) */
-function speakLessonExplanation(){
-  if (!('speechSynthesis' in window)) { alert('الجهاز لا يدعم القراءة الصوتية.'); return; }
-  var c = document.getElementById('lesson-content'); if (!c) return;
-  var d = c.querySelector('.desc-text'); if (!d) return;
-  var text = d.innerText || d.textContent || '';
-  window.speechSynthesis.cancel();
-  var u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ar-SA'; u.rate = 0.8;
-  window.speechSynthesis.speak(u);
+/* نجوم الدرس من المحاولة الأولى؛ تنبيه بذلك عند الإعادة */
+function firstAttemptNote(sec, prev){
+  var note = document.getElementById('first-attempt-note'); if (note) note.remove();
+  if (!(prev && prev.attempts > 0 && prev.stars > 0)) return;
+  note = document.createElement('div'); note.id = 'first-attempt-note'; note.className = 'notice info'; note.style.cssText = 'font-size:.85rem;margin-top:10px';
+  var pr = STATE.progress[sec.id] || {};
+  note.textContent = 'نجوم الدرس محسوبة من المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + '). أفضل نتيجة لك: ' + (pr.bestScore || 0) + ' نقطة.';
+  var nav2 = document.getElementById('results-nav'); var res2 = document.getElementById('view-results');
+  if (res2){ if (nav2 && nav2.parentNode === res2) res2.insertBefore(note, nav2); else res2.appendChild(note); }
 }
-function addListenButton(){
-  var c = document.getElementById('lesson-content'); if (!c || document.getElementById('listen-lesson')) return;
-  if (!('speechSynthesis' in window) || !c.querySelector('.desc-text')) return;
-  var b = document.createElement('button'); b.type = 'button'; b.id = 'listen-lesson'; b.className = 'btn ghost';
-  b.textContent = '🔊 اسمع الشرح'; b.style.cssText = 'margin:0 0 8px';
-  b.addEventListener('click', speakLessonExplanation);
-  c.insertBefore(b, c.firstChild);
+/* 9.39.10: زرّا «إعادة المفاهيم المخفقة» و«جلسة المراجعة» يظهران فقط حين يوجد ما يُعاد أو يُراجَع */
+function updateRetestButtons(){
+  var st = STATE.assess || null;
+  var rt = document.getElementById('btn-retest'); if (rt) rt.classList.toggle('hidden', !(st && Array.isArray(st.pendingRetest) && st.pendingRetest.length));
+  if (rt && st && Array.isArray(st.pendingRetest) && st.pendingRetest.length){ // 9.39.13 (D4-ج)
+    var nowB = new Date().toISOString(), anyReady = st.pendingRetest.some(function(id){ return assessIsReady(st, id, nowB); });
+    rt.textContent = anyReady ? '🔁 إعادة المفاهيم التي لم تُتقن بعد' : ('🔁 الإعادة متاحة ' + assessWaitText(st.pendingRetest));
+  }
+  var rv = document.getElementById('btn-review-session'); if (rv) rv.classList.toggle('hidden', !(st && st.concepts && assessDueReviews(st, new Date().toISOString()).length));
 }
-var _openSectionBase2 = openSection;
-openSection = function(sid){
-  var r = _openSectionBase2.apply(this, arguments);
-  var c = document.getElementById('lesson-content'); if (c) { var old = document.getElementById('listen-lesson'); if (old) old.remove(); }
-  setTimeout(addListenButton, 30);
-  return r;
-};
-/* 2) الموافقة الأبوية تُطلب عند حفظ بيانات الطالب، لا عند أول تسجيل (وقت الولي هنا) */
-var _saveSetupBase = saveSetup;
-saveSetup = function(){
-  var r = _saveSetupBase.apply(this, arguments);
+/* ===== 9.35: موافقة ولي الأمر تُطلب عند حفظ بيانات الطالب، لا عند أول تسجيل (وقت الولي هنا) ===== */
+function askConsentAfterSetup(){
   setTimeout(function(){ if (STATE.student && STATE.student.name && !hasConsent()) ensureConsent(function(){}); }, 300);
-  return r;
-};
-/* 3) زر "ابدأ الدرس التالي" واضح في الشاشة الرئيسية */
-var _renderTrackBase = renderTrack;
-renderTrack = function(){
-  _renderTrackBase.apply(this, arguments);
-  var home = document.getElementById('view-home'); if (!home) return;
-  var old = document.getElementById('next-lesson-cta'); if (old) old.remove();
-  var secs = CURRICULUM.filter(function(s){ return !s._synthetic; });
-  var next = secs.find(function(s){ return trackStatus(s) !== 'done'; }) || secs[0];
-  if (!next) return;
-  var b = document.createElement('button'); b.type = 'button'; b.id = 'next-lesson-cta'; b.className = 'btn success block';
-  b.textContent = '▶ ابدأ: ' + next.title; b.style.cssText = 'margin:0 0 12px;font-size:1.05rem';
-  b.addEventListener('click', function(){ openSection(next.id); });
-  var track = document.getElementById('home-track');
-  home.insertBefore(b, track ? track.nextSibling : home.firstChild);
-};
-
-
+}
 /* ===== 9.36: تلاوة الشيخ لكل سؤال قرآني (إن سجّلها الشيخ في الاستوديو) ===== */
 function addSheikhAudioToQuestion(){
   var q = CURRENT.section && CURRENT.section.questions && CURRENT.section.questions[CURRENT.qIdx];
@@ -3310,12 +3215,6 @@ function addSheikhAudioToQuestion(){
   var au = document.createElement('audio'); au.controls = true; au.setAttribute('data-media', ref); au.preload = 'none';
   box.appendChild(lab); box.appendChild(au); host.appendChild(box);
 }
-var _renderQuestionBase = renderQuestion;
-renderQuestion = function(){
-  var r = _renderQuestionBase.apply(this, arguments);
-  try { addSheikhAudioToQuestion(); } catch(e){}
-  return r;
-};
 
 /* 9.39.11 (ق5-أ): بوابة ولي الأمر — مسألة ضرب (عدد من رقمين × رقم واحد) قبل الإعدادات أو الحذف.
    لا تُحفظ نتيجة البوابة: كل فتح جديد يحتاج مسألة جديدة. ثلاث محاولات خاطئة توقف البوابة 30 ثانية. */
@@ -3680,11 +3579,20 @@ async function deleteStudentRec(itemId){
 }
 
 function startQuiz(){
+  var sec = CURRENT.section;
+  if (sec && sec._full) sec = CURRENT.section = sec._full; // «إعادة الاختبار» تسحب من الدرس كاملًا
+  if (sec && !sec._synthetic && (sec.questions || []).length > LESSON_QUIZ_MAX) CURRENT.section = lessonQuizAttempt(sec); // 9.39.13 (ق3-ب)
+  CURRENT.wrongIds = []; CURRENT.examWrong = [];
   CURRENT.qIdx = 0; CURRENT.score = 0; CURRENT.correct = 0; CURRENT.wrong = 0;
   renderQuestion();
   show('view-quiz');
+  ensureQuizNav(); // 9.32
 }
 function renderQuestion(){
+  renderQuestionContent();
+  try { addSheikhAudioToQuestion(); } catch(e){} // 9.36
+}
+function renderQuestionContent(){
   var sec = CURRENT.section;
   var q = sec.questions[CURRENT.qIdx];
   var total = sec.questions.length, cur = CURRENT.qIdx + 1;
@@ -3726,6 +3634,11 @@ function renderQuestion(){
   }
 }
 function answer(choice){
+  if (inExamMode()){ // 9.39.11 (ق2-ب): وضع القياس — لا يُكشف الصحيح أثناء الجلسة
+    var qe = CURRENT.section.questions[CURRENT.qIdx];
+    document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; if (String(b.dataset.idx) === String(choice)) b.classList.add('chosen'); });
+    finishAnswer(choice === qe.answer, qe); return;
+  }
   var q = CURRENT.section.questions[CURRENT.qIdx];
   var correct = (choice === q.answer);
   document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; });
@@ -3740,6 +3653,9 @@ function answer(choice){
   finishAnswer(correct, q);
 }
 function finishAnswer(correct, q){
+  if (inExamMode()){ finishAnswerExam(correct, q); return; } // 9.39.11 (ق2-ب)
+  try { if (CURRENT.section && !CURRENT.section._synthetic) logResponse(q, correct); } catch(e){} // 9.39.12 (A4)
+  if (!correct && CURRENT.section && !CURRENT.section._synthetic){ CURRENT.wrongIds = CURRENT.wrongIds || []; if (CURRENT.wrongIds.indexOf(q.id) < 0) CURRENT.wrongIds.push(q.id); } // 9.33: «راجع ما أخطأت فيه»
   if (CURRENT.section && CURRENT.section._synthetic) { CURRENT.examResults = CURRENT.examResults || []; CURRENT.examResults.push({id: q.id, ok: !!correct}); }
   if (correct){
     CURRENT.score += q.points; CURRENT.correct++;
@@ -3771,6 +3687,7 @@ function showFB(isCorrect, expl){
   $('feedback-box').innerHTML = '<div class="feedback' + (isCorrect ? '' : ' wrong') + '"><div class="title">' + t + '</div><div class="explain">' + expl + '</div></div>';
 }
 function finishQuiz(){
+  var prevSnap = (CURRENT.section && !CURRENT.section._synthetic && STATE.progress[CURRENT.section.id]) ? Object.assign({}, STATE.progress[CURRENT.section.id]) : null;
   var sec = CURRENT.section;
   if (sec.id === 'final_exam' || sec.id === 'retest_session'){ assessApplyExam(); }
   if (sec.id === 'review_session'){ assessApplyReview(); }
@@ -3789,6 +3706,11 @@ function finishQuiz(){
   recalcStats();
   save();
   showResults(stars, pct);
+  addResultsNav(); // 9.33
+  if (sec._exam && STATE.assess && STATE.assess.inProgress){ STATE.assess.inProgress = null; save(); } // 9.39.12 (A6): اكتملت الجلسة
+  renderExamReport();
+  firstAttemptNote(sec, prevSnap);
+  try { if (!sec._synthetic) maybeBackupReminder(); } catch(e){} // 9.39.13 (D12)
 }
 function realSections(){ return CURRICULUM.filter(function(s){ return !s._synthetic; }); }
 function recalcStats(){
@@ -3819,6 +3741,7 @@ function showResults(stars, pct){
   $('result-circle').style.setProperty('--deg', Math.round(pct * 360) + 'deg');
   if (stars === 3) confetti(60);
   show('view-results');
+  if (inExamMode()){ $('result-stars').innerHTML = ''; $('result-title').textContent = '📋 انتهت الجلسة'; $('result-message').textContent = GT('{اقرأ|اقرئي} الملخص أدناه'); } // القياس بالمفاهيم لا بالنجوم
 }
 function nextFromResults(){
   var _r = realSections();
@@ -3853,23 +3776,10 @@ function showProfile(){
     list.innerHTML = h;
   }
   show('view-profile');
+  try { updateExamButtons(); updateRetestButtons(); } catch(e){}
 }
 function editProfile(){ buildSetup(); show('view-student-setup'); }
 /* 9.39.10: زرّا «إعادة المفاهيم المخفقة» و«جلسة المراجعة» يظهران فقط حين يوجد ما يُعاد أو يُراجَع (كانا ينتهيان بتنبيه «لا يوجد») */
-var _showProfileBase = showProfile;
-showProfile = function(){
-  var r = _showProfileBase.apply(this, arguments);
-  try {
-    var st = STATE.assess || null;
-    var rt = document.getElementById('btn-retest'); if (rt) rt.classList.toggle('hidden', !(st && Array.isArray(st.pendingRetest) && st.pendingRetest.length));
-    if (rt && st && Array.isArray(st.pendingRetest) && st.pendingRetest.length){ // 9.39.13 (D4-ج)
-      var nowB = new Date().toISOString(), anyReady = st.pendingRetest.some(function(id){ return assessIsReady(st, id, nowB); });
-      rt.textContent = anyReady ? '🔁 إعادة المفاهيم التي لم تُتقن بعد' : ('🔁 الإعادة متاحة ' + assessWaitText(st.pendingRetest));
-    }
-    var rv = document.getElementById('btn-review-session'); if (rv) rv.classList.toggle('hidden', !(st && st.concepts && assessDueReviews(st, new Date().toISOString()).length));
-  } catch(e){}
-  return r;
-};
 
 function handleReviewTeacherPhoto(event){
   var file = event.target.files && event.target.files[0]; if (!file) return;
@@ -5128,22 +5038,16 @@ function sampleLessonQuestions(all, seen, rng){
   });
   return all.filter(function(q){ return pick[q.id]; });
 }
-var _startQuizBase913 = startQuiz;
-startQuiz = function(){
-  var sec = CURRENT.section;
-  if (sec && sec._full) sec = CURRENT.section = sec._full; // «إعادة الاختبار» تسحب من الدرس كاملًا
-  if (sec && !sec._synthetic && (sec.questions || []).length > LESSON_QUIZ_MAX){
-    STATE.quizSeen = STATE.quizSeen || {};
-    var seen = Array.isArray(STATE.quizSeen[sec.id]) ? STATE.quizSeen[sec.id] : [];
-    var qs = sampleLessonQuestions(sec.questions, seen), ids = qs.map(function(q){ return q.id; });
-    var all = seen.concat(ids.filter(function(id){ return seen.indexOf(id) < 0; }));
-    STATE.quizSeen[sec.id] = all.length >= sec.questions.length ? ids : all; // دورة اكتملت: تبدأ دورة جديدة
-    save();
-    CURRENT.section = Object.assign({}, sec, {questions: qs.map(function(q){ return Object.assign({}, q); }), _full: sec});
-  }
-  return _startQuizBase913.apply(this, arguments);
-};
-
+/* محاولة الدرس: نسخة من القسم بأسئلتها المسحوبة، وتُحفظ الأسئلة التي رآها الطفل لتُكمل الدورة */
+function lessonQuizAttempt(sec){
+  STATE.quizSeen = STATE.quizSeen || {};
+  var seen = Array.isArray(STATE.quizSeen[sec.id]) ? STATE.quizSeen[sec.id] : [];
+  var qs = sampleLessonQuestions(sec.questions, seen), ids = qs.map(function(q){ return q.id; });
+  var all = seen.concat(ids.filter(function(id){ return seen.indexOf(id) < 0; }));
+  STATE.quizSeen[sec.id] = all.length >= sec.questions.length ? ids : all; // دورة اكتملت: تبدأ دورة جديدة
+  save();
+  return Object.assign({}, sec, {questions: qs.map(function(q){ return Object.assign({}, q); }), _full: sec});
+}
 /* ===== 9.39.13 (D12): نسخة احتياطية واستعادة لتقدّم الطفل =====
    لماذا: أندرويد بلا مفتاح توقيع ثابت يمسح البيانات مع كل تحديث، وSafari يمحو تخزين الموقع بعد أسبوع دون استعمال،
    ومسح المتصفح أو تغيير الهاتف يضيّع كل شيء. النسخة ملف JSON يحفظه ولي الأمر؛ التسجيلات اختيارية.
@@ -5305,13 +5209,6 @@ function maybeBackupReminder(){
   var nav = document.getElementById('results-nav');
   if (nav && nav.parentNode === res) res.insertBefore(box, nav); else res.appendChild(box);
 }
-var _finishQuizBase913 = finishQuiz;
-finishQuiz = function(){
-  var sec = CURRENT.section || {};
-  var r = _finishQuizBase913.apply(this, arguments);
-  try { if (!sec._synthetic) maybeBackupReminder(); } catch(e){}
-  return r;
-};
 (async function boot(){
   resumePendingDeletions();
   load();

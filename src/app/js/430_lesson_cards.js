@@ -33,21 +33,10 @@ function paginateLessonCards(){
   show(Math.min(startIdx, total - 1));
 }
 /* 9.39: إعادة عرض الدرس (بعد تسجيل أو حذف) تحافظ على تقسيم البطاقات والبطاقة الحالية */
-var _renderLessonBase = renderLesson;
-renderLesson = function(){
+function renderLesson(){
   var c0 = document.getElementById('lesson-content');
-  var keep = c0 && c0.dataset.paged === '1' ? (c0.dataset.pageIdx || '0') : null;
-  var r = _renderLessonBase.apply(this, arguments);
+  var keep = c0 && c0.dataset.paged === '1' ? (c0.dataset.pageIdx || '0') : null; // تبقى البطاقة نفسها بعد إعادة الرسم
+  renderLessonContent();
   var c = document.getElementById('lesson-content');
   if (c){ delete c.dataset.paged; if (keep !== null) c.dataset.pageIdx = keep; setTimeout(paginateLessonCards, 0); }
-  return r;
-};
-var _openSectionBase = openSection;
-openSection = function(sid){
-  var r = _openSectionBase.apply(this, arguments);
-  var c = document.getElementById('lesson-content'); if (c) delete c.dataset.paged;
-  setTimeout(paginateLessonCards, 0);
-  return r;
-};
-
-
+}

@@ -21,12 +21,11 @@ function ensureQuizNav(){
   bar.appendChild(mk('‹ الدرس السابق', function(){ if (prev && confirmLeaveQuiz()) openSection(prev.id); }, !prev || synthetic));
   bar.appendChild(mk('↺ إعادة الاختبار', function(){ if (synthetic){ toast('الاختبار النهائي يُعاد من الخريطة بخطة جديدة.'); return; } if (confirmLeaveQuiz()) startQuiz(); }, synthetic));
   view.insertBefore(bar, view.firstChild);
+  var home = bar.firstChild; // تأكيد الخروج من اختبار جارٍ
+  if (home && !home._confirmBound){
+    home._confirmBound = true;
+    home.addEventListener('click', function(ev){ if (!confirmLeaveQuiz()){ ev.stopImmediatePropagation(); ev.preventDefault(); } }, true);
+  }
 }
-var _startQuizBase = startQuiz;
-startQuiz = function(){
-  var r = _startQuizBase.apply(this, arguments);
-  ensureQuizNav();
-  return r;
-};
 
 

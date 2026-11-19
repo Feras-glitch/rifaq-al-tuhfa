@@ -28,16 +28,15 @@ function renderTrack(){
     : ((STATE.assess && STATE.assess.finalDone) ? 'الاختبار النهائي: اكتمل ✅' : ('الاختبار النهائي: ' + (fx[1] ? 'الجلسة الأولى ✅' : 'الجلسة الأولى ⚪') + ' · ' + (fx[2] ? 'الجلسة الثانية ✅' : 'الجلسة الثانية ⚪')));
   box.appendChild(note);
   home.insertBefore(box, home.firstChild);
+  /* 9.35: زر «ابدأ الدرس التالي» واضح في الشاشة الرئيسية */
+  var oldCta = document.getElementById('next-lesson-cta'); if (oldCta) oldCta.remove();
+  var next = secs.find(function(s){ return trackStatus(s) !== 'done'; }) || secs[0];
+  if (!next) return;
+  var cta = document.createElement('button'); cta.type = 'button'; cta.id = 'next-lesson-cta'; cta.className = 'btn success block';
+  cta.textContent = '▶ ابدأ: ' + next.title; cta.style.cssText = 'margin:0 0 12px;font-size:1.05rem';
+  cta.addEventListener('click', function(){ openSection(next.id); });
+  home.insertBefore(cta, box.nextSibling);
 }
-var _renderHomeBase = renderHome;
-renderHome = function(){ var r = _renderHomeBase.apply(this, arguments); renderTrack(); return r; };
-var _goHomeBase = goHome;
-goHome = function(){ var r = _goHomeBase.apply(this, arguments); renderTrack(); return r; };
-var _finishAnswerBase = finishAnswer;
-finishAnswer = function(correct, q){
-  if (!correct && CURRENT.section && !CURRENT.section._synthetic){ CURRENT.wrongIds = CURRENT.wrongIds || []; if (CURRENT.wrongIds.indexOf(q.id) < 0) CURRENT.wrongIds.push(q.id); }
-  return _finishAnswerBase.apply(this, arguments);
-};
 function nextSectionAfter(id){
   var list = CURRICULUM.filter(function(s){ return !s._synthetic; });
   var i = list.findIndex(function(s){ return s.id === id; });
@@ -66,11 +65,3 @@ function addResultsNav(){
   if (!sec._synthetic) box.appendChild(mk('↺ إعادة هذا الاختبار', function(){ startQuiz(); }));
   res.appendChild(box);
 }
-var _finishQuizBase = finishQuiz;
-finishQuiz = function(){
-  var r = _finishQuizBase.apply(this, arguments);
-  addResultsNav();
-  return r;
-};
-var _startQuizBase2 = startQuiz;
-startQuiz = function(){ CURRENT.wrongIds = []; CURRENT.examWrong = []; return _startQuizBase2.apply(this, arguments); };

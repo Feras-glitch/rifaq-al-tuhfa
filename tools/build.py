@@ -82,19 +82,19 @@ def build():
 def main():
     check = '--check' in sys.argv[1:]
     out = build()
-    bad = []
+    bad, wrote = [], 0
     for path, html in out.items():
         full = os.path.join(ROOT, path)
         cur = open(full, encoding='utf-8').read() if os.path.exists(full) else None
         if cur == html: continue
         if check: bad.append(path)
         else:
-            open(full, 'w', encoding='utf-8').write(html); print('wrote', path, len(html.encode('utf-8')))
+            open(full, 'w', encoding='utf-8').write(html); wrote += 1; print('wrote', path, len(html.encode('utf-8')))
     if check:
         if bad:
             print('OUT OF DATE (run python3 -I tools/build.py):', *bad, sep='\n  '); sys.exit(1)
         print('build up to date')
-    elif not bad and all(open(os.path.join(ROOT, p), encoding='utf-8').read() == h for p, h in out.items()):
+    elif not wrote:
         print('build up to date (no changes)')
 
 

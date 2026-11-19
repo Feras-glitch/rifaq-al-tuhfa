@@ -159,13 +159,6 @@ function maybeBackupReminder(){
   var nav = document.getElementById('results-nav');
   if (nav && nav.parentNode === res) res.insertBefore(box, nav); else res.appendChild(box);
 }
-var _finishQuizBase913 = finishQuiz;
-finishQuiz = function(){
-  var sec = CURRENT.section || {};
-  var r = _finishQuizBase913.apply(this, arguments);
-  try { if (!sec._synthetic) maybeBackupReminder(); } catch(e){}
-  return r;
-};
 (async function boot(){
   resumePendingDeletions();
   load();

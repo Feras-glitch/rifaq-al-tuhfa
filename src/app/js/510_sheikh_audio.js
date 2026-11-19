@@ -11,12 +11,6 @@ function addSheikhAudioToQuestion(){
   var au = document.createElement('audio'); au.controls = true; au.setAttribute('data-media', ref); au.preload = 'none';
   box.appendChild(lab); box.appendChild(au); host.appendChild(box);
 }
-var _renderQuestionBase = renderQuestion;
-renderQuestion = function(){
-  var r = _renderQuestionBase.apply(this, arguments);
-  try { addSheikhAudioToQuestion(); } catch(e){}
-  return r;
-};
 
 /* 9.39.11 (ق5-أ): بوابة ولي الأمر — مسألة ضرب (عدد من رقمين × رقم واحد) قبل الإعدادات أو الحذف.
    لا تُحفظ نتيجة البوابة: كل فتح جديد يحتاج مسألة جديدة. ثلاث محاولات خاطئة توقف البوابة 30 ثانية. */
@@ -381,11 +375,20 @@ async function deleteStudentRec(itemId){
 }
 
 function startQuiz(){
+  var sec = CURRENT.section;
+  if (sec && sec._full) sec = CURRENT.section = sec._full; // «إعادة الاختبار» تسحب من الدرس كاملًا
+  if (sec && !sec._synthetic && (sec.questions || []).length > LESSON_QUIZ_MAX) CURRENT.section = lessonQuizAttempt(sec); // 9.39.13 (ق3-ب)
+  CURRENT.wrongIds = []; CURRENT.examWrong = [];
   CURRENT.qIdx = 0; CURRENT.score = 0; CURRENT.correct = 0; CURRENT.wrong = 0;
   renderQuestion();
   show('view-quiz');
+  ensureQuizNav(); // 9.32
 }
 function renderQuestion(){
+  renderQuestionContent();
+  try { addSheikhAudioToQuestion(); } catch(e){} // 9.36
+}
+function renderQuestionContent(){
   var sec = CURRENT.section;
   var q = sec.questions[CURRENT.qIdx];
   var total = sec.questions.length, cur = CURRENT.qIdx + 1;
@@ -427,6 +430,11 @@ function renderQuestion(){
   }
 }
 function answer(choice){
+  if (inExamMode()){ // 9.39.11 (ق2-ب): وضع القياس — لا يُكشف الصحيح أثناء الجلسة
+    var qe = CURRENT.section.questions[CURRENT.qIdx];
+    document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; if (String(b.dataset.idx) === String(choice)) b.classList.add('chosen'); });
+    finishAnswer(choice === qe.answer, qe); return;
+  }
   var q = CURRENT.section.questions[CURRENT.qIdx];
   var correct = (choice === q.answer);
   document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; });
@@ -441,6 +449,9 @@ function answer(choice){
   finishAnswer(correct, q);
 }
 function finishAnswer(correct, q){
+  if (inExamMode()){ finishAnswerExam(correct, q); return; } // 9.39.11 (ق2-ب)
+  try { if (CURRENT.section && !CURRENT.section._synthetic) logResponse(q, correct); } catch(e){} // 9.39.12 (A4)
+  if (!correct && CURRENT.section && !CURRENT.section._synthetic){ CURRENT.wrongIds = CURRENT.wrongIds || []; if (CURRENT.wrongIds.indexOf(q.id) < 0) CURRENT.wrongIds.push(q.id); } // 9.33: «راجع ما أخطأت فيه»
   if (CURRENT.section && CURRENT.section._synthetic) { CURRENT.examResults = CURRENT.examResults || []; CURRENT.examResults.push({id: q.id, ok: !!correct}); }
   if (correct){
     CURRENT.score += q.points; CURRENT.correct++;
@@ -472,6 +483,7 @@ function showFB(isCorrect, expl){
   $('feedback-box').innerHTML = '<div class="feedback' + (isCorrect ? '' : ' wrong') + '"><div class="title">' + t + '</div><div class="explain">' + expl + '</div></div>';
 }
 function finishQuiz(){
+  var prevSnap = (CURRENT.section && !CURRENT.section._synthetic && STATE.progress[CURRENT.section.id]) ? Object.assign({}, STATE.progress[CURRENT.section.id]) : null;
   var sec = CURRENT.section;
   if (sec.id === 'final_exam' || sec.id === 'retest_session'){ assessApplyExam(); }
   if (sec.id === 'review_session'){ assessApplyReview(); }
@@ -490,6 +502,11 @@ function finishQuiz(){
   recalcStats();
   save();
   showResults(stars, pct);
+  addResultsNav(); // 9.33
+  if (sec._exam && STATE.assess && STATE.assess.inProgress){ STATE.assess.inProgress = null; save(); } // 9.39.12 (A6): اكتملت الجلسة
+  renderExamReport();
+  firstAttemptNote(sec, prevSnap);
+  try { if (!sec._synthetic) maybeBackupReminder(); } catch(e){} // 9.39.13 (D12)
 }
 function realSections(){ return CURRICULUM.filter(function(s){ return !s._synthetic; }); }
 function recalcStats(){
@@ -520,6 +537,7 @@ function showResults(stars, pct){
   $('result-circle').style.setProperty('--deg', Math.round(pct * 360) + 'deg');
   if (stars === 3) confetti(60);
   show('view-results');
+  if (inExamMode()){ $('result-stars').innerHTML = ''; $('result-title').textContent = '📋 انتهت الجلسة'; $('result-message').textContent = GT('{اقرأ|اقرئي} الملخص أدناه'); } // القياس بالمفاهيم لا بالنجوم
 }
 function nextFromResults(){
   var _r = realSections();
@@ -554,23 +572,10 @@ function showProfile(){
     list.innerHTML = h;
   }
   show('view-profile');
+  try { updateExamButtons(); updateRetestButtons(); } catch(e){}
 }
 function editProfile(){ buildSetup(); show('view-student-setup'); }
 /* 9.39.10: زرّا «إعادة المفاهيم المخفقة» و«جلسة المراجعة» يظهران فقط حين يوجد ما يُعاد أو يُراجَع (كانا ينتهيان بتنبيه «لا يوجد») */
-var _showProfileBase = showProfile;
-showProfile = function(){
-  var r = _showProfileBase.apply(this, arguments);
-  try {
-    var st = STATE.assess || null;
-    var rt = document.getElementById('btn-retest'); if (rt) rt.classList.toggle('hidden', !(st && Array.isArray(st.pendingRetest) && st.pendingRetest.length));
-    if (rt && st && Array.isArray(st.pendingRetest) && st.pendingRetest.length){ // 9.39.13 (D4-ج)
-      var nowB = new Date().toISOString(), anyReady = st.pendingRetest.some(function(id){ return assessIsReady(st, id, nowB); });
-      rt.textContent = anyReady ? '🔁 إعادة المفاهيم التي لم تُتقن بعد' : ('🔁 الإعادة متاحة ' + assessWaitText(st.pendingRetest));
-    }
-    var rv = document.getElementById('btn-review-session'); if (rv) rv.classList.toggle('hidden', !(st && st.concepts && assessDueReviews(st, new Date().toISOString()).length));
-  } catch(e){}
-  return r;
-};
 
 function handleReviewTeacherPhoto(event){
   var file = event.target.files && event.target.files[0]; if (!file) return;

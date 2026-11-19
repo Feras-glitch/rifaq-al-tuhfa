@@ -164,6 +164,11 @@ var QX_UI = {};
   };
 })();
 function renderTFView(){
+  try { // تقييم المعلم للتلاوة يُحفظ عند الطالب من ملف إعادة موثّق، لتُبنى عليه الشهادة
+    if (RETURN_TRUST === 'verified' && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
+      STATE.teacherRatings = Object.assign({}, STATE.teacherRatings || {}, PACK_DATA.teacherRatings); save();
+    }
+  } catch(e){}
   renderTFViewInner();
   var tl = document.getElementById('tf-list');
   if (tl && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
@@ -217,6 +222,7 @@ function renderQX(q){
   QX_UI[q.type](q, area, api);
 }
 function finishCustom(q, mistakes){
+  if (inExamMode()){ finishAnswer(mistakes === 0, q); return; } // 9.39.11: لا تسامح مع الخطأ في ألعاب الاختبار
   var correct = mistakes <= (typeof q.tolerance === 'number' ? q.tolerance : 1);
   finishAnswer(correct, q);
   if (!correct){ var t = document.querySelector('#feedback-box .feedback .title'); if (t) t.textContent = GT('⚠️ اكتملت المهمة مع بعض الأخطاء. {راجع|راجعي} التوضيح أدناه'); }

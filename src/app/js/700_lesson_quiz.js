@@ -32,19 +32,13 @@ function sampleLessonQuestions(all, seen, rng){
   });
   return all.filter(function(q){ return pick[q.id]; });
 }
-var _startQuizBase913 = startQuiz;
-startQuiz = function(){
-  var sec = CURRENT.section;
-  if (sec && sec._full) sec = CURRENT.section = sec._full; // «إعادة الاختبار» تسحب من الدرس كاملًا
-  if (sec && !sec._synthetic && (sec.questions || []).length > LESSON_QUIZ_MAX){
-    STATE.quizSeen = STATE.quizSeen || {};
-    var seen = Array.isArray(STATE.quizSeen[sec.id]) ? STATE.quizSeen[sec.id] : [];
-    var qs = sampleLessonQuestions(sec.questions, seen), ids = qs.map(function(q){ return q.id; });
-    var all = seen.concat(ids.filter(function(id){ return seen.indexOf(id) < 0; }));
-    STATE.quizSeen[sec.id] = all.length >= sec.questions.length ? ids : all; // دورة اكتملت: تبدأ دورة جديدة
-    save();
-    CURRENT.section = Object.assign({}, sec, {questions: qs.map(function(q){ return Object.assign({}, q); }), _full: sec});
-  }
-  return _startQuizBase913.apply(this, arguments);
-};
-
+/* محاولة الدرس: نسخة من القسم بأسئلتها المسحوبة، وتُحفظ الأسئلة التي رآها الطفل لتُكمل الدورة */
+function lessonQuizAttempt(sec){
+  STATE.quizSeen = STATE.quizSeen || {};
+  var seen = Array.isArray(STATE.quizSeen[sec.id]) ? STATE.quizSeen[sec.id] : [];
+  var qs = sampleLessonQuestions(sec.questions, seen), ids = qs.map(function(q){ return q.id; });
+  var all = seen.concat(ids.filter(function(id){ return seen.indexOf(id) < 0; }));
+  STATE.quizSeen[sec.id] = all.length >= sec.questions.length ? ids : all; // دورة اكتملت: تبدأ دورة جديدة
+  save();
+  return Object.assign({}, sec, {questions: qs.map(function(q){ return Object.assign({}, q); }), _full: sec});
+}

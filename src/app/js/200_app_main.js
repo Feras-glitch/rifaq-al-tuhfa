@@ -834,6 +834,7 @@ function saveSetup(){
     applyTheme();
     show('view-home'); renderHome();
     toast('🎁 أهلاً بك يا ' + name + '! هذه إعداداتك التعليمية الجديدة.'); confetti(30);
+    askConsentAfterSetup();
     return;
   }
   var curName = String(STATE.student.name || '').trim().toLowerCase();
@@ -850,10 +851,12 @@ function saveSetup(){
   applyTheme();
   if (currentMode === 'student-returned') {
     renderTFView(); show('view-tf'); toast('أهلاً يا ' + name + '! راجع ملاحظات المعلم.');
+    askConsentAfterSetup();
     return;
   }
   show('view-home'); renderHome();
   toast('🎉 أهلاً يا ' + name + '!'); confetti(30);
+  askConsentAfterSetup();
 }
 function applyTheme(){
   document.body.classList.remove('theme-boy','theme-girl');
@@ -913,6 +916,7 @@ function renderHome(){
   if (hasTeacherFeedbacks() && STATE.role !== 'friend'){
     // show feedback banner
   }
+  renderTrack();
 }
 function goHome(){ renderHome(); show('view-home'); }
 
@@ -924,8 +928,10 @@ function openSection(sid){
   CURRENT.section = sec;
   renderLesson();
   show('view-lesson');
+  var c = document.getElementById('lesson-content'); if (c) delete c.dataset.paged; // 9.28: بطاقات الدرس
+  setTimeout(paginateLessonCards, 0);
 }
-function renderLesson(){
+function renderLessonContent(){
   var sec = CURRENT.section;
   var s = STATE.student;
   var av = $('lesson-avatar');
@@ -1009,7 +1015,6 @@ function renderLesson(){
   $('lesson-content').innerHTML = html;
 }
 /* 9.39.5 (R08): بيان محتوى الإهداء — يُبنى عند الإصدار ويدخل في التوقيع، ويُعرض للمعلم قبل الإصدار وللمهدى إليه عند الفتح */
-function plainText(h){ return String(h || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); }
 function curriculumTasks(masters){
   masters = masters || {};
   var out = [];

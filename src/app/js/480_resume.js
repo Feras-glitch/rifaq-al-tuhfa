@@ -69,29 +69,7 @@ function assessWaitText(ids){
   var h = Math.max(1, Math.ceil((t - Date.now()) / 3600000));
   return 'بعد ' + (h === 1 ? 'ساعة' : h === 2 ? 'ساعتين' : arCount(h, 'ساعة', 'ساعتان', 'ساعات'));
 }
-var _finishQuizExamBase = finishQuiz;
-finishQuiz = function(){
-  var sec = CURRENT.section || {}, prev = (!sec._synthetic && STATE.progress[sec.id]) ? Object.assign({}, STATE.progress[sec.id]) : null;
-  var r = _finishQuizExamBase.apply(this, arguments);
-  if (sec._exam && STATE.assess && STATE.assess.inProgress){ STATE.assess.inProgress = null; save(); } // 9.39.12 (A6): اكتملت الجلسة
-  renderExamReport();
-  var note = document.getElementById('first-attempt-note'); if (note) note.remove();
-  if (prev && prev.attempts > 0 && prev.stars > 0){
-    note = document.createElement('div'); note.id = 'first-attempt-note'; note.className = 'notice info'; note.style.cssText = 'font-size:.85rem;margin-top:10px';
-    var pr = STATE.progress[sec.id] || {};
-    note.textContent = 'نجوم الدرس محسوبة من المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + '). أفضل نتيجة لك: ' + (pr.bestScore || 0) + ' نقطة.';
-    var nav2 = document.getElementById('results-nav'); var res2 = document.getElementById('view-results');
-    if (res2){ if (nav2 && nav2.parentNode === res2) res2.insertBefore(note, nav2); else res2.appendChild(note); }
-  }
-  return r;
-};
 /* بطاقة النتيجة في الاختبار: لا نجوم (القياس بالمفاهيم لا بالنجوم) */
-var _showResultsBase = showResults;
-showResults = function(stars, pct){
-  var r = _showResultsBase.apply(this, arguments);
-  if (inExamMode()){ $('result-stars').innerHTML = ''; $('result-title').textContent = '📋 انتهت الجلسة'; $('result-message').textContent = GT('{اقرأ|اقرئي} الملخص أدناه'); }
-  return r;
-};
 /* أزرار الاختبار في الملف الشخصي: بعد إكمال الدروس، ومرة واحدة */
 function updateExamButtons(){
   var st = STATE.assess || {}, done = allLessonsDone(), fd = !!st.finalDone, ed = st.examDone || {};
@@ -108,34 +86,13 @@ function updateExamButtons(){
     else lk.classList.add('hidden');
   }
 }
-var _showProfileExamBase = showProfile;
-showProfile = function(){ var r = _showProfileExamBase.apply(this, arguments); try { updateExamButtons(); } catch(e){} return r; };
 /* تقييم المعلم للتلاوة يُحفظ عند الطالب من ملف إعادة موثّق، لتُبنى عليه الشهادة */
-var _renderTFViewBase = renderTFView;
-renderTFView = function(){
-  try {
-    if (RETURN_TRUST === 'verified' && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
-      STATE.teacherRatings = Object.assign({}, STATE.teacherRatings || {}, PACK_DATA.teacherRatings); save();
-    }
-  } catch(e){}
-  return _renderTFViewBase.apply(this, arguments);
-};
 /* تأكيد الخروج من اختبار جارٍ */
 function confirmLeaveQuiz(){
   var qv = document.getElementById('view-quiz');
   var inProgress = qv && qv.offsetParent !== null && CURRENT.qIdx > 0 && CURRENT.qIdx < (CURRENT.section.questions || []).length;
   return !inProgress || confirm('ستخرج من الاختبار الحالي، وقد تفقد ما أنجزته فيه. هل تريد الخروج؟');
 }
-var _ensureQuizNavBase = ensureQuizNav;
-ensureQuizNav = function(){
-  _ensureQuizNavBase.apply(this, arguments);
-  var bar = document.getElementById('quiz-nav'); if (!bar) return;
-  var home = bar.firstChild;
-  if (home && !home._confirmBound){
-    home._confirmBound = true;
-    home.addEventListener('click', function(ev){ if (!confirmLeaveQuiz()){ ev.stopImmediatePropagation(); ev.preventDefault(); } }, true);
-  }
-};
 
 
 /* 9.34: تقرير شهري قابل للطباعة للأسرة (بلا تسجيلات) */
@@ -155,4 +112,23 @@ function showPrintableReport(){
   document.getElementById('pr-print').addEventListener('click', function(){ window.print(); });
   document.getElementById('pr-close').addEventListener('click', function(){ ov.remove(); });
 }
-
+/* نجوم الدرس من المحاولة الأولى؛ تنبيه بذلك عند الإعادة */
+function firstAttemptNote(sec, prev){
+  var note = document.getElementById('first-attempt-note'); if (note) note.remove();
+  if (!(prev && prev.attempts > 0 && prev.stars > 0)) return;
+  note = document.createElement('div'); note.id = 'first-attempt-note'; note.className = 'notice info'; note.style.cssText = 'font-size:.85rem;margin-top:10px';
+  var pr = STATE.progress[sec.id] || {};
+  note.textContent = 'نجوم الدرس محسوبة من المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + '). أفضل نتيجة لك: ' + (pr.bestScore || 0) + ' نقطة.';
+  var nav2 = document.getElementById('results-nav'); var res2 = document.getElementById('view-results');
+  if (res2){ if (nav2 && nav2.parentNode === res2) res2.insertBefore(note, nav2); else res2.appendChild(note); }
+}
+/* 9.39.10: زرّا «إعادة المفاهيم المخفقة» و«جلسة المراجعة» يظهران فقط حين يوجد ما يُعاد أو يُراجَع */
+function updateRetestButtons(){
+  var st = STATE.assess || null;
+  var rt = document.getElementById('btn-retest'); if (rt) rt.classList.toggle('hidden', !(st && Array.isArray(st.pendingRetest) && st.pendingRetest.length));
+  if (rt && st && Array.isArray(st.pendingRetest) && st.pendingRetest.length){ // 9.39.13 (D4-ج)
+    var nowB = new Date().toISOString(), anyReady = st.pendingRetest.some(function(id){ return assessIsReady(st, id, nowB); });
+    rt.textContent = anyReady ? '🔁 إعادة المفاهيم التي لم تُتقن بعد' : ('🔁 الإعادة متاحة ' + assessWaitText(st.pendingRetest));
+  }
+  var rv = document.getElementById('btn-review-session'); if (rv) rv.classList.toggle('hidden', !(st && st.concepts && assessDueReviews(st, new Date().toISOString()).length));
+}
