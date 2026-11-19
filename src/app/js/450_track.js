@@ -5,37 +5,23 @@ function trackStatus(sec){
   if (pr && pr.attempts > 0) return 'current';
   return 'todo';
 }
+/* بطاقة «تقدمك» تحمل حال الاختبار النهائي، وتحتها زر الدرس التالي (9.40: كان صفًّا من 16 زرًا فوق الصفحة يكرر قائمة الدروس) */
 function renderTrack(){
   var home = document.getElementById('view-home'); if (!home) return;
-  var old = document.getElementById('home-track'); if (old) old.remove();
-  var secs = CURRICULUM.filter(function(s){ return !s._synthetic; });
-  var box = document.createElement('div'); box.id = 'home-track';
-  box.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:0 0 12px';
-  var icon = {done: '✅', current: '🟡', todo: '⚪'};
-  var nextIdx = secs.findIndex(function(s){ return trackStatus(s) !== 'done'; });
-  secs.forEach(function(s, i){
-    var st = trackStatus(s);
-    var b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost';
-    b.style.cssText = 'padding:4px 8px;font-size:.8rem;min-width:0' + (i === nextIdx ? ';border:2px solid #e0a800' : '');
-    b.textContent = icon[st] + ' ' + (i + 1);
-    b.title = s.title;
-    b.addEventListener('click', function(){ openSection(s.id); });
-    box.appendChild(b);
-  });
+  ['home-track', 'next-lesson-cta'].forEach(function(id){ var o = document.getElementById(id); if (o) o.remove(); });
+  var card = home.querySelector('.card.featured'); if (!card) return;
+  var secs = realSections();
   var fx = (STATE.assess && STATE.assess.examDone) || {};
-  var note = document.createElement('div'); note.style.cssText = 'width:100%;text-align:center;font-size:.8rem;color:#555';
-  note.textContent = !allLessonsDone() ? ('الاختبار النهائي: يُفتح بعد إكمال الدروس (' + lessonsDoneCount() + '/' + realSections().length + ')')
-    : ((STATE.assess && STATE.assess.finalDone) ? 'الاختبار النهائي: اكتمل ✅' : ('الاختبار النهائي: ' + (fx[1] ? 'الجلسة الأولى ✅' : 'الجلسة الأولى ⚪') + ' · ' + (fx[2] ? 'الجلسة الثانية ✅' : 'الجلسة الثانية ⚪')));
-  box.appendChild(note);
-  home.insertBefore(box, home.firstChild);
-  /* 9.35: زر «ابدأ الدرس التالي» واضح في الشاشة الرئيسية */
-  var oldCta = document.getElementById('next-lesson-cta'); if (oldCta) oldCta.remove();
-  var next = secs.find(function(s){ return trackStatus(s) !== 'done'; }) || secs[0];
+  var note = document.createElement('div'); note.id = 'home-track'; note.className = 'track-note';
+  note.textContent = '🎓 ' + (!allLessonsDone() ? ('الاختبار النهائي يُفتح بعد إكمال الدروس (' + lessonsDoneCount() + '/' + secs.length + ')')
+    : ((STATE.assess && STATE.assess.finalDone) ? 'الاختبار النهائي: اكتمل ✅' : ('الاختبار النهائي: ' + (fx[1] ? 'الجلسة الأولى ✅' : 'الجلسة الأولى ⚪') + ' · ' + (fx[2] ? 'الجلسة الثانية ✅' : 'الجلسة الثانية ⚪'))));
+  card.appendChild(note);
+  var next = secs.find(function(s){ return trackStatus(s) !== 'done'; });
   if (!next) return;
   var cta = document.createElement('button'); cta.type = 'button'; cta.id = 'next-lesson-cta'; cta.className = 'btn success block';
-  cta.textContent = '▶ ابدأ: ' + next.title; cta.style.cssText = 'margin:0 0 12px;font-size:1.05rem';
+  cta.textContent = (trackStatus(next) === 'current' ? '▶ أكمل: ' : '▶ ابدأ: ') + next.title; cta.style.cssText = 'margin:12px 0 0;font-size:1.1rem';
   cta.addEventListener('click', function(){ openSection(next.id); });
-  home.insertBefore(cta, box.nextSibling);
+  card.parentNode.insertBefore(cta, card.nextSibling);
 }
 function nextSectionAfter(id){
   var list = CURRICULUM.filter(function(s){ return !s._synthetic; });

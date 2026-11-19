@@ -10,7 +10,7 @@
   src/app/packs/app.json|trial.json  بيانات الحزمة دون المنهج
   src/studio/...                   مثلها، وفيها @@CURRICULUM@@ و@@APP_TEMPLATE_B64@@
   curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json   المنهج (المصدر الوحيد)
-  curriculum/qpc/qpc_fonts_9.39.17.json             خطوط المصحف المقتطعة
+  curriculum/qpc/qpc_fonts.json             خطوط المصحف المقتطعة
 المخرجات: app/تطبيق_الطالب_والمعلم_v9.39.html، app/تجربة_المرحلة1_للهاتف_v9.39.html، studio/استوديو_المشرف_v9.39.html
 الاستعمال:  python3 -I tools/build.py          يبني ويكتب
             python3 -I tools/build.py --check  يتحقق أن الملفات المحفوظة مطابقة للمصادر (في CI)"""
@@ -18,7 +18,7 @@ import base64, glob, hashlib, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUR = 'curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json'
-FONTS = 'curriculum/qpc/qpc_fonts_9.39.17.json'
+FONTS = 'curriculum/qpc/qpc_fonts.json'
 OUT_APP = 'app/تطبيق_الطالب_والمعلم_v9.39.html'
 OUT_TRIAL = 'app/تجربة_المرحلة1_للهاتف_v9.39.html'
 OUT_STUDIO = 'studio/استوديو_المشرف_v9.39.html'

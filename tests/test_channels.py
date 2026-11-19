@@ -5,6 +5,15 @@ D5: الرئيسي يخفي كل سؤال لم يراجعه الشيخ (review =
 التشغيل: python3 -I tests/test_channels.py   (يبني الموقعين بنفسه في مجلد مؤقت)"""
 import asyncio, os, shutil, subprocess, sys, tempfile, time
 from playwright.async_api import async_playwright
+# 9.40: الأعداد المتوقعة تُحسب من المنهج المصدر وخطوط المصحف، لا أرقام ثابتة تتقادم مع كل إضافة
+import json as _json
+def _expected():
+    C = _json.load(open('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', encoding='utf-8'))['sections']
+    pend = sum(1 for s in C for k in ('questions', 'examQuestions') for q in (s.get(k) or []) if q.get('review') == 'pending')
+    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc'))
+    pages = len(_json.load(open('curriculum/qpc/qpc_fonts.json', encoding='utf-8'))['fonts'])
+    return pend, qpc, pages
+EXP_PENDING, EXP_QPC, EXP_QPC_PAGES = _expected()
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 BROWSER = os.environ.get('RIFAQ_BROWSER', 'chromium')
@@ -60,8 +69,8 @@ async def main():
             await ev(fr, "realSections().forEach(function(s){ STATE.progress[s.id] = {stars: 1, attempts: 1, bestScore: 0}; }); STATE.student = {name: 'أمل', gender: 'girl', id: 'stu_channel_main'}; save(); startFinalExam(1)")
             await fr.wait_for_timeout(300)
             ex = await ev(fr, "(() => { var les = {}; realSections().forEach(function(s){ s.questions.forEach(function(q){ les[q.id] = 1; }); }); var qs = CURRENT.section.questions; return [CURRENT.section.id, qs.length, qs.every(function(q){ return les[q.id] && q.review !== 'pending'; })]; })()")
-            rec('C2 main hides all 125 unreviewed questions (bank, mixed imla\'i, converted idgham back to Uthmani); final exam falls back to lesson questions',
-                m['ch'] == 'main' and m['hidden'] == 125 and m['pend'] == 0 and m['bank'] == 0 and m['mx'] == 0 and m['s3'] == 18 and 'ۥ' in m['x31'] and m['x31src'] == '112:4 (نص تنزيل)'
+            rec('C2 main hides all unreviewed questions (bank, mixed imla\'i, converted idgham back to Uthmani); final exam falls back to lesson questions',
+                m['ch'] == 'main' and m['hidden'] == EXP_PENDING and m['pend'] == 0 and m['bank'] == 0 and m['mx'] == 0 and m['s3'] == 18 and 'ۥ' in m['x31'] and m['x31src'] == '112:4 (نص تنزيل)'
                 and m['secs'] == 16 and not m['key'].startswith('beta_') and ex[0] == 'final_exam' and ex[1] > 0 and ex[2] and not errs, (m, ex, errs[:2]))
 
             # C3 التجريبي: كل شيء ظاهر، وتخزين الطفل منفصل
@@ -69,7 +78,7 @@ async def main():
             bt = await ev(fb, PROBE)
             fresh = await ev(fb, "[STATE.student.name || '', RIFAQ_HOST_DB()]".replace('RIFAQ_HOST_DB()', "(window.parent.RIFAQ_HOST || {}).db"))
             rec('C3 beta shows everything for review, with its own child storage and recent-files store',
-                bt['ch'] == 'beta' and bt['hidden'] == 0 and bt['pend'] == 125 and bt['bank'] == 80 and bt['mx'] == 33 and bt['s3'] == 30 and 'ۥ' not in bt['x31'] and 'رسم إملائي' in bt['x31src']
+                bt['ch'] == 'beta' and bt['hidden'] == 0 and bt['pend'] == EXP_PENDING and bt['bank'] == 80 and bt['mx'] == 33 and bt['s3'] == 30 and 'ۥ' not in bt['x31'] and 'رسم إملائي' in bt['x31src']
                 and bt['key'].startswith('beta_') and fresh[0] == '' and fresh[1] == 'beta_rifaq_host_v1' and not errs, (bt, fresh, errs[:2]))
 
             # C4 الرجوع إلى الرئيسي: تقدّم الطفل هناك باقٍ لم يمسّه التجريبي
@@ -89,7 +98,7 @@ async def main():
             # C6 نسخة التجربة على الرئيسي تخفي أيضًا
             await pg.goto(BASE + '/open.html?src=trial'); ft = await appframe(pg)
             tr = await ev(ft, PROBE)
-            rec('C6 trial file on main hides unreviewed content too', tr['ch'] == 'main' and tr['pend'] == 0 and tr['hidden'] == 125 and not errs, (tr['ch'], tr['pend'], tr['hidden'], errs[:2]))
+            rec('C6 trial file on main hides unreviewed content too', tr['ch'] == 'main' and tr['pend'] == 0 and tr['hidden'] == EXP_PENDING and not errs, (tr['ch'], tr['pend'], tr['hidden'], errs[:2]))
             await b.close()
     finally:
         srv.terminate(); shutil.rmtree(tmp, ignore_errors=True)

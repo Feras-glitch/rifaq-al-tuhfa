@@ -48,7 +48,8 @@ function buildSetup(){
   if (STATE.role === 'teacher') $('setup-title').textContent = 'بيانات المعلم المراجع';
   else if (detectMode() === 'friend') $('setup-title').textContent = 'بيانات مستلم الإعداد';
   else $('setup-title').textContent = 'قبل أن نبدأ';
-  if ($('btn-new-student')) $('btn-new-student').classList.toggle('hidden', STATE.role === 'teacher');
+  /* 9.40: «طالب جديد / تبديل الطالب» لا معنى له في أول تشغيل، ولا لمستلم الإهداء */
+  if ($('btn-new-student')) $('btn-new-student').classList.toggle('hidden', STATE.role === 'teacher' || isGiftRecipient || !String(STATE.student.name || '').trim());
 }
 var SETUP_NEW_STUDENT = false;
 function startNewStudent(){
@@ -187,12 +188,16 @@ function buildSplash(){
   var mode = detectMode();
   if (mode === 'friend' && PACK_DATA.sourceGiftStudentPhoto) av.innerHTML = '<img data-media="' + mediaRef('img', PACK_DATA.sourceGiftStudentPhoto) + '" alt="صورة صاحب الإهداء">';
   else if (PACK_DATA.supervisorPhoto || PACK_DATA.sheikhPhoto) av.innerHTML = '<img data-media="' + mediaRef('img', (PACK_DATA.supervisorPhoto || PACK_DATA.sheikhPhoto)) + '" alt="">';
-  else av.innerHTML = '<span class="emoji">👨‍🏫</span>';
+  else av.innerHTML = '<span class="emoji">🌟</span>';
 
   var skipBtn = document.querySelector('.splash-skip');
   if (skipBtn) skipBtn.textContent = mode === 'teacher-review' ? '👨‍🏫 فتح شاشة المراجعة' : mode === 'student-returned' ? '📢 عرض ملاحظات المعلم' : '← تخطي';
   var splash = $('view-splash');
   splash.classList.remove('teacher-mode','friend-mode','returned-mode');
+  /* 9.40: في الفتح العادي زر «ابدأ» واضح بدل «تخطي»، ولا شارة «إعداد تعليمي» لا تعني للطفل شيئًا */
+  var plain = mode !== 'friend' && mode !== 'student-returned' && mode !== 'teacher-review' && mode !== 'user-choice';
+  if (skipBtn){ skipBtn.classList.toggle('start', plain); if (plain) skipBtn.textContent = '▶ ابدأ'; }
+  $('splash-badge').classList.toggle('hidden', plain);
 
   if (mode === 'friend'){
     splash.classList.add('friend-mode');

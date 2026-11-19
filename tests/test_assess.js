@@ -2,10 +2,10 @@
 // التشغيل: node tests/test_assess.js
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const ROOT = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(ROOT, 'app', 'تطبيق_الطالب_والمعلم_v9.39.html'), 'utf8');
-const a = html.indexOf('var ASSESS_CFG'), b = html.indexOf('var CONSENT_VERSION', a);
-if (a < 0 || b < 0) { console.log('FAIL cannot locate assessment engine in app'); process.exit(1); }
-const ctx = {}; vm.createContext(ctx); vm.runInContext(html.slice(a, b), ctx);
+// 9.40: المحرك في وحدته المصدرية نفسها التي تُبنى في التطبيق (src/app/js/400_assessment.js)
+const src = fs.readFileSync(path.join(ROOT, 'src', 'app', 'js', '400_assessment.js'), 'utf8');
+if (src.indexOf('var ASSESS_CFG') < 0) { console.log('FAIL cannot locate assessment engine'); process.exit(1); }
+const ctx = {}; vm.createContext(ctx); vm.runInContext(src, ctx);
 const A = ctx;
 const secs = JSON.parse(fs.readFileSync(path.join(ROOT, 'curriculum', 'منهج_المرحلة1_كامل_معتمد_v1.3.json'), 'utf8')).sections;
 let fails = 0; const ok = (c, m) => { if (!c) { fails++; console.log('FAIL', m); } else console.log('ok', m); };

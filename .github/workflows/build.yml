@@ -53,7 +53,7 @@ jobs:
           python3 -I tools/verify_lesson_items_9.39.11.py curriculum/drafts/lesson_items_9.39.11.json /tmp/cur_pre_mx.json
           # 9.39.17: خط المصحف (QPC V2): الرموز تطابق تنزيل وبيانات QPC، والخطوط المقتطعة فيها كل رمز، والنسخ مطابقة
           pip install fonttools==4.67.0
-          python3 -I tools/verify_qpc_9.39.17.py
+          python3 -I tools/verify_qpc.py
       - name: تثبيت Playwright
         run: |
           pip install playwright==1.48.0

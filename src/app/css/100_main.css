@@ -23,6 +23,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .splash-greetings button{padding:11px 18px;border-radius:99px;border:1px solid #ffffff66;background:#ffffff22;color:#fff;font-family:inherit;font-weight:800;font-size:.9rem;cursor:pointer;backdrop-filter:blur(8px)}
 .splash-greetings button.playing{background:#fff;color:#283593}
 .splash-skip{background:none;border:0;color:#fff;opacity:.8;font-family:inherit;font-size:1rem;font-weight:700;cursor:pointer;padding:12px 24px;border-radius:99px;margin-top:8px}
+.splash-skip.start{background:var(--accent);color:#3e2700;opacity:1;font-size:1.25rem;font-weight:900;padding:14px 48px;box-shadow:0 6px 18px #0003;margin-top:16px}
 .splash-hint{font-size:.8rem;opacity:.7;margin-top:10px}
 .role-choice{padding:16px;background:#ffffff20;border-radius:20px;margin-bottom:16px;backdrop-filter:blur(8px);max-width:340px;width:100%}
 .role-choice button{display:block;width:100%;padding:14px;margin:6px 0;border-radius:14px;border:0;background:#fff;color:#283593;font-family:inherit;font-weight:900;font-size:1rem;cursor:pointer;box-shadow:0 4px 12px #0002}
@@ -242,3 +243,5 @@ mark.pivot{background:#fff59d;color:inherit;border-bottom:3px solid #f9a825;bord
 .tf-item .teacher-comment{background:#fff3e0;padding:10px;border-radius:10px;border-right:4px solid #FF9800;margin:10px 0}
 .tf-item .teacher-comment b{color:#e65100;display:block;margin-bottom:6px;font-size:.88rem}
 .tf-item .re-record-btn{margin-top:10px}
+/* 9.40: حال الاختبار النهائي داخل بطاقة التقدم */
+.track-note{margin-top:6px;font-size:.82rem;color:var(--muted)}

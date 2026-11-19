@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""9.39.17: فاحص خط المصحف (QPC V2). تنفيذ مستقل عن أداة البناء tools/build_qpc_9.39.17.py.
-التشغيل: python3 -I tools/verify_qpc_9.39.17.py   (يحتاج fontTools)
+"""9.39.17: فاحص خط المصحف (QPC V2). تنفيذ مستقل عن أداة البناء tools/build_qpc.py.
+التشغيل: python3 -I tools/verify_qpc.py   (يحتاج fontTools)
 يفحص:
  1) التغطية: كل مهمة قرآنية (المرجع س:آ أو س:آ-آ في سطرها) وكل سؤال وصيغة سابقة مصدرها «… (نص تنزيل)» تحمل qpc، ولا qpc في غيرها.
  2) الصحة: كلمات النص المعروض (بلا الإبراز وعلامات الوقف المستقلة) متتالية في نص تنزيل للآية/الآيات،
@@ -16,8 +16,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 CURR = 'curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json'
 TANZIL = 'curriculum/نص_القرآن_تنزيل_العثماني.json'
-VERSES = 'curriculum/qpc/qpc_verses_9.39.17.json'
-FONTS = 'curriculum/qpc/qpc_fonts_9.39.17.json'
+VERSES = 'curriculum/qpc/qpc_verses.json'
+FONTS = 'curriculum/qpc/qpc_fonts.json'
 APP = ['app/تطبيق_الطالب_والمعلم_v9.39.html', 'app/تجربة_المرحلة1_للهاتف_v9.39.html']
 STUDIO = 'studio/استوديو_المشرف_v9.39.html'
 

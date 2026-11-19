@@ -7,14 +7,14 @@ QPC V2 خط لكل صفحة من صفحات المصحف الـ604، وكل كل
     وتحفظ مواضع الكلمة الملوّنة (<b>) والحكم المحوري للمهمة؛
  3) تقتطع من خط كل صفحة الرموز المستعملة وحدها (WOFF)، فيصغر الخط من مئات الكيلوبايتات إلى بضعة.
 المخرجات (في المستودع):
- - curriculum/qpc/qpc_verses_9.39.17.json: رموز QPC للآيات المستعملة كاملة، ورقم صفحتها (مقتطع من بيانات QPC V2) — مرجع الفاحص.
- - curriculum/qpc/qpc_fonts_9.39.17.json: خطوط الصفحات المقتطعة (base64) وبصماتها.
- - curriculum/qpc/qpc_map_9.39.17.json: لكل سؤال ومهمة: الصفحة، ورموز الكلمات المعروضة، ومواضع الإبراز والحكم المحوري (مرجع للمراجعة).
+ - curriculum/qpc/qpc_verses.json: رموز QPC للآيات المستعملة كاملة، ورقم صفحتها (مقتطع من بيانات QPC V2) — مرجع الفاحص.
+ - curriculum/qpc/qpc_fonts.json: خطوط الصفحات المقتطعة (base64) وبصماتها.
+ - curriculum/qpc/qpc_map.json: لكل سؤال ومهمة: الصفحة، ورموز الكلمات المعروضة، ومواضع الإبراز والحكم المحوري (مرجع للمراجعة).
  - حقل qpc في كل مهمة وسؤال عثماني في المنهج المصدر: {p الصفحة، w الرموز، e مواضع علامات الآيات، k هيكل الكلمات المعروضة، wp صفحة كل رمز إن تعددت}.
 المدخلات (خارج المستودع، تمرَّر مسارات):
  --words  qpc-v2.json (كلمة كلمة)  --ayahs qpc-v2-ayah-by-ayah-glyphs.json (رقم الصفحة)
  --fonts  مجلد mushaf-v2 من github.com/nuqayah/qpc-fonts (QCF2001.ttf … QCF2604.ttf)
-التشغيل: python3 -I tools/build_qpc_9.39.17.py --words … --ayahs … --fonts …"""
+التشغيل: python3 -I tools/build_qpc.py --words … --ayahs … --fonts …"""
 import base64, hashlib, io, json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -121,7 +121,7 @@ def main():
     for page in sorted(used):
         src = os.path.join(fonts_dir, 'QCF2%03d.ttf' % page)
         raw = open(src, 'rb').read()
-        f = TTFont(io.BytesIO(raw))
+        f = TTFont(io.BytesIO(raw), recalcTimestamp=False)  # بناء قابل للتكرار: لا يتغير الناتج بتغير وقت البناء
         cmap = f.getBestCmap()
         miss = [hex(ord(c)) for c in used[page] if ord(c) not in cmap]
         if miss: sys.exit('page %d font lacks %s' % (page, miss))
@@ -131,12 +131,12 @@ def main():
         buf = io.BytesIO(); f.flavor = 'woff'; f.save(buf); data = buf.getvalue()
         fonts[str(page)] = {'woff': base64.b64encode(data).decode(), 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
                             'source_sha256': hashlib.sha256(raw).hexdigest(), 'codepoints': sorted(ord(c) for c in used[page])}
-    meta = {'version': '9.39.17', 'fonts_source': SRC_FONTS, 'glyphs_source': 'QPC V2 word-by-word glyphs (qpc-v2.json) and page numbers (qpc-v2-ayah-by-ayah-glyphs.json), uploaded by the owner 2026-11-14',
+    meta = {'fonts_source': SRC_FONTS, 'glyphs_source': 'QPC V2 word-by-word glyphs (qpc-v2.json) and page numbers (qpc-v2-ayah-by-ayah-glyphs.json), uploaded by the owner 2026-11-14',
             'note': 'خطوط مجمع الملك فهد لطباعة المصحف الشريف، مقتطعة للرموز المستعملة فقط (fsType 8: يسمح بالتضمين والاقتطاع).'}
-    json.dump({'meta': meta, 'verses': verses}, open(os.path.join(OUT, 'qpc_verses_9.39.17.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    json.dump({'meta': meta, 'fonts': fonts}, open(os.path.join(OUT, 'qpc_fonts_9.39.17.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    json.dump({'meta': meta, 'map': mapping}, open(os.path.join(OUT, 'qpc_map_9.39.17.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    json.dump(C, open(CURR, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    json.dump({'meta': meta, 'verses': verses}, open(os.path.join(OUT, 'qpc_verses.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    json.dump({'meta': meta, 'fonts': fonts}, open(os.path.join(OUT, 'qpc_fonts.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    json.dump({'meta': meta, 'map': mapping}, open(os.path.join(OUT, 'qpc_map.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    open(CURR, 'w', encoding='utf-8').write(json.dumps(C, ensure_ascii=False, indent=1) + '\n')
     tot = sum(v['bytes'] for v in fonts.values())
     print('verses', len(verses), '| shown texts', len(mapping), '| pages', len(fonts), '| fonts total %.1f KB' % (tot / 1024))
 

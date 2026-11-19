@@ -199,6 +199,7 @@ function ensureConsent(onAccept){
   var card = document.createElement('div');
   card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
   card.innerHTML = '<h3 data-style="margin:0 0 8px">🛡️ موافقة ولي الأمر</h3>' +
+    '<p data-style="margin:0 0 6px;padding:8px 10px;background:#e8eaf6;border-radius:10px;font-size:.92rem">👨‍👩‍👧 هذه الخطوة لولي الأمر. يستطيع الطفل التعلّم والإجابة دونها، لكن تسجيل صوته يحتاج موافقتك.</p>' +
     '<label data-style="display:block;margin:8px 0 4px">اسم ولي الأمر:</label>' +
     '<input id="consent-name" type="text" maxlength="60" data-style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit">' +
     (guardianPinSet() ? '' : '<label data-style="display:block;margin:10px 0 4px">رمز ولي الأمر (4 أرقام) — يُطلب قبل الإعدادات والتصفير، فلا {تخبر|تخبري} به الطفل:</label>' +
@@ -208,7 +209,7 @@ function ensureConsent(onAccept){
     '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-review" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على إرسال التسجيلات إلى المعلم للمراجعة التعليمية فقط.</span></label>' +
     '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;background:#f5f5f5;border-radius:10px;padding:8px"><input id="consent-share" type="checkbox" data-style="margin-top:6px"> <span><b>اختياري:</b> أوافق على أن تُضمَّن التسجيلات المعتمدة في حزم تصل إلى أطفال آخرين. يمكنني استبعاد أي تسجيل، وسحب هذه الموافقة في أي وقت (لا يسترجع ذلك ما سبق نسخه).</span></label>' +
     '<p id="consent-err" data-style="color:#b3261e;margin:4px 0;min-height:1.2em"></p>' +
-    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="consent-no" class="btn">إلغاء</button><button type="button" id="consent-ok" class="btn success">حفظ وابدأ</button></div>';
+    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="consent-no" class="btn">لاحقًا</button><button type="button" id="consent-ok" class="btn success">حفظ وابدأ</button></div>';
   ov.appendChild(card); document.body.appendChild(ov);
   $('consent-no').onclick = function(){ ov.remove(); };
   $('consent-ok').onclick = async function(){

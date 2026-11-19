@@ -6,6 +6,15 @@
 التشغيل: RIFAQ_SITE=_site python3 -I tests/test_webkit_smoke.py   (RIFAQ_BROWSER=chromium للتجربة المحلية)"""
 import asyncio, os, subprocess, sys, time
 from playwright.async_api import async_playwright
+# 9.40: الأعداد المتوقعة تُحسب من المنهج المصدر وخطوط المصحف، لا أرقام ثابتة تتقادم مع كل إضافة
+import json as _json
+def _expected():
+    C = _json.load(open('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', encoding='utf-8'))['sections']
+    pend = sum(1 for s in C for k in ('questions', 'examQuestions') for q in (s.get(k) or []) if q.get('review') == 'pending')
+    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc'))
+    pages = len(_json.load(open('curriculum/qpc/qpc_fonts.json', encoding='utf-8'))['fonts'])
+    return pend, qpc, pages
+EXP_PENDING, EXP_QPC, EXP_QPC_PAGES = _expected()
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = os.path.abspath(os.environ.get('RIFAQ_SITE', os.path.join(HERE, '..', '_site')))
@@ -142,7 +151,7 @@ async def main():
             qp = await ev(fr, """(async () => { await QPC_LOADING; var n = 0, good = 0;
               CURRICULUM.forEach(function(s){ (s.items || []).concat(s.questions || [], s.examQuestions || []).forEach(function(x){ [x, x.prev].forEach(function(h){ if (!h || !h.qpc) return; n++; if (qpcHTML(h.text, h.qpc)) good++; }); }); });
               return [Object.keys(QPC_OK).length, Object.keys(QPC_PROBE).length, n, good]; })()""")
-            rec('W9 Mushaf font (QPC V2) loads in WebKit and renders every Uthmani text', qp[0] == qp[1] == 29 and qp[2] == qp[3] == 71 and not errs2, (qp, errs2[:2]))
+            rec('W9 Mushaf font (QPC V2) loads in WebKit and renders every Uthmani text', qp[0] == qp[1] == EXP_QPC_PAGES and qp[2] == qp[3] == EXP_QPC and not errs2, (qp, errs2[:2]))
             await b.close()
     finally:
         srv.terminate()

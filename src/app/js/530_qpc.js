@@ -11,7 +11,7 @@ function qpcInit(){
   })).then(function(){ return QPC_OK; });
 }
 function qpcSkel(w){ return String(w).replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '').replace(/ٱ/g, 'ا'); }
-/* كلمات النص المعروض (بلا علامات الوقف المستقلة) مع علم الإبراز؛ مثل words_of في tools/build_qpc_9.39.17.py */
+/* كلمات النص المعروض (بلا علامات الوقف المستقلة) مع علم الإبراز؛ مثل words_of في tools/build_qpc.py */
 function qpcWords(text){
   var t = String(text || '').replace(/[﴾﴿]/g, ' ').replace(/<b>/g, ' \x01').replace(/<\/b>/g, '\x02 ');
   if (/[<>&]/.test(t)) return null;

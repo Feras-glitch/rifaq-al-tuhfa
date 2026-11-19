@@ -4,6 +4,15 @@
 GIFT_EXPORT_JS = "(function(){ exportApprovedPack(); (function w(n){ var m=document.getElementById('modal'); var b=Array.prototype.slice.call(document.querySelectorAll('#modal-actions button')).filter(function(x){ return x.textContent.indexOf('إصدار الإهداء')>=0; })[0]; if (b && m && !m.classList.contains('hidden')){ window.__giftMsg=document.getElementById('modal-body').textContent; b.click(); } else if (n<150) setTimeout(function(){ w(n+1); },100); })(0); })()"  # 9.39.10: بيان الإهداء في نافذة التطبيق لا في confirm
 import asyncio, json, re, os, base64, subprocess, sys, time, shutil, hashlib
 from playwright.async_api import async_playwright
+# 9.40: الأعداد المتوقعة تُحسب من المنهج المصدر وخطوط المصحف، لا أرقام ثابتة تتقادم مع كل إضافة
+import json as _json
+def _expected():
+    C = _json.load(open('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', encoding='utf-8'))['sections']
+    pend = sum(1 for s in C for k in ('questions', 'examQuestions') for q in (s.get(k) or []) if q.get('review') == 'pending')
+    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc'))
+    pages = len(_json.load(open('curriculum/qpc/qpc_fonts.json', encoding='utf-8'))['fonts'])
+    return pend, qpc, pages
+EXP_PENDING, EXP_QPC, EXP_QPC_PAGES = _expected()
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = os.path.abspath(os.environ.get('RIFAQ_SITE', os.path.join(HERE, '..', '_site')))
@@ -1204,8 +1213,8 @@ async def main():
                   var rev = 0, revOK = 0; cp.forEach(function(s){ (s.questions || []).forEach(function(x){ var o = qpcHolder(x.id); if (o && o.prev && o.prev.qpc){ rev++; if (JSON.stringify(x.qpc) === JSON.stringify(o.prev.qpc) && x.text === o.prev.text && qpcHTML(x.text, x.qpc)) revOK++; } }); });
                   out.rev = [rev, revOK]; return out; })()""")
                 await ctxQ.close()
-                rec('R50 Uthmani verses render in the Mushaf font (QPC V2): fonts load, all 71 texts, target word colored, pivot, screen-reader text, safe fallbacks, main shows prev form in its font',
-                    qp['pages'] == 29 and qp['ok'] == 29 and qp['n'] == 71 and qp['good'] == 71 and qp['font'] == 'qpc604' and qp['loaded'] and qp['bold']
+                rec('R50 Uthmani verses render in the Mushaf font (QPC V2): fonts load, every Uthmani text, target word colored, pivot, screen-reader text, safe fallbacks, main shows prev form in its font',
+                    qp['pages'] == EXP_QPC_PAGES and qp['ok'] == EXP_QPC_PAGES and qp['n'] == EXP_QPC and qp['good'] == EXP_QPC and qp['font'] == 'qpc604' and qp['loaded'] and qp['bold']
                     and qp['sr'] and qp['endNb'] and qp['pivot'] and qp['edited0'] and qp['edited'] and qp['evil'] and qp['rev'][0] >= 10 and qp['rev'][0] == qp['rev'][1] and not errsQ2,
                     ({k: v for k, v in qp.items() if k != 'bad'}, qp['bad'][:5], errsQ2[:2]))
             except Exception as e:
