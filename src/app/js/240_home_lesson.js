@@ -26,6 +26,7 @@ function renderLessonContent(){
   var html = '';
   sec.items.forEach(function(item){
     html += verseAudioCount(item) ? matnVersesHTML(item) : '<div class="content-text">' + quranHTML(item.text, item) + '</div>'; // 9.39.16 (ق4)، 9.39.17 (خط المصحف)
+    if (item.type === 'poem') html += hifzLessonButton(item); // 9.40: التسميع غيبًا
     if (item.desc) html += '<div class="desc-text">💡 ' + GT(item.desc) + '</div>';
 
     if (verseAudioCount(item)){ html += matnHeaderHTML(item); }

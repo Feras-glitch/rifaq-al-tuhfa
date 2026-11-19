@@ -11,7 +11,7 @@ import json as _json
 def _expected():
     C = _json.load(open('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', encoding='utf-8'))['sections']
     pend = sum(1 for s in C for k in ('questions', 'examQuestions') for q in (s.get(k) or []) if q.get('review') == 'pending')
-    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc'))
+    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc') and q.get('type') != 'listen')  # «اسمع وميّز» مخفية بلا تسجيل
     pages = len(_json.load(open('curriculum/qpc/qpc_fonts.json', encoding='utf-8'))['fonts'])
     return pend, qpc, pages
 EXP_PENDING, EXP_QPC, EXP_QPC_PAGES = _expected()

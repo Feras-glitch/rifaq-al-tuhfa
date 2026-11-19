@@ -92,6 +92,12 @@ function normalizeState(raw){
   if (raw.quizSeen && typeof raw.quizSeen === 'object' && !Array.isArray(raw.quizSeen)){
     base.quizSeen = {}; Object.keys(raw.quizSeen).slice(0, 60).forEach(function(k){ if (Array.isArray(raw.quizSeen[k])) base.quizSeen[safeIdString(k)] = raw.quizSeen[k].slice(0, 200).map(safeIdString); });
   }
+  /* 9.40: جدول مراجعة حفظ المتن */
+  if (raw.hifz && typeof raw.hifz === 'object' && !Array.isArray(raw.hifz)){
+    base.hifz = {}; Object.keys(raw.hifz).slice(0, 200).forEach(function(k){ var h = raw.hifz[k] || {};
+      if (!/^[A-Za-z0-9_\-]{1,80}$/.test(k)) return;
+      base.hifz[k] = {b: Math.max(0, Math.min(6, Math.floor(Number(h.b) || 0))), n: Math.max(0, Math.min(9999, Math.floor(Number(h.n) || 0))), due: String(h.due || '').slice(0, 40)}; });
+  }
   if (typeof raw.lastBackupAt === 'string') base.lastBackupAt = raw.lastBackupAt.slice(0, 40);
   if (isFinite(Number(raw.lessonsAtBackup))) base.lessonsAtBackup = Number(raw.lessonsAtBackup) || 0;
   if (isFinite(Number(raw.backupNagAt))) base.backupNagAt = Number(raw.backupNagAt) || 0;

@@ -17,11 +17,13 @@ function renderTrack(){
     : ((STATE.assess && STATE.assess.finalDone) ? 'الاختبار النهائي: اكتمل ✅' : ('الاختبار النهائي: ' + (fx[1] ? 'الجلسة الأولى ✅' : 'الجلسة الأولى ⚪') + ' · ' + (fx[2] ? 'الجلسة الثانية ✅' : 'الجلسة الثانية ⚪'))));
   card.appendChild(note);
   var next = secs.find(function(s){ return trackStatus(s) !== 'done'; });
-  if (!next) return;
-  var cta = document.createElement('button'); cta.type = 'button'; cta.id = 'next-lesson-cta'; cta.className = 'btn success block';
-  cta.textContent = (trackStatus(next) === 'current' ? '▶ أكمل: ' : '▶ ابدأ: ') + next.title; cta.style.cssText = 'margin:12px 0 0;font-size:1.1rem';
-  cta.addEventListener('click', function(){ openSection(next.id); });
-  card.parentNode.insertBefore(cta, card.nextSibling);
+  if (next){
+    var cta = document.createElement('button'); cta.type = 'button'; cta.id = 'next-lesson-cta'; cta.className = 'btn success block';
+    cta.textContent = (trackStatus(next) === 'current' ? '▶ أكمل: ' : '▶ ابدأ: ') + next.title; cta.style.cssText = 'margin:12px 0 0;font-size:1.1rem';
+    cta.addEventListener('click', function(){ openSection(next.id); });
+    card.parentNode.insertBefore(cta, card.nextSibling);
+  }
+  try { hifzHomeButton(card); } catch(e){} // 9.40: مراجعة حفظ المتن حين يحين موعدها
 }
 function nextSectionAfter(id){
   var list = CURRICULUM.filter(function(s){ return !s._synthetic; });

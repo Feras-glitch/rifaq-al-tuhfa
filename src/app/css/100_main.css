@@ -245,3 +245,15 @@ mark.pivot{background:#fff59d;color:inherit;border-bottom:3px solid #f9a825;bord
 .tf-item .re-record-btn{margin-top:10px}
 /* 9.40: حال الاختبار النهائي داخل بطاقة التقدم */
 .track-note{margin-top:6px;font-size:.82rem;color:var(--muted)}
+/* 9.40: تسميع المتن */
+.hifz-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9998;display:flex;align-items:flex-start;justify-content:center;padding:12px;overflow-y:auto}
+.hifz-box{background:#fff;color:#222;border-radius:18px;max-width:520px;width:100%;padding:16px;margin:auto 0}
+.hifz-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.hifz-head h3{margin:0;color:var(--primary)}
+.hifz-intro{font-size:.9rem;color:var(--muted);margin:6px 0}.hifz-stat{font-size:.85rem;font-weight:800;color:var(--primary);margin-bottom:8px}
+.hifz-card{border:2px solid #e3e7f5;border-radius:14px;padding:10px;margin:10px 0;background:#fbfbfe}
+.hifz-card.ok{border-color:#2e9e55;background:#f2fbf5}.hifz-card.again{border-color:#ffa000;background:#fffaf0}
+.hifz-num{font-size:.75rem;color:var(--muted)}
+.hifz-text{font-family:'Traditional Arabic','Amiri',serif;font-size:1.35rem;line-height:2;font-weight:700;color:var(--primary);margin:4px 0}
+.hifz-text div:nth-child(2){padding-inline-start:24px}
+.hifz-row{display:flex;gap:6px;flex-wrap:wrap}.hifz-res,.hifz-next{font-size:.8rem;color:var(--muted);margin-top:4px}
+

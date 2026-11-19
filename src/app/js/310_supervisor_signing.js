@@ -57,7 +57,14 @@ function contentChannelFilter(secs){
   });
   return n;
 }
-function applyContentChannel(){ CONTENT_HIDDEN = contentChannelFilter(CURRICULUM); }
+function applyContentChannel(){ CONTENT_HIDDEN = contentChannelFilter(CURRICULUM); hideUnrecordedListening(CURRICULUM); }
+/* 9.40: سؤال «اسمع وميّز» لا يظهر حتى تُسجَّل قراءتاه (الصحيحة والخاطئة عمدًا) في الاستوديو */
+function listeningRecorded(q){ var A = PACK_DATA.masterAudios || {}; return !!(audSrc(A[q.id + '__ok']) && audSrc(A[q.id + '__lahn'])); }
+function hideUnrecordedListening(secs){
+  var n = 0;
+  (secs || []).forEach(function(s){ if (!Array.isArray(s.questions)) return; s.questions = s.questions.filter(function(q){ var keep = !(q && q.type === 'listen') || listeningRecorded(q); if (!keep) n++; return keep; }); });
+  return n;
+}
 function refStatusLine(){
   if (REF_HIDDEN && REF_CURRICULUM_REPLACED) return {ok: false, text: '⚠️ هذا الملف لا يحمل توقيع مشرف مسجَّل في هذا التطبيق، فعُرض المنهج المعتمد المدمج في التطبيق بدل منهجه، وأُخفيت تلاوات الشيخ وأسماء المرجع. تسجيلاتك وتقدّمك محفوظة.'};
   if (REF_HIDDEN) return {ok: false, text: '⚠️ المادة المرجعية في هذا الملف (المنهج وتلاوات الشيخ وأسماء المرجع) لا تحمل توقيع مشرف مسجَّل في هذا التطبيق' + (REF_TRUST === 'invalid' ? '، وقد تغيّرت بعد توقيعها' : '') + '. أُخفيت التلاوات والأسماء والصور، ولن تنتقل في أي ملف يُصدر منه.'};

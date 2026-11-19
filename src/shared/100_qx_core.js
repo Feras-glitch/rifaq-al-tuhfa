@@ -109,6 +109,16 @@ var QX = (function(){
     out.parts = parts; out.distractors = arr(q.distractors).map(function(p){ return str(p, 60); }).filter(Boolean).slice(0, 4);
     return {q: out, errors: errs};
   }};
+  /* ---- listen: اسمع وميّز (9.40) — قراءتان مسجلتان للكلمة: صحيحة وخاطئة عمدًا؛ يظهر السؤال حين تُسجَّلان ---- */
+  types.listen = { label: '🎧 {اسمع|اسمعي} {وميّز|وميّزي}', hint: '{اسمع|اسمعي} القراءتين ثم {اختر|اختاري} الصحيحة', normalize: function(q){
+    var out = baseOf(q), errs = [];
+    out.tolerance = 0;
+    out.word = str(q.word, 160); out.rule = str(q.rule, 80); out.lahn = str(q.lahn, 240);
+    if (!out.word) errs.push('الكلمة المقروءة فارغة');
+    if (!out.rule) errs.push('الحكم فارغ');
+    if (!out.lahn) errs.push('وصف القراءة الخاطئة فارغ (يقرؤه المسجِّل)');
+    return {q: out, errors: errs};
+  }};
   var BASE = ['id', 'type', 'text', 'hint', 'explanation', 'points', 'tolerance', 'source'];
   function normalize(q){
     var t = types[q && q.type]; if (!t) return {q: null, errors: ['نوع غير معروف: ' + (q && q.type)]};

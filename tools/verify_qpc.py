@@ -44,6 +44,7 @@ def ref_of(holder, kind):
         m = re.search(r'(\d{1,3}):(\d{1,3})(?:-(\d{1,3}))?', holder.get('desc', ''))
         if not m: bad('item %s: no verse ref in desc' % holder.get('id')); return None
     else:
+        if holder.get('_qtype') not in ('extraction', 'listen'): return None  # الآية في الاستخراج، والكلمة المقروءة في «اسمع وميّز»
         m = re.search(r'(\d{1,3}):(\d{1,3})(?:-(\d{1,3}))? \(نص تنزيل\)', str(holder.get('source', '')))
         if not m: return None
     return int(m.group(1)), int(m.group(2)), int(m.group(3) or m.group(2))
@@ -66,10 +67,15 @@ def main():
     F = json.load(open(FONTS, encoding='utf-8'))['fonts']
     used = {}
     n = 0
+    qtype = {}
+    for s in C['sections']:
+        for k2 in ('questions', 'examQuestions'):
+            for q in s.get(k2) or []:
+                qtype[(k2, s['id'], q['id'])] = qtype[(k2 + '.prev', s['id'], q['id'])] = q.get('type')
     src = {}
     for key, kind, h in holders(C['sections']):
         src[key] = h
-        ref = ref_of(h, kind)
+        ref = ref_of(dict(h, _qtype=qtype.get(key)), kind)
         qp = h.get('qpc')
         if ref is None:
             if qp is not None: bad('%s: qpc on a non-Uthmani text' % (key,))
@@ -84,7 +90,7 @@ def main():
             tz = [w for w in T[vk].split() if skeleton(w).strip()]
             if len(V[vk]['w']) != len(tz) + 1: bad('%s: %s QPC words %d != Tanzil %d + 1' % (key, vk, len(V[vk]['w']), len(tz)))
             flat += [(vk, i, skeleton(w), len(tz)) for i, w in enumerate(tz)]
-        ws = shown_words(h.get('text', ''))
+        ws = shown_words(h.get('word', '') if qtype.get(key) == 'listen' else h.get('text', ''))
         if not ws: bad('%s: unparsable text' % (key,)); continue
         ks = [skeleton(w) for w, _ in ws]
         starts = [i for i in range(len(flat) - len(ks) + 1) if [x[2] for x in flat[i:i + len(ks)]] == ks]

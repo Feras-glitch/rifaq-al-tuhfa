@@ -6,6 +6,7 @@
   src/VERSION                      رقم الإصدار (يضبطه tools/set_version.py)
   src/app/shell.html               هيكل الصفحة وفيه @@STYLE@@ و@@SCRIPT@@ و@@SCRIPT_HASH@@ و@@STYLE_HASH@@
   src/app/css/*.css                الأنماط بترتيب أسماء الملفات (فيها @@QPC_FONTS@@)
+  src/shared/*.js                  مشترك بين التطبيق والاستوديو (نواة أنواع الأسئلة QX)، يدخل بترتيب اسمه
   src/app/js/*.js                  السكربت بترتيب أسماء الملفات (فيه @@APP_VERSION@@ و@@PACK_DATA@@ و@@QPC_PROBE@@)
   src/app/packs/app.json|trial.json  بيانات الحزمة دون المنهج
   src/studio/...                   مثلها، وفيها @@CURRICULUM@@ و@@APP_TEMPLATE_B64@@
@@ -28,9 +29,10 @@ def rd(p):
     return open(os.path.join(ROOT, p), encoding='utf-8').read()
 
 
-def cat(pattern):
-    files = sorted(glob.glob(os.path.join(ROOT, pattern)))
-    if not files: sys.exit('no files: ' + pattern)
+def cat(*patterns):
+    # ملفات عدة أنماط بترتيب أسمائها معًا (المشترك في src/shared يدخل في موضعه من الترتيب)
+    files = sorted((f for pat in patterns for f in glob.glob(os.path.join(ROOT, pat))), key=os.path.basename)
+    if not files: sys.exit('no files: %s' % (patterns,))
     return ''.join(open(f, encoding='utf-8').read() for f in files)
 
 
@@ -65,7 +67,7 @@ def build():
                         % (p, F[p]['woff'], p, p) for p in pages)
     probe = json.dumps({p: chr(F[p]['codepoints'][0]) for p in pages}, ensure_ascii=True)
     style = fill(cat('src/app/css/*.css'), QPC_FONTS=fonts_css)
-    js = cat('src/app/js/*.js')
+    js = cat('src/shared/*.js', 'src/app/js/*.js')
     shell = rd('src/app/shell.html')
     out = {}
     for name, path in (('app', OUT_APP), ('trial', OUT_TRIAL)):
@@ -73,7 +75,7 @@ def build():
         pk['curriculum'] = sections
         script = fill(js, APP_VERSION=version, PACK_DATA=json.dumps(pk, ensure_ascii=False), QPC_PROBE=probe)
         out[path] = page(shell, style, script)
-    sjs = fill(cat('src/studio/js/*.js'), APP_VERSION=version, CURRICULUM=json.dumps(sections, ensure_ascii=False),
+    sjs = fill(cat('src/shared/*.js', 'src/studio/js/*.js'), APP_VERSION=version, CURRICULUM=json.dumps(sections, ensure_ascii=False),
                APP_TEMPLATE_B64=base64.b64encode(out[OUT_APP].encode('utf-8')).decode())
     out[OUT_STUDIO] = page(rd('src/studio/shell.html'), cat('src/studio/css/*.css'), sjs)
     return out

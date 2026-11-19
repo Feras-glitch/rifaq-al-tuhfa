@@ -1,7 +1,7 @@
 // أداة فحص المنهج: node qx_validate.js curriculum.json
 // تفحص الأسئلة التفاعلية بنفس شيفرة التطبيق، وتفحص الأنواع الثلاثة التقليدية أيضًا.
 var fs = require('fs'), path = require('path');
-eval(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'js', '100_qx_core.js'), 'utf8') + '; global.QX = QX;');
+eval(fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', '100_qx_core.js'), 'utf8') + '; global.QX = QX;');
 var d = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')), E = [], W = [], ids = {}, n = {};
 if (d && !Array.isArray(d) && Array.isArray(d.sections)) d = d.sections; // ملف المنهج {meta, sections}
 d.forEach(function(sec){

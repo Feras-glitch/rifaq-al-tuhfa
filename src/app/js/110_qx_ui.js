@@ -138,6 +138,29 @@ var QX_UI = {};
     area.appendChild(line); area.appendChild(poolEl); draw();
   };
 
+  QX_UI.listen = function(q, area, api){
+    var x = q._x, A = PACK_DATA.masterAudios || {}, done = false;
+    var clips = shuffle([{k: 'ok', src: A[q.id + '__ok']}, {k: 'lahn', src: A[q.id + '__lahn']}]);
+    var wd = el('div', 'qx-listen-word'); wd.innerHTML = quranHTML(escapeHTML(x.word), {qpc: q.qpc}); area.appendChild(wd); // بخط المصحف إن أمكن
+    var row = el('div', 'qx-listen-row');
+    clips.forEach(function(c, i){
+      var card = el('div', 'qx-listen-card');
+      card.appendChild(el('div', 'qx-listen-label', i === 0 ? '🔊 القراءة الأولى' : '🔊 القراءة الثانية'));
+      var au = document.createElement('audio'); au.controls = true; au.preload = 'none';
+      var ref = mediaRef('aud', c.src); if (ref) au.setAttribute('data-media', ref);
+      card.appendChild(au);
+      var pick = btn('qx-tok qx-listen-pick', '✔ هذه الصحيحة');
+      pick.onclick = function(){
+        if (done) return; done = true;
+        Array.prototype.forEach.call(row.querySelectorAll('button'), function(b){ b.disabled = true; });
+        if (c.k === 'ok'){ pick.classList.add('ok'); pulse(pick); }
+        else { pick.classList.add('bad'); shake(pick); api.mistake('ليست هذه؛ القراءة الصحيحة هي الأخرى.'); }
+        api.done();
+      };
+      card.appendChild(pick); row.appendChild(card);
+    });
+    area.appendChild(row);
+  };
   QX_UI.cloze = function(q, area, api){
     var x = q._x;
     var blanks = [], cur = 0, left = 0, sentence = el('div', 'qx-text qx-sentence'), pool = el('div', 'qx-tray');

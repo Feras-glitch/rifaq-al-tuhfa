@@ -92,14 +92,16 @@ async def main():
             await page.evaluate(f"openSection('{s['id']}')"); await page.wait_for_timeout(60)
             lt = await page.inner_text('#view-lesson'); leaks += LEAK.findall(lt)
             await page.evaluate("startQuiz(); if (CURRENT.section._full) CURRENT.section.questions = CURRENT.section._full.questions.map(function(q){ return Object.assign({}, q); })"); await page.wait_for_timeout(60)  # 9.39.13: المحاولة عيّنة من 15، والفحص لكل الأسئلة
-            for i, q in enumerate(s['questions']):
+            # 9.40: أسئلة التطبيق نفسه (أسئلة «اسمع وميّز» غير المسجَّلة لا تظهر فيه)
+            for i, qt in enumerate(await page.evaluate("CURRENT.section.questions.map(function(q){ return [q.id, q.type]; })")):
+                q = {'id': qt[0], 'type': qt[1]}
                 await page.evaluate(f"CURRENT.qIdx={i}; renderQuestion()"); await page.wait_for_timeout(30)
                 t = await page.inner_text('#view-quiz')
                 if 'undefined' in t or 'NaN' in t or '[object' in t: bad.append(q['id'])
                 leaks += LEAK.findall(t)
                 if q['type'] in ('multiple_choice', 'extraction'):
                     orders.append(await page.evaluate("Array.from(document.querySelectorAll('#options .option-btn')).map(b=>b.dataset.idx).join('')"))
-        rec('T4 no undefined/leaks in all 148 renders', not bad and not leaks, (bad[:5], leaks[:5]))
+        rec('T4 no undefined/leaks in every question render', not bad and not leaks, (bad[:5], leaks[:5]))
         rec('T5 options shuffled (not always natural order)', any(o != ''.join(str(i) for i in range(len(o))) for o in orders), orders[:8])
         # real click on correct answer in shuffled MC
         await page.evaluate("openSection('s2_idhhar')"); await page.evaluate("startQuiz(); if (CURRENT.section._full) CURRENT.section.questions = CURRENT.section._full.questions.map(function(q){ return Object.assign({}, q); })"); await page.wait_for_timeout(200)

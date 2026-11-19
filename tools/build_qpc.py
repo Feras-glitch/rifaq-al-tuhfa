@@ -64,6 +64,11 @@ def main():
                 if not m: sys.exit('item without verse ref: ' + it['id'])
                 targets.append(('item', it['id'], it['text'], (int(m.group(1)), int(m.group(2)), int(m.group(3) or m.group(2))), it.get('desc', ''), it))
         for q in s.get('questions', []) + s.get('examQuestions', []):
+            if q.get('type') == 'listen':  # 9.40: «اسمع وميّز»: الكلمة المقروءة (word) بخط المصحف
+                m = re.search(r'(\d{1,3}):(\d{1,3})(?:-(\d{1,3}))? \(نص تنزيل\)', str(q.get('source', '')))
+                if m: targets.append(('listen', q['id'], q['word'], (int(m.group(1)), int(m.group(2)), int(m.group(3) or m.group(2))), '', q))
+                continue
+            if q.get('type') != 'extraction': continue  # النص المعروض آية في أسئلة الاستخراج وحدها
             for kind, holder in (('q', q), ('prev', q.get('prev'))):  # الصيغة العثمانية السابقة لسؤال حُوّل إملائيًا (تُعرض على الرئيسي)
                 if not holder: continue
                 m = re.search(r'(\d{1,3}):(\d{1,3})(?:-(\d{1,3}))? \(نص تنزيل\)', str(holder.get('source', '')))

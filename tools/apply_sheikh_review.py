@@ -12,7 +12,7 @@ import json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUR = os.path.join(ROOT, 'curriculum', 'منهج_المرحلة1_كامل_معتمد_v1.3.json')
-FIELDS = ['type', 'text', 'desc', 'question', 'options', 'answer', 'explanation', 'source', 'ayah', 'unit', 'pairs', 'pieces', 'sentence', 'distractors', 'items', 'extraRules', 'tolerance', 'hint']
+FIELDS = ['type', 'text', 'desc', 'question', 'options', 'answer', 'explanation', 'source', 'ayah', 'unit', 'pairs', 'pieces', 'sentence', 'distractors', 'items', 'extraRules', 'tolerance', 'hint', 'word', 'rule', 'lahn']
 
 
 def review_hash(s):

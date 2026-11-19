@@ -42,3 +42,11 @@ input[type=checkbox]{width:22px;height:22px;flex:0 0 auto}
 
 /* 9.34: الطباعة: تقرير التقدم فقط */
 @media print{body *{visibility:hidden}#print-report,#print-report *{visibility:visible}#print-report{position:absolute;left:0;top:0;width:100%;box-shadow:none}#print-report-wrap{position:static;background:none}}
+/* 9.40: اسمع وميّز */
+.qx-listen-word{font-family:'Traditional Arabic','Amiri',serif;font-size:2rem;text-align:center;color:var(--primary);margin:6px 0 12px}
+.qx-listen-row{display:flex;gap:10px;flex-wrap:wrap}
+.qx-listen-card{flex:1;min-width:150px;background:#f6f7fc;border:2px solid #e3e7f5;border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.qx-listen-card audio{width:100%}
+.qx-listen-label{font-weight:800;color:var(--primary)}
+.qx-listen-pick{width:100%}
+

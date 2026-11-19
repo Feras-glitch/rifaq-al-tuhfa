@@ -9,7 +9,7 @@ import json as _json
 def _expected():
     C = _json.load(open('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', encoding='utf-8'))['sections']
     pend = sum(1 for s in C for k in ('questions', 'examQuestions') for q in (s.get(k) or []) if q.get('review') == 'pending')
-    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc'))
+    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc') and q.get('type') != 'listen')  # «اسمع وميّز» مخفية بلا تسجيل
     pages = len(_json.load(open('curriculum/qpc/qpc_fonts.json', encoding='utf-8'))['fonts'])
     return pend, qpc, pages
 EXP_PENDING, EXP_QPC, EXP_QPC_PAGES = _expected()
@@ -1219,6 +1219,38 @@ async def main():
                     ({k: v for k, v in qp.items() if k != 'bad'}, qp['bad'][:5], errsQ2[:2]))
             except Exception as e:
                 rec('R50 (exception)', False, repr(e)[:200])
+
+            # R51 (9.40): «اسمع وميّز» مخفية حتى تُسجَّل قراءتاها؛ وحين تُسجَّلان تُعرض بطاقتان بصوتين، والاختيار يُحتسب
+            # R52 (9.40): التسميع غيبًا: البيت مخفي إلا أوله، «حفظته» تؤجل مراجعته، «لم أحفظه» تعيده مستحقًا، وزر المراجعة في الخريطة
+            try:
+                ctxL, pL, errsL = await ctx_page(b)
+                await pL.goto(BASE + '/open.html?src=app'); fL = await appframe(pL)
+                await setup_student(fL, 'دلال')
+                ls = await fL.evaluate("""(() => { var shown = 0; CURRICULUM.forEach(function(s){ (s.questions || []).forEach(function(q){ if (q.type === 'listen') shown++; }); });
+                  var q = QX.normalize({id: 'L_test', type: 'listen', text: '{اسمع|اسمعي} القراءتين', word: 'مِّنْ خَوْفٍ', rule: 'إظهار', lahn: 'إخفاء', explanation: 'إظهار', points: 10, review: 'pending'});
+                  PACK_DATA.masterAudios = PACK_DATA.masterAudios || {}; PACK_DATA.masterAudios.L_test__ok = 'data:audio/webm;base64,T2dnUw=='; PACK_DATA.masterAudios.L_test__lahn = 'data:audio/webm;base64,QUJDRA==';
+                  var hidden = hideUnrecordedListening([{id: 'x', questions: [QX.normalize({id: 'L_none', type: 'listen', text: 'ت', word: 'و', rule: 'ح', lahn: 'ل', explanation: 'ش'}).q]}]);
+                  openSection('s2_idhhar'); startQuiz(); CURRENT.section = {id: 's2_idhhar', title: 't', questions: [q.q]}; CURRENT.qIdx = 0; renderQuestion();
+                  var cards = document.querySelectorAll('#view-quiz .qx-listen-card'), au = document.querySelectorAll('#view-quiz .qx-listen-card audio[data-media]');
+                  cards[0].querySelector('button').click();
+                  return {errs: q.errors, shown: shown, hidden: hidden, cards: cards.length, audios: au.length, tol: q.q.tolerance, answered: CURRENT.correct + CURRENT.wrong, fb: !!document.querySelector('#feedback-box .feedback')}; })()""")
+                rec('R51 listening-discrimination: hidden until both readings are recorded; two audio cards; one pick is scored with no tolerance',
+                    ls['shown'] == 0 and ls['hidden'] == 1 and not ls['errs'] and ls['cards'] == 2 and ls['audios'] == 2 and ls['tol'] == 0 and ls['answered'] == 1 and ls['fb'] and not errsL, (ls, errsL[:2]))
+                hz = await fL.evaluate("""(() => { openSection('s0_muqaddima');
+                  var btn = !!document.querySelector('#lesson-content [data-call*="openHifz"]');
+                  openHifz('s0_muqaddima_matn'); var ov = document.getElementById('hifz-overlay'), cards = ov.querySelectorAll('.hifz-card');
+                  var hint = cards[0].querySelector('.hifz-text').textContent, row = cards[0].querySelectorAll('.hifz-row button');
+                  row[0].click(); var full = cards[0].querySelector('.hifz-text').textContent; row[1].click();
+                  cards[1].querySelectorAll('.hifz-row button')[0].click(); cards[1].querySelectorAll('.hifz-row button')[2].click();
+                  var k1 = verseKey('s0_muqaddima_matn', 1), k2 = verseKey('s0_muqaddima_matn', 2), h1 = STATE.hifz[k1], h2 = STATE.hifz[k2];
+                  closeHifz(); goHome(); var cta = document.getElementById('hifz-cta');
+                  var kept = normalizeState(JSON.parse(JSON.stringify(STATE))).hifz;
+                  return {btn: btn, cards: cards.length, hintShort: hint.length < full.length && hint.indexOf('…') >= 0, b1: h1.b, days1: Math.round((Date.parse(h1.due) - Date.now()) / 864e5), b2: h2.b, due2: Date.parse(h2.due) <= Date.now(), cta: cta ? cta.textContent : '', kept: !!(kept && kept[k1] && kept[k1].b === 1)}; })()""")
+                await ctxL.close()
+                rec('R52 matn recitation from memory: verse hidden but its first word, «memorized» schedules it, «not yet» makes it due, home shows the review, state survives normalisation',
+                    hz['btn'] and hz['cards'] == 5 and hz['hintShort'] and hz['b1'] == 1 and hz['days1'] == 1 and hz['b2'] == 0 and hz['due2'] and '1' in hz['cta'] and hz['kept'], hz)
+            except Exception as e:
+                rec('R51/R52 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]

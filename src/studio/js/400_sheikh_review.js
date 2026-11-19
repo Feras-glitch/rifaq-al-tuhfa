@@ -11,7 +11,7 @@ function reviewHash(s){ // FNV-1a 32 — بصمة نص لا أمان (التحق
   for (var i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0; }
   return ('0000000' + h.toString(16)).slice(-8);
 }
-var REVIEW_FIELDS = ['type', 'text', 'desc', 'question', 'options', 'answer', 'explanation', 'source', 'ayah', 'unit', 'pairs', 'pieces', 'sentence', 'distractors', 'items', 'extraRules', 'tolerance', 'hint'];
+var REVIEW_FIELDS = ['type', 'text', 'desc', 'question', 'options', 'answer', 'explanation', 'source', 'ayah', 'unit', 'pairs', 'pieces', 'sentence', 'distractors', 'items', 'extraRules', 'tolerance', 'hint', 'word', 'rule', 'lahn'];
 function reviewContent(x){
   var o = {}; REVIEW_FIELDS.forEach(function(f){ if (x[f] !== undefined) o[f] = x[f]; }); return JSON.stringify(o);
 }
@@ -38,7 +38,7 @@ function reviewRich(s){ return studioSafeHTML(reviewGender(s)); }
 function reviewMarked(s){ // [[كلمة]] أو [[كلمة|حكم]] في الصيد والتلوين
   return reviewEsc(s).replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, function(_, w, r){ return '<mark>' + w + '</mark>' + (r ? '<sub> (' + r + ')</sub>' : ''); });
 }
-var REVIEW_TYPE = {multiple_choice: 'اختيار من متعدد', true_false: 'صواب أو خطأ', extraction: 'استخراج من نص', match: 'توصيل', order: 'ترتيب', cloze: 'إكمال', classify: 'تصنيف في سلال', hunt: 'صيد', paint: 'تلوين'};
+var REVIEW_TYPE = {listen: 'اسمع وميّز', multiple_choice: 'اختيار من متعدد', true_false: 'صواب أو خطأ', extraction: 'استخراج من نص', match: 'توصيل', order: 'ترتيب', cloze: 'إكمال', classify: 'تصنيف في سلال', hunt: 'صيد', paint: 'تلوين'};
 function reviewBody(u){
   var x = u.x, h = '';
   if (u.kind === 'matn' || u.kind === 'task'){
@@ -56,6 +56,7 @@ function reviewBody(u){
   if (Array.isArray(x.pieces)) h += '<div class="rv-ans">الترتيب الصحيح: ' + x.pieces.map(reviewEsc).join(' ← ') + '</div>';
   if (x.sentence) h += '<div class="rv-text">' + reviewEsc(x.sentence).replace(/\{\{([^}]*)\}\}/g, '<mark>$1</mark>') + '</div>' + (x.distractors ? '<div class="rv-src">بدائل خاطئة: ' + x.distractors.map(reviewEsc).join('، ') + '</div>' : '');
   if (x.items && typeof x.items === 'object' && !Array.isArray(x.items)) h += '<table class="rv-pairs">' + Object.keys(x.items).map(function(k){ return '<tr><td><b>' + reviewEsc(k) + '</b></td><td>' + (x.items[k] || []).map(reviewEsc).join('، ') + '</td></tr>'; }).join('') + '</table>';
+  if (x.type === 'listen') h += '<div class="rv-text">' + reviewEsc(x.word) + '</div><div class="rv-ans">الحكم: <b>' + reviewEsc(x.rule) + '</b></div><div class="rv-src">القراءة الخاطئة التي تُسجَّل عمدًا: ' + reviewEsc(x.lahn) + '</div>';
   if (x.explanation) h += '<div class="rv-expl">💡 ' + reviewRich(x.explanation) + '</div>';
   return h;
 }

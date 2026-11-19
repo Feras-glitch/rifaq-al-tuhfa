@@ -10,10 +10,12 @@ import json as _json
 def _expected():
     C = _json.load(open('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', encoding='utf-8'))['sections']
     pend = sum(1 for s in C for k in ('questions', 'examQuestions') for q in (s.get(k) or []) if q.get('review') == 'pending')
-    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc'))
+    # «اسمع وميّز» لا تظهر في أي قناة حتى تُسجَّل قراءتاها (المنهج المضمَّن بلا تسجيلات)
+    shown = sum(1 for s in C for k in ('questions', 'examQuestions') for q in (s.get(k) or []) if q.get('review') == 'pending' and q.get('type') != 'listen')
+    qpc = sum(1 for s in C for k in ('items', 'questions', 'examQuestions') for q in (s.get(k) or []) for h in (q, q.get('prev')) if isinstance(h, dict) and h.get('qpc') and q.get('type') != 'listen')  # «اسمع وميّز» مخفية بلا تسجيل
     pages = len(_json.load(open('curriculum/qpc/qpc_fonts.json', encoding='utf-8'))['fonts'])
-    return pend, qpc, pages
-EXP_PENDING, EXP_QPC, EXP_QPC_PAGES = _expected()
+    return pend, qpc, pages, shown
+EXP_PENDING, EXP_QPC, EXP_QPC_PAGES, EXP_PENDING_SHOWN = _expected()
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 BROWSER = os.environ.get('RIFAQ_BROWSER', 'chromium')
@@ -78,7 +80,7 @@ async def main():
             bt = await ev(fb, PROBE)
             fresh = await ev(fb, "[STATE.student.name || '', RIFAQ_HOST_DB()]".replace('RIFAQ_HOST_DB()', "(window.parent.RIFAQ_HOST || {}).db"))
             rec('C3 beta shows everything for review, with its own child storage and recent-files store',
-                bt['ch'] == 'beta' and bt['hidden'] == 0 and bt['pend'] == EXP_PENDING and bt['bank'] == 80 and bt['mx'] == 33 and bt['s3'] == 30 and 'ۥ' not in bt['x31'] and 'رسم إملائي' in bt['x31src']
+                bt['ch'] == 'beta' and bt['hidden'] == 0 and bt['pend'] == EXP_PENDING_SHOWN and bt['bank'] == 80 and bt['mx'] == 33 and bt['s3'] == 30 and 'ۥ' not in bt['x31'] and 'رسم إملائي' in bt['x31src']
                 and bt['key'].startswith('beta_') and fresh[0] == '' and fresh[1] == 'beta_rifaq_host_v1' and not errs, (bt, fresh, errs[:2]))
 
             # C4 الرجوع إلى الرئيسي: تقدّم الطفل هناك باقٍ لم يمسّه التجريبي
