@@ -24,6 +24,6 @@
 | [FILE_FORMAT.md](FILE_FORMAT.md) | حقول ملفات الحزم |
 | [FIELD_TRIAL_PROTOCOL.md](FIELD_TRIAL_PROTOCOL.md)، [CHILD_TRIAL_OBSERVATION.md](CHILD_TRIAL_OBSERVATION.md) | التجربة الميدانية مع الأطفال |
 | [DECISIONS_STATUS.md](DECISIONS_STATUS.md)، `DECISION_00*.md` | القرارات وحالها |
-| [CHANGELOG_9.39.md](CHANGELOG_9.39.md)، [CHANGELOG.md](CHANGELOG.md) | سجل التغييرات |
+| [CHANGELOG_9.40.md](CHANGELOG_9.40.md)، [CHANGELOG_9.39.md](CHANGELOG_9.39.md)، [CHANGELOG.md](CHANGELOG.md) | سجل التغييرات |
 | `reviews/` | تقارير المراجعات، وتقارير مراجعة الشيخ بعد دمجها |
 | `archive/` | وثائق تاريخية حلّ غيرها محلها |
