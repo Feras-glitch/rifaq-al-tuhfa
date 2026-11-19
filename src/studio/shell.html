@@ -87,6 +87,7 @@
     <div id="setup-err" class="notice warn hidden" role="alert"></div>
     <button class="btn primary block" data-call='["startStudio"]' type="button">▶️ ابدأ الاستوديو</button>
     <button class="btn ghost block" style="margin-top:12px" data-call='["openSheikhReview"]' type="button">📋 للشيخ: المراجعة العلمية للمنهج (دون إعداد)</button>
+    <button class="btn ghost block" style="margin-top:8px" data-call='["startTeamMember"]' type="button" id="btn-team-member">👥 أسجّل جزءًا من الفريق (الشيخ أو منشد المتن)</button>
   </div>
 
   <div id="view-studio" class="hidden">
@@ -115,6 +116,9 @@
       <div class="notice info" style="margin-bottom:10px">الشيخ يراجع شرح كل درس وأبيات المتن والمهام وكل سؤال، ويصدّر ملف مراجعة يُدمج في المنهج.</div>
       <button class="btn purple block" data-call='["openSheikhReview"]' type="button">📋 افتح المراجعة العلمية</button>
     </div>
+    <div id="team-bar"></div>
+    <input type="file" id="in-rec-bundle" accept=".json,application/json" class="hidden" data-change="importRecBundle">
+    <input type="file" id="in-named-audio" accept="audio/*" multiple class="hidden" data-change="importNamedAudio">
     <div id="groups-container"></div>
 
     <div class="card" style="margin-top:20px">

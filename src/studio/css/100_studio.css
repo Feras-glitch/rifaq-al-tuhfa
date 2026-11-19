@@ -122,6 +122,7 @@ body{font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);
 .rv-id{margin-inline-start:auto;font-size:.72rem;color:#8a90a6;direction:ltr}
 .rv-text{font-size:1.25rem;line-height:2;margin:6px 0}.rv-text mark{background:#ffe082;border-radius:4px;padding:0 3px}
 .rv-desc{font-size:.92rem;line-height:1.9;color:#333;background:#f6f7fc;border-radius:10px;padding:8px 10px}
+.rv-prev{margin-top:8px;font-size:.85rem;color:#555}.rv-prev summary{cursor:pointer;color:#6b4fa0;font-weight:700;padding:4px 0}.rv-prev .rv-desc{background:#fff8e6;border:1px dashed #e0c27a}
 .rv-q{font-size:1.1rem;line-height:1.9}.rv-q b{color:#b71c1c;background:#ffe082;border-radius:4px;padding:0 3px}
 .rv-q2{font-weight:800;margin:4px 0}.rv-src{font-size:.8rem;color:#666}.rv-ans{margin:6px 0}
 .rv-opts{margin:6px 0;padding-inline-start:22px}.rv-opts li.ok{color:#16834a;font-weight:800}
@@ -130,3 +131,29 @@ body{font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);
 .rv-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .rv-note{width:100%;margin-top:8px;padding:8px;border:2px solid #c5cae9;border-radius:10px;font:inherit;font-size:.9rem}
 .rv-text .poem-verse{display:block;margin-bottom:6px}.rv-text .v-a,.rv-text .v-b{display:block}.rv-text .v-b{padding-inline-start:28px}
+/* 9.41: التسجيل بفريق */
+.team-bar h2{margin-bottom:8px}
+.team-roles{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.team-roles .chip{border:2px solid #cfd8dc;background:#fff;border-radius:999px;padding:7px 12px;font:inherit;font-weight:700;cursor:pointer}
+.team-roles .chip.on{border-color:var(--primary);background:var(--primary);color:#fff}
+.team-hint{margin-bottom:10px;line-height:1.8}
+.team-io{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.team-note{font-size:.8rem;margin-top:8px;line-height:1.7}
+.rec-session{position:fixed;inset:0;z-index:60;background:rgba(15,23,42,.92);display:flex;align-items:center;justify-content:center;padding:14px}
+.rec-session.hidden{display:none}
+.rs-card{background:#fff;border-radius:20px;max-width:560px;width:100%;padding:18px;max-height:96vh;overflow:auto}
+.rs-top{display:flex;justify-content:space-between;align-items:center;font-weight:800;color:var(--muted);margin-bottom:8px}
+.rs-card .progress-track{height:8px;margin-bottom:14px}
+.rs-label{font-weight:800;margin-bottom:6px}.rs-short{font-weight:400;color:#64748b;font-size:.85rem}
+.rs-text{font-size:1.45rem;line-height:2.1;background:#f8fafc;border-radius:14px;padding:14px;margin-bottom:10px;text-align:center}
+.rs-status{min-height:1.6em;margin-bottom:12px;color:#334155;text-align:center}
+.rs-actions,.rs-nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:10px}
+.rs-rec{min-width:170px;font-size:1.05rem}
+.rs-done{font-size:1.2rem;font-weight:800;text-align:center;margin:20px 0}
+.rs-text.quran{font-family:'Traditional Arabic','Amiri',Tahoma,serif;color:#1a237e;background:linear-gradient(135deg,#f1f8e9,#e8f5e9)}
+.rec-sheet{position:fixed;inset:0;z-index:55;background:#fff;overflow:auto;padding:16px}
+.rec-sheet.hidden{display:none}
+.rsh-bar{display:flex;gap:8px;margin-bottom:10px}
+.rsh{width:100%;border-collapse:collapse;font-size:.9rem}.rsh th,.rsh td{border:1px solid #cfd8dc;padding:6px;vertical-align:top}
+.rsh td.quran{font-family:'Traditional Arabic','Amiri',Tahoma,serif;font-size:1.1rem}.rsh-l{font-size:.75rem;color:#64748b}.rsh-hint{color:#475569;font-size:.85rem}
+@media print{body.sheet-open>*:not(#rec-sheet){display:none!important}.rec-sheet{position:static;padding:0}.rsh-bar{display:none}.rsh tr{break-inside:avoid}}

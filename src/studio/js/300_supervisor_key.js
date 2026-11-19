@@ -59,6 +59,11 @@ async function showSupervisorPublicKey(){
 async function exportSheikhPack(){
   var done = Object.keys(STATE.recordings).length;
   if (done === 0){ alert('لا توجد تسجيلات.'); return; }
+  if (!STATE.sheikhName || !STATE.supervisorName){
+    showModal('الملف النهائي يصدّره المشرف', 'اكتب اسم الشيخ واسم المشرف في شاشة الإعداد أولًا، فهما يظهران للطفل. وإن كنت تسجّل جزءًا من الفريق فأرسل «حزمة تسجيلاتي» إلى المشرف.', [
+      {label: '✍️ شاشة الإعداد', class: 'primary', action: backToSetup}, {label: 'حسنًا', class: 'ghost', action: closeModal}]);
+    return;
+  }
 
   var btn = $('btn-export');
   var origText = btn.textContent;

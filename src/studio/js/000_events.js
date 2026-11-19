@@ -1,6 +1,7 @@
 /* 9.39.12 (E1): موزّع الأحداث — لا معالجات مضمَّنة؛ data-call = ["اسم الدالة", وسائط...]، وdata-change = اسم دالة تستقبل الحدث */
-var STUDIO_CALLABLE = ['clickById','startStudio','showSupervisorPublicKey','exportSheikhPack','newWorkspace','showResetDialog','toggleGroup','playRecording','startRec','deleteRec','recordNextVerse','openSheikhReview','closeSheikhReview','reviewDecide','exportSheikhReview'];
-var STUDIO_CHANGE = ['handleSheikhPhoto','handleSupervisorPhoto','handlePoemReciterPhoto','handleSchoolLogo','importCurriculum','uploadRec'];
+var STUDIO_CALLABLE = ['clickById','startStudio','showSupervisorPublicKey','exportSheikhPack','newWorkspace','showResetDialog','toggleGroup','playRecording','startRec','deleteRec','recordNextVerse','openSheikhReview','closeSheikhReview','reviewDecide','exportSheikhReview',
+  'startTeamMember','backToSetup','setRecRole','openRecSession','closeRecSession','recSessionToggle','recSessionMove','exportRecBundle','openRecSheet','closeRecSheet','printRecSheet'];
+var STUDIO_CHANGE = ['handleSheikhPhoto','handleSupervisorPhoto','handlePoemReciterPhoto','handleSchoolLogo','importCurriculum','uploadRec','importRecBundle','importNamedAudio'];
 function clickById(id){ var el = document.getElementById(String(id)); if (el) el.click(); }
 document.addEventListener('click', function(ev){
   var el = ev.target && ev.target.closest ? ev.target.closest('[data-call]') : null;
