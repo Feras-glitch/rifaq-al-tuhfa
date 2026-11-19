@@ -32,13 +32,20 @@ function sampleLessonQuestions(all, seen, rng){
   });
   return all.filter(function(q){ return pick[q.id]; });
 }
-/* محاولة الدرس: نسخة من القسم بأسئلتها المسحوبة، وتُحفظ الأسئلة التي رآها الطفل لتُكمل الدورة */
+/* محاولة الدرس: نسخة من القسم بأسئلتها المسحوبة، تفضّل ما لم يُجب عنه الطفل بعد */
 function lessonQuizAttempt(sec){
-  STATE.quizSeen = STATE.quizSeen || {};
-  var seen = Array.isArray(STATE.quizSeen[sec.id]) ? STATE.quizSeen[sec.id] : [];
-  var qs = sampleLessonQuestions(sec.questions, seen), ids = qs.map(function(q){ return q.id; });
-  var all = seen.concat(ids.filter(function(id){ return seen.indexOf(id) < 0; }));
-  STATE.quizSeen[sec.id] = all.length >= sec.questions.length ? ids : all; // دورة اكتملت: تبدأ دورة جديدة
-  save();
-  return Object.assign({}, sec, {questions: qs.map(function(q){ return Object.assign({}, q); }), _full: sec});
+  var seen = (STATE.quizSeen && Array.isArray(STATE.quizSeen[sec.id])) ? STATE.quizSeen[sec.id] : [];
+  var qs = sampleLessonQuestions(sec.questions, seen);
+  return Object.assign({}, sec, {questions: qs.map(function(q){ return Object.assign({}, q); }), _full: sec, _answered: []});
+}
+/* 9.41.1: السؤال يُعدّ «مرئيًا» حين يجيب عنه الطفل (من logResponse)، فاختبار فُتح ثم تُرك لا يستهلك أسئلته.
+   حين تكتمل الدورة (أُجيب عن أسئلة الدرس كلها) تبدأ دورة جديدة بما أُجيب في المحاولة الحالية. */
+function markLessonSeen(att, qid){
+  if (!att || !att._full || !qid) return;
+  var full = att._full; STATE.quizSeen = STATE.quizSeen || {};
+  var seen = Array.isArray(STATE.quizSeen[full.id]) ? STATE.quizSeen[full.id].slice() : [];
+  att._answered = att._answered || [];
+  if (att._answered.indexOf(qid) < 0) att._answered.push(qid);
+  if (seen.indexOf(qid) < 0) seen.push(qid);
+  STATE.quizSeen[full.id] = seen.length >= (full.questions || []).length ? att._answered.slice() : seen;
 }

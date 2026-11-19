@@ -194,7 +194,7 @@ function renderTFView(){
   } catch(e){}
   renderTFViewInner();
   var tl = document.getElementById('tf-list');
-  if (tl && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
+  if (tl && !returnTampered() && PACK_DATA.teacherRatings && Object.keys(PACK_DATA.teacherRatings).length){
     var rc = {mastered: 0, good: 0, needs: 0, unusable: 0};
     Object.keys(PACK_DATA.teacherRatings).forEach(function(k){ var v = normRating(PACK_DATA.teacherRatings[k]); if (rc[v] !== undefined) rc[v]++; });
     var rn = document.createElement('div'); rn.className = 'notice'; rn.style.cssText = 'font-size:.85rem;margin-bottom:8px';
@@ -202,7 +202,7 @@ function renderTFView(){
     tl.insertBefore(rn, tl.firstChild);
   }
   if (tl && RETURN_TRUST){
-    var msg = {verified: '✅ ملاحظات المعلم موقّعة ولم تتغير', untrusted: '⚠️ توقيع ملاحظات المعلم ليس من معلم موثوق', invalid: '❌ ملاحظات المعلم تغيّرت بعد توقيعها', unsigned: 'ℹ️ ملاحظات المعلم بلا توقيع', outdated: '⚠️ توقيع ملاحظات المعلم بصيغة قديمة؛ اطلب إعادة الإرسال'}[RETURN_TRUST];
+    var msg = {verified: '✅ ملاحظات المعلم موقّعة ولم تتغير', untrusted: '⚠️ توقيع ملاحظات المعلم ليس من معلم موثوق', invalid: '❌ ملاحظات المعلم تغيّرت بعد توقيعها، فلم تُعرض. اطلب من المعلم إرسال الملف مرة أخرى.', unsigned: 'ℹ️ ملاحظات المعلم بلا توقيع', outdated: '⚠️ توقيع ملاحظات المعلم بصيغة قديمة؛ اطلب إعادة الإرسال'}[RETURN_TRUST];
     var note = document.createElement('div'); note.className = 'notice'; note.style.cssText = 'font-size:.85rem;margin-bottom:8px'; note.textContent = msg;
     tl.insertBefore(note, tl.firstChild);
   }

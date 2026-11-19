@@ -121,10 +121,18 @@
   }
   function getTrust() {
     if (!trustPromise) {
+      /* 9.41.1: إن تعذّر تحميل القائمة (ولا نسخة في ذاكرة التطبيق) يُعلَّم ذلك فيخفي التطبيق المادة المرجعية غير المدمجة
+         بدل أن يعامل القائمة كأنها فارغة فيعرضها بلا تحقق */
+      var parse = function (j) { if (!j || typeof j !== 'object') throw new Error('trust list'); return { keys: cleanKeys(j.keys), supervisors: cleanKeys(j.supervisors) }; };
+      var cached = function () {
+        return (window.caches ? caches.match('./trusted-teachers.json', { ignoreSearch: true }) : Promise.resolve(null))
+          .then(function (r) { if (!r) throw new Error('no cache'); return r.json(); }).then(parse);
+      };
       trustPromise = fetch('./trusted-teachers.json', { cache: 'no-cache' })
-        .then(function (r) { return r.ok ? r.json() : {}; })
-        .then(function (j) { return { keys: cleanKeys(j && j.keys), supervisors: cleanKeys(j && j.supervisors) }; })
-        .catch(function () { return { keys: [], supervisors: [] }; });
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(parse)
+        .catch(function () { return cached(); })
+        .catch(function () { return { keys: [], supervisors: [], unavailable: true }; });
     }
     return trustPromise;
   }
@@ -159,7 +167,7 @@
     return builtinPromise;
   }
   function getSupervisorPin() {
-    return Promise.all([getTrust(), builtinRefDigests()]).then(function (r) { return { keys: r[0].supervisors, refDigests: r[1] }; });
+    return Promise.all([getTrust(), builtinRefDigests()]).then(function (r) { return { keys: r[0].supervisors, refDigests: r[1], unavailable: !!r[0].unavailable }; });
   }
 
   var PIN_RE = /var PINNED_TEACHER_KEYS = [^\n]*?; \/\* RIFAQ_PINNED_KEYS \*\//;

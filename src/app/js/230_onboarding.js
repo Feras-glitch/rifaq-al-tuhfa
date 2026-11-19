@@ -294,6 +294,10 @@ function continueFromSplash(){
     showTeacherReview();
     return;
   }
+  if (mode === 'friend' && STATE.recipientOnboarded && STATE.student && STATE.student.name) {
+    // 9.41.1: الإقلاب يوجّه هذا الطفل إلى الخريطة؛ وإن وصل إلى هنا بأي طريق فلا يُمسح تقدّمه
+    STATE.role = 'student'; save(); applyTheme(); show('view-home'); renderHome(); return;
+  }
   if (mode === 'friend') {
     // Every approved gift starts with a fresh recipient profile. Never inherit the giver's profile.
     STATE.student = {name:'', gender:'boy', photo:null, supervisorName:'', supervisorGender:'boy'};

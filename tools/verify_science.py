@@ -25,6 +25,7 @@ HALQ = set('ءهعحغخ')
 YANMU = set('ينمو')
 IKHFA = set('صذثكجشقسدطزفتضظ')
 QAMARI = set('ابغحجكوخفعقيمهء')
+SHAMSI = set('تثدذرزسشصضطظلن')
 SILENT = {'ۣ', '۟', '۠'}            # علامات الحرف الذي لا يُنطق
 DROP = set('ۖۗۘۙۚۛۜ۞ۭۢـ')     # علامات وقف وإقلاب وتطويل لا تؤثر في الحكم
 IQLAB_MARK = {'ۢ', 'ۭ'}
@@ -132,6 +133,7 @@ def rules_in(words, idx, waqf_last=True, uthmani=None):
             if SUKUN in core[1][1]: tags.add('l_qamari')
             elif SHADDA in nxt[1]: tags.add('l_shamsi')
             elif nxt[0] in QAMARI: tags.add('l_qamari')
+            elif nxt[0] in SHAMSI: tags.add('l_shamsi')            # كلمة بلا تشكيل («النور»)
             break
     # المد
     eff_n = n

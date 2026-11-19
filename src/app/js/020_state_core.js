@@ -62,7 +62,7 @@ var REF_RAW = structCopy(refFieldsOf(PACK_DATA));
 var REF_CERT_RAW = cleanCertObj(PACK_DATA.refCert);
 var REF_CANON_DIGEST = (function(){ try { return sha256b64(canonJSON(REF_RAW)).catch(function(){ return null; }); } catch(e){ return Promise.resolve(null); } })();
 var REF_SIG = null;    // valid | invalid | unsigned — صحة توقيع المادة المرجعية بالمفتاح المرفق
-var REF_TRUST = null;  // verified | builtin | unconfigured | untrusted | invalid | unsigned
+var REF_TRUST = null;  // verified | builtin | unconfigured | untrusted | invalid | unsigned | unavailable
 var REF_HIDDEN = false; // صحيح = أُخفيت تلاوات الشيخ وهويات المرجع لأنها غير موثّقة في تطبيق فيه مشرفون مسجَّلون
 
 // Runtime sanity check: exported files must retain the application constants.

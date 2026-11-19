@@ -137,7 +137,7 @@ if (Date.now() - recStartedAt < REC_MIN_MS && !interrupted){ toast(GT('⏱️ ا
     activeRec = null; activeId = null;
   }
 }
-async function maybeCompressAudio(file){
+async function maybeCompressAudio(file, onInfo){
   if (!file || !file.size || file.size <= 3*1024*1024) return file;
   var AC = window.AudioContext || window.webkitAudioContext;
   if (!AC || typeof MediaRecorder === 'undefined') return file;
@@ -147,6 +147,7 @@ async function maybeCompressAudio(file){
     ctx = new AC();
     var audioBuffer = await ctx.decodeAudioData(buf.slice(0));
     if (!audioBuffer || !audioBuffer.duration) throw new Error('تعذر فك ترميز الصوت');
+    if (typeof onInfo === 'function') try { onInfo(Math.ceil(audioBuffer.duration)); } catch(e){} // 9.41.1: الضغط يستغرق مدة التسجيل نفسها
     var dest = ctx.createMediaStreamDestination();
     var mimes = ['audio/webm;codecs=opus','audio/webm','audio/mp4'];
     var mime = mimes.find(function(m){ return typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(m); });
@@ -185,7 +186,7 @@ async function uploadReplacementAudio(event, itemId){
   if (file.size > 12 * 1024 * 1024){ alert('حجم التسجيل كبير جدًا (أكثر من 12 ميجابايت). اختر تسجيلًا أقصر أو ملفًا مضغوطًا.'); return; }
   try {
     toast('⏳ جاري تجهيز وضغط التسجيل إذا لزم...');
-    var prepared = await maybeCompressAudio(file);
+    var prepared = await maybeCompressAudio(file, function(sec){ toast('⏳ جارٍ ضغط التسجيل: نحو ' + sec + ' ثانية، لا تغلق التطبيق...'); });
     await dbPut(itemId, prepared);
     STATE.studentAudios[itemId] = {status:'pending', updatedAt:new Date().toISOString(), rid: newRecId(), source: prepared !== file ? 'uploaded-compressed' : 'uploaded-replacement'};
     // Preserve the teacher correction while the student prepares the new recording.
@@ -209,9 +210,10 @@ async function playStudentRec(itemId){
     alert('التسجيل مفقود'); return;
   }
   document.querySelectorAll('audio').forEach(function(a){ try{ a.pause(); }catch(e){} });
-  var url = URL.createObjectURL(blob);
+  /* 9.41.1: رابط التشغيل السابق يُحرَّر عند تشغيل تسجيل آخر، فلا تتراكم الروابط إن أُوقف الصوت قبل نهايته */
+  if (window.PLAY_REC_URL){ try { URL.revokeObjectURL(window.PLAY_REC_URL); } catch(e){} }
+  var url = window.PLAY_REC_URL = URL.createObjectURL(blob);
   var audio = new Audio(url);
-  audio.onended = function(){ URL.revokeObjectURL(url); };
   audio.play().catch(function(){});
 }
 async function deleteStudentRec(itemId){

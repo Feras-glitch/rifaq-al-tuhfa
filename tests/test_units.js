@@ -7,7 +7,7 @@ let fails = 0, n = 0;
 const ok = (c, m, info) => { n++; if (!c) { fails++; console.log('FAIL', m, info === undefined ? '' : JSON.stringify(info).slice(0, 300)); } else console.log('ok', m); };
 function load(files, stubs){ const ctx = Object.assign({console}, stubs || {}); vm.createContext(ctx); files.forEach(f => vm.runInContext(rd(f), ctx, {filename: f})); return ctx; }
 // دالة واحدة من وحدة لها كود يعمل عند التحميل: من «function الاسم(» إلى أول «}» في أول السطر
-function only(file, names, stubs){
+function only(file, names, stubs, ctxIn){
   const src = rd(file), parts = [];
   names.forEach(nm => {
     const L = src.split('\n'), i = L.findIndex(l => l.startsWith('function ' + nm + '(') || l.startsWith('async function ' + nm + '('));
@@ -15,7 +15,7 @@ function only(file, names, stubs){
     let j = i; if (!/}\s*$/.test(L[i]) || L[i].split('{').length !== L[i].split('}').length) { while (L[j] !== '}') j++; }
     parts.push(L.slice(i, j + 1).join('\n'));
   });
-  const ctx = Object.assign({console}, stubs || {}); vm.createContext(ctx); vm.runInContext(parts.join('\n'), ctx); return ctx;
+  const ctx = ctxIn || Object.assign({console}, stubs || {}); if (!ctxIn) vm.createContext(ctx); vm.runInContext(parts.join('\n'), ctx); return ctx;
 }
 
 // ---------------- src/shared/100_qx_core.js: أنواع الأسئلة
@@ -104,5 +104,67 @@ function only(file, names, stubs){
   ok(ctx.planRecBundle({type: 'other'}) === null && ctx.planRecBundle(null) === null, 'team: non-bundle files are rejected');
 }
 
-console.log(fails ? `\n${fails} FAILED of ${n}` : `\nALL ${n} PASSED`);
-process.exit(fails ? 1 : 0);
+// ---------------- 9.41.1: إصلاحات مراجعة جيميناي المتحقَّق منها
+{ // src/app/js/520_matn_verses.js: الأبيات المتتابعة بعنصر صوت واحد (آيفون يرفض عنصرًا جديدًا بعد مؤقت)
+  let made = 0; const plays = [];
+  class FakeAudio { constructor(){ made++; this.src = ''; } play(){ plays.push(this.src); return Promise.resolve(); } pause(){} }
+  const ctx = only('src/app/js/520_matn_verses.js', ['stopVerse', 'playVerse'], {
+    Audio: FakeAudio, VERSE_PLAYER: null, CURRICULUM: [{items: [{id: 'm', text: 'x'}]}], matnVerses: () => ['a', 'b', 'c'],
+    PACK_DATA: {masterAudios: {m__v1: 'A1', m__v2: 'A2', m__v3: 'A3'}}, audSrc: x => x, verseKey: (id, i) => id + '__v' + i, safeIdString: x => x,
+    document: {querySelectorAll: () => [], getElementById: () => null}, setTimeout: f => f()});
+  const tok = ctx.playVerse('m', 0);
+  tok.a.onended(); tok.a.onended(); tok.a.onended();
+  ok(made === 1 && plays.join() === 'A1,A2,A3' && ctx.VERSE_PLAYER === null, 'verses: one audio element plays all verses in order', {made, plays});
+  made = 0; plays.length = 0; const t3 = ctx.playVerse('m', 2, 3); t3.a.onended(); t3.a.onended();
+  ok(made === 1 && plays.join() === 'A2,A2,A2', 'verses: ×3 repeats on the same element', {made, plays});
+}
+{ // src/app/js/700_lesson_quiz.js + 470_answer_log.js: «مرئي» = أُجيب عنه
+  const STATE = {quizSeen: {}, progress: {}, respLog: []};
+  const ctx = load(['src/app/js/700_lesson_quiz.js'], {STATE, save(){}});
+  only('src/app/js/470_answer_log.js', ['logResponse'], null, ctx);
+  const qs = Array.from({length: 30}, (_, i) => ({id: 'q' + i, type: 'multiple_choice'}));
+  const sec = {id: 's', questions: qs};
+  const a1 = ctx.lessonQuizAttempt(sec);
+  ok(a1.questions.length === 15 && !STATE.quizSeen.s, 'quizSeen: opening a quiz marks nothing');
+  ctx.CURRENT = {section: a1}; a1.questions.slice(0, 3).forEach(q => ctx.logResponse(q, true));
+  ok(STATE.quizSeen.s.length === 3, 'quizSeen: each answered question is marked', STATE.quizSeen.s);
+  a1.questions.slice(3).forEach(q => ctx.logResponse(q, true));
+  const a2 = ctx.lessonQuizAttempt(sec), firstIds = a1.questions.map(q => q.id);
+  ok(a2.questions.every(q => firstIds.indexOf(q.id) < 0), 'quizSeen: the next attempt brings the unanswered half');
+  ctx.CURRENT = {section: a2}; a2.questions.forEach(q => ctx.logResponse(q, false));
+  ok(STATE.quizSeen.s.length === 15 && STATE.quizSeen.s.every(id => a2.questions.some(q => q.id === id)), 'quizSeen: a full cycle restarts with this attempt\'s questions', STATE.quizSeen.s.length);
+  const before = JSON.stringify(STATE.quizSeen); ctx.CURRENT = {section: {id: 'final_exam', _exam: true}}; ctx.logResponse({id: 'q1'}, true);
+  ok(JSON.stringify(STATE.quizSeen) === before, 'quizSeen: final exam answers do not touch lesson cycles');
+}
+{ // src/app/js/310_supervisor_signing.js: قائمة الثقة لم تُحمَّل = تُخفى المادة المرجعية غير المدمجة
+  const mk = (pin) => only('src/app/js/310_supervisor_signing.js', ['supervisorKeys', 'computeRefTrust', 'applyRefPolicy'], {
+    PACK_PROTO_TAMPERED: false, REF_CANON_DIGEST: Promise.resolve('dig'), REF_CERT_RAW: null, REF_SIG: null, PINNED_SUPERVISOR: pin,
+    REF_HIDDEN: false, REF_TRUST: null, BUILTIN_CURRICULUM: null, CURRICULUM: [], REF_CURRICULUM_REPLACED: false,
+    PACK_DATA: {masterAudios: {x: 'A'}, sheikhName: 'ش'}, jwkThumb: k => k.x, ecdsaVerify: async () => true});
+  (async () => {
+    const c1 = mk({keys: [], refDigests: [], unavailable: true}); c1.REF_TRUST = await c1.computeRefTrust(); c1.applyRefPolicy();
+    ok(c1.REF_TRUST === 'unavailable' && c1.REF_HIDDEN === true && !Object.keys(c1.PACK_DATA.masterAudios).length, 'trust: list failed to load → reference media hidden (fail closed)', [c1.REF_TRUST, c1.REF_HIDDEN]);
+    const c2 = mk({keys: [], refDigests: ['dig'], unavailable: true}); c2.REF_TRUST = await c2.computeRefTrust(); c2.applyRefPolicy();
+    ok(c2.REF_TRUST === 'builtin' && c2.REF_HIDDEN === false, 'trust: built-in material still shows when the list failed', c2.REF_TRUST);
+    const c3 = mk({keys: [], refDigests: []}); c3.REF_TRUST = await c3.computeRefTrust(); c3.applyRefPolicy();
+    ok(c3.REF_TRUST === 'unconfigured' && c3.REF_HIDDEN === false && c3.PACK_DATA.masterAudios.x === 'A', 'trust: an empty list that loaded stays «unconfigured» (today\'s behavior)', c3.REF_TRUST);
+  })().then(() => {
+    // src/app/js/555 + 210: ملف إعادة عُدّل بعد توقيع المعلم لا تُطبَّق قراراته
+    const STATE = {studentAudios: {a: {status: 'pending', rid: 'r1'}}};
+    const ctx = only('src/app/js/555_teacher_feedback.js', ['returnTampered'], {STATE, RETURN_TRUST: 'invalid', PACK_DATA: {packageType: 'student_returned', studentAudios: {a: {status: 'approved', v: 'r1'}}},
+      isNewerLocalRecording: () => false, legacyNeedsAudioCheck: () => false});
+    only('src/app/js/210_storage.js', ['syncPackStatuses'], null, ctx);
+    ctx.syncPackStatuses();
+    ok(STATE.studentAudios.a.status === 'pending', 'return file tampered after signing: teacher decisions are not applied', STATE.studentAudios.a);
+    ctx.RETURN_TRUST = 'verified'; ctx.syncPackStatuses();
+    ok(STATE.studentAudios.a.status === 'approved', 'return file verified: decisions applied', STATE.studentAudios.a);
+    // src/app/js/605_file_delivery.js: على الحاسوب يُنزَّل الملف، ولا تُعرض نافذة المشاركة
+    const d = only('src/app/js/605_file_delivery.js', ['canShareFile'], {navigator: {share(){}, canShare: () => true}, File, window: {matchMedia: () => ({matches: false})}});
+    const m = only('src/app/js/605_file_delivery.js', ['canShareFile'], {navigator: {share(){}, canShare: () => true}, File, window: {matchMedia: () => ({matches: true})}});
+    const n0 = only('src/app/js/605_file_delivery.js', ['canShareFile'], {navigator: {}, File, window: {matchMedia: () => ({matches: true})}});
+    ok(d.canShareFile() === false && m.canShareFile() === true && n0.canShareFile() === false, 'delivery: share sheet only on touch devices that can share files');
+    console.log(fails ? `\n${fails} FAILED of ${n}` : `\nALL ${n} PASSED`);
+    process.exit(fails ? 1 : 0);
+  });
+}
+

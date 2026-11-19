@@ -54,7 +54,7 @@ async function deleteRec(itemId){
 }
 
 
-async function maybeCompressAudio(file){
+async function maybeCompressAudio(file, onInfo){
   if (!file || !file.size || file.size <= 3*1024*1024) return file;
   var AC = window.AudioContext || window.webkitAudioContext;
   if (!AC || typeof MediaRecorder === 'undefined') return file;
@@ -64,6 +64,7 @@ async function maybeCompressAudio(file){
     ctx = new AC();
     var audioBuffer = await ctx.decodeAudioData(buf.slice(0));
     if (!audioBuffer || !audioBuffer.duration) throw new Error('decode');
+    if (typeof onInfo === 'function') try { onInfo(Math.ceil(audioBuffer.duration)); } catch(e){} // 9.41.1: الضغط يستغرق مدة التسجيل نفسها
     var dest = ctx.createMediaStreamDestination();
     var mimes=['audio/webm;codecs=opus','audio/webm','audio/mp4'];
     var mime=mimes.find(function(m){ return typeof MediaRecorder.isTypeSupported==='function' && MediaRecorder.isTypeSupported(m); });
@@ -92,7 +93,8 @@ function uploadRec(event, itemId){
   if (!file.size || file.size > 12*1024*1024){ alert('الملف فارغ أو أكبر من 12 ميجابايت.'); return; }
   (async function(){
     try {
-      var prepared = await maybeCompressAudio(file);
+      var prepared = await maybeCompressAudio(file, function(sec){ showModal('⏳ جارٍ ضغط التسجيل', 'الملف كبير، فيُضغط في نحو ' + sec + ' ثانية. لا تغلق الصفحة.', []); });
+      closeModal();
       await dbPut(itemId, prepared);
       STATE.recordings[itemId] = prepared;
       log('uploaded', {itemId: itemId, name: file.name, compressed: prepared !== file, finalSize: prepared.size});

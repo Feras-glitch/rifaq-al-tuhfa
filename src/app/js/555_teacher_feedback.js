@@ -88,7 +88,10 @@ function renderTFViewInner(){
 }
 function tfItemHTML(id, text, type, packStatus, localStatus){ var h = tfItemHTMLInner(id, text, type, packStatus, localStatus), x = studentRatingNote(id); return x ? h.replace(/<\/div>\s*$/, x + '</div>') : h; }
  // 9.39.15 (ق6)
+/* 9.41.1: ملف إعادة تغيّر بعد توقيع المعلم: يُعرض التسجيل بلا قرار ولا ملاحظة ولا تعليق صوتي */
+function returnTampered(){ return PACK_DATA.packageType === 'student_returned' && RETURN_TRUST === 'invalid'; }
 function tfItemHTMLInner(id, text, type, packStatus, localStatus){
+  if (returnTampered()) packStatus = 'pending';
   var isApproved = packStatus === 'approved';
   var isRejected = packStatus === 'rejected';
   var wasRerecorded = localStatus === 'pending' && isRejected;

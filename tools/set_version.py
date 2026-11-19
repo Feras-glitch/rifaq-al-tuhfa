@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""يضبط رقم الإصدار: src/VERSION وحزمة أندرويد، ثم يبني التطبيق والاستوديو (tools/build.py).
+"""يضبط رقم الإصدار: src/VERSION وحزمة أندرويد وسطر «الإصدار الحالي» في README.md، ثم يبني التطبيق والاستوديو (tools/build.py).
 التشغيل: python3 -I tools/set_version.py 9.40.0"""
 import json, os, re, subprocess, sys
 
@@ -18,4 +18,11 @@ for pj in ['native/android/package.json', 'native/windows/package.json']:
     json.loads(raw2)
     if raw2 != raw: open(p, 'w', encoding='utf-8').write(raw2)
     print(pj, V)
+# 9.41.1: README يذكر الإصدار الحالي، فيُحدَّث معه ولا يتقادم
+rp = os.path.join(ROOT, 'README.md')
+raw = open(rp, encoding='utf-8').read()
+raw2, n = re.subn(r'(\*\*الإصدار الحالي: )[0-9.]+(\*\*)', lambda m: m.group(1) + V + m.group(2), raw, count=1)
+if n != 1: sys.exit('version line not found in README.md')
+if raw2 != raw: open(rp, 'w', encoding='utf-8').write(raw2)
+print('README.md', V)
 subprocess.check_call([sys.executable, '-I', os.path.join(ROOT, 'tools', 'build.py')])

@@ -54,13 +54,14 @@ function giftContentsDisplayText(){
   return txt;
 }
 function renderGiftContentsBox(b){
-  var txt = giftContentsDisplayText(), parts = txt.split('\n\n');
-  var head = parts.shift() || '', rest = parts.join('\n\n');
+  /* 9.41.1: الطفل يرى سطرًا واحدًا عمّا سيتعلمه؛ أعداد التلاوات والدروس لولي الأمر في التفاصيل المطوية */
+  var txt = giftContentsDisplayText(), lines = txt.split('\n');
+  var head = lines.shift() || '', rest = lines.join('\n').replace(/^\n+/, '');
   b.textContent = '';
   var h = document.createElement('div'); h.textContent = head; b.appendChild(h);
   if (rest){
     var d = document.createElement('details'); d.className = 'gift-details';
-    var s = document.createElement('summary'); s.textContent = '📋 تفاصيل الدروس'; d.appendChild(s);
+    var s = document.createElement('summary'); s.textContent = '📋 ما في هذا الإهداء (لولي الأمر)'; d.appendChild(s);
     var body = document.createElement('div'); body.textContent = rest; d.appendChild(body); b.appendChild(d);
   }
 }

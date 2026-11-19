@@ -167,6 +167,7 @@ function maybeBackupReminder(){
   applyRefPolicy();
   applyContentChannel(); // 9.39.14 (D5): بعد استبدال المنهج غير الموثّق إن حدث
   QPC_LOADING = new Promise(function(r){ setTimeout(r, 150); }).then(qpcInit); // 9.39.17
+  QPC_LOADING.then(function(){ try { qpcRefreshVisible(); } catch(e){} }); // 9.41.1
   setTimeout(showDueReviewBanner, 1200);
   if (PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true){
     try { GIFT_TRUST = await verifyGiftPack(PACK_DATA); } catch(e){ GIFT_TRUST = 'invalid'; }

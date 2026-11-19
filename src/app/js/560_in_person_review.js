@@ -65,8 +65,8 @@ function renderInPersonReview(){
 function inPersonProfileExtras(){
   var list = document.getElementById('profile-recordings-list'); if (!list) return;
   var A = STATE.studentAudios || {};
-  Array.prototype.forEach.call(list.children, function(row, i){
-    var id = Object.keys(A)[i]; if (!id || !A[id] || !A[id].note || row.querySelector('.ipr-noteview')) return;
+  Array.prototype.forEach.call(list.children, function(row){
+    var id = row.getAttribute('data-rec-id'); if (!id || !A[id] || !A[id].note || row.querySelector('.ipr-noteview')) return;
     var n = document.createElement('div'); n.className = 'ipr-noteview'; n.textContent = '📝 ' + A[id].note; row.style.flexWrap = 'wrap'; row.appendChild(n);
   });
   var old = document.getElementById('btn-in-person'); if (old) old.remove();

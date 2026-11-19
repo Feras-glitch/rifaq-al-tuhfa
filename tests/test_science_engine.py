@@ -53,6 +53,7 @@ ok('E27 no sila at waqf', not (tags('يَرَهُ', 0, True) & {'d_sila_s', 'd_s
 ok('E28 alif of أل is not madd والصيف', 'd_tabii' not in tags('وَالصَّيْفِ', 0, True))
 ok('E29 madd dropped before wasla فأما اليتيم', 'd_tabii' not in tags('فَأَمَّا ٱلْيَتِيمَ'))
 ok('E30 tatweel+dagger alif أصحاب', 'd_tabii' in tags('بِأَصْحَـٰبِ'))
+ok('E31 unvocalized shamsi النور / qamari القمر', 'l_shamsi' in tags('النور') and 'l_qamari' in tags('القمر') and 'l_shamsi' not in tags('القمر'))
 
 # الفاحص كاملًا: المنهج الحالي نظيف، والطفرات تُكتشف
 def run(cur):

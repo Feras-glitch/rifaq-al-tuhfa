@@ -827,13 +827,20 @@ async def main():
                 ctxN, pN, _ = await ctx_page(b)
                 await pN.goto(BASE + '/open.html'); fN = await open_file(pN, spack)
                 n_view = await ev(fN, MEDIA + ".concat([REF_SIG])"); await ctxN.close()
-                rec('R35 studio supervisor signature verified through student→teacher→recipient; tampering or unregistered supervisor hides reference media',
+                # 9.41.1: قائمة الثقة لم تُحمَّل (لا شبكة ولا نسخة مخزّنة) = تُخفى المادة المرجعية، لا تُعامَل القائمة كأنها فارغة
+                ctxF = await b.new_context(viewport={'width': 390, 'height': 844}, locale='ar', service_workers='block')
+                await ctxF.route('**/trusted-teachers.json', lambda route: route.abort())
+                pF = await ctxF.new_page()
+                await pF.goto(BASE + '/open.html'); fF = await open_file(pF, spack)
+                f_view = await ev(fF, MEDIA); await ctxF.close()
+                rec('R35 studio supervisor signature verified through student→teacher→recipient; tampering, unregistered supervisor or an unloadable trust list hides reference media',
                     sp.get('refCert', {}).get('key', {}).get('x') == supJwk['x']
                     and s_view[:2] == ['verified', False] and s_view[2] >= 1 and s_view[3] == 'الشيخ أيمن'
                     and t_view[:2] == ['verified', False] and t_view[2] >= 1 and r_view[:2] == ['verified', False] and r_view[2] >= 1
                     and x_view[:3] == ['invalid', True, 0] and x_view[3] == 'الشيخ' and y_view[:3] == ['untrusted', True, 0]
-                    and n_view[:3] == ['unconfigured', False, n_view[2]] and n_view[2] >= 1 and n_view[4] == 'valid' and not errsU,
-                    (s_view, t_view, r_view, x_view, y_view, n_view, errsU[:2]))
+                    and n_view[:3] == ['unconfigured', False, n_view[2]] and n_view[2] >= 1 and n_view[4] == 'valid'
+                    and f_view[:3] == ['unavailable', True, 0] and not errsU,
+                    (s_view, t_view, r_view, x_view, y_view, n_view, f_view, errsU[:2]))
             except Exception as e:
                 rec('R35 (exception)', False, repr(e)[:200])
 
@@ -999,12 +1006,15 @@ async def main():
                   for (var t = 0; t < 3; t++){
                     openSection('s3_idgham'); startQuiz(); var qs = CURRENT.section.questions; sizes.push(qs.length);
                     var ka = kinds(qs); Object.keys(kf).forEach(function(k){ if (Math.abs((ka[k] || 0) - kf[k] * 15 / n0) > 1) ratioOk = false; });
-                    qs.forEach(function(q){ seenAll[q.id] = 1; if (t < 2) firstTwo[q.id] = 1; });
+                    qs.forEach(function(q){ seenAll[q.id] = 1; if (t < 2) firstTwo[q.id] = 1; logResponse(q, true); }); // 9.41.1: «مرئي» = أُجيب عنه
                   }
-                  return [n0, sizes, Object.keys(firstTwo).length, Object.keys(seenAll).length, ratioOk, full.questions === ref0 && full.questions.length === n0, CURRENT.section._full === full, label]; })()""")
+                  /* اختبار فُتح ثم تُرك بلا إجابة لا يستهلك أسئلته */
+                  var before = JSON.stringify(STATE.quizSeen.s3_idgham); openSection('s3_idgham'); startQuiz(); goHome();
+                  var untouched = JSON.stringify(STATE.quizSeen.s3_idgham) === before;
+                  return [n0, sizes, Object.keys(firstTwo).length, Object.keys(seenAll).length, ratioOk, full.questions === ref0 && full.questions.length === n0, CURRENT.section._full === full, label, untouched]; })()""")
                 await ctxS.close()
-                rec('R43 lesson quiz draws 15 questions in the lesson\'s proportions, unseen first, without touching the curriculum',
-                    smp[0] == 30 and smp[1] == [15, 15, 15] and smp[2] == 30 and smp[3] == 30 and smp[4] and smp[5] and smp[6] and '15' in smp[7] and not errsS, (smp, errsS[:2]))
+                rec('R43 lesson quiz draws 15 questions in the lesson\'s proportions, unanswered first (an abandoned quiz uses none), without touching the curriculum',
+                    smp[0] == 30 and smp[1] == [15, 15, 15] and smp[2] == 30 and smp[3] == 30 and smp[4] and smp[5] and smp[6] and '15' in smp[7] and smp[8] and not errsS, (smp, errsS[:2]))
             except Exception as e:
                 rec('R43 (exception)', False, repr(e)[:200])
 

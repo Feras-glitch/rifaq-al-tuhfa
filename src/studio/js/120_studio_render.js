@@ -20,12 +20,15 @@ function renderStudio(){
     if (el && STATE.openGroups[g]) el.classList.add('open');
   });
 
+  /* 9.41.1: كل رسم ينشئ روابط جديدة للتسجيلات؛ روابط الرسم السابق تُحرَّر */
+  (window.STUDIO_URLS || []).forEach(function(u){ try { URL.revokeObjectURL(u); } catch(e){} });
+  window.STUDIO_URLS = [];
   document.querySelectorAll('.rec-item').forEach(function(item){
     var id = item.dataset.id;
     var blob = STATE.recordings[id];
     if (blob){
       var audio = item.querySelector('audio');
-      if (audio && !audio.src) audio.src = URL.createObjectURL(blob);
+      if (audio && !audio.src){ audio.src = URL.createObjectURL(blob); window.STUDIO_URLS.push(audio.src); }
     }
   });
 

@@ -43,9 +43,12 @@ function playVerse(id, n, times){
     var m = queue.shift(); if (!m){ VERSE_PLAYER = null; return; }
     var el = document.getElementById('mv-' + safeIdString(verseKey(id, m)));
     if (el){ el.classList.add('playing'); try { el.scrollIntoView({block: 'nearest'}); } catch(e){} }
-    var a = new Audio(audSrc(PACK_DATA.masterAudios[verseKey(id, m)])); token.a = a; token.played.push(m);
+    /* 9.41.1: عنصر صوت واحد للتشغيل كله؛ أول تشغيل داخل لمسة الطفل، وما بعده يغيّر المصدر فقط.
+       سفاري على آيفون يرفض تشغيل عنصر صوت جديد يُنشأ بعد مؤقت، فكانت الأبيات تمر صامتة. */
+    var a = token.a || (token.a = new Audio()); token.played.push(m);
     var fired = false, go = function(){ if (fired) return; fired = true; if (VERSE_PLAYER === token) setTimeout(next, 450); };
     a.onended = go; a.onerror = go;
+    a.src = audSrc(PACK_DATA.masterAudios[verseKey(id, m)]);
     var pr = a.play(); if (pr && pr.catch) pr.catch(go);
   })();
   return token;

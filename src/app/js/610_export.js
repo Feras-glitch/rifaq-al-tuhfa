@@ -163,12 +163,9 @@ async function buildAndDownload(opts){
   if (byteSize > MAX_HTML_WARN_BYTES && !confirm('حجم الملف الناتج ' + Math.round(byteSize/1048576) + ' ميغابايت، وقد يتعذر إرساله عبر تطبيقات المراسلة. هل تريد المتابعة؟')) return;
 
   var blob = new Blob([replaced], {type: 'text/html;charset=utf-8'});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = (isGiftExport ? 'إعداد_المشرف.html' : opts.filename.replace(/[\\/:*?"<>|]/g, '_'));
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+  var fname = (isGiftExport ? 'إعداد_المشرف.html' : opts.filename.replace(/[\\/:*?"<>|]/g, '_'));
+  if (canShareFile()){ offerFile(blob, fname, '🎉 الملف جاهز', (opts.successMessage || 'حجم الملف: ' + Math.round(byteSize / 1024) + ' كيلوبايت.')); return; }
+  downloadBlob(blob, fname);
 
   showModal('🎉 تم تجهيز الملف وتنزيله', (opts.successMessage || 'حجم الملف: ' + Math.round(byteSize / 1024) + ' كيلوبايت.') + '\n\nتنبيه: لا يُرسل الملف تلقائيًا؛ شاركه يدويًا مع الشخص المقصود.',
     [{label: '👍', class: 'success', action: closeModal}]);

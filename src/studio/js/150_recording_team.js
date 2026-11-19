@@ -163,15 +163,27 @@ function importNamedAudio(ev){
   var files = Array.prototype.slice.call(ev.target.files || []); ev.target.value = '';
   if (!files.length) return;
   (async function(){
-    var ok = [], unknown = [], bad = [];
-    for (var i = 0; i < files.length; i++){
-      var f = files[i], id = String(f.name || '').replace(/\.[A-Za-z0-9]{2,5}$/, '').trim();
+    var ok = [], unknown = [], bad = [], jobs = [], done = 0;
+    files.forEach(function(f){
+      var id = String(f.name || '').replace(/\.[A-Za-z0-9]{2,5}$/, '').trim();
       var x = RECORDING_LIST.filter(function(y){ return y.id === id && !y.legacy; })[0];
-      if (!x){ unknown.push(f.name); continue; }
-      if (!(f.type && /^audio\//i.test(f.type)) && !/\.(mp3|m4a|aac|wav|ogg|oga|webm|mp4|opus)$/i.test(f.name || '')){ bad.push(f.name); continue; }
-      if (!f.size || f.size > 12 * 1024 * 1024){ bad.push(f.name); continue; }
-      try { var p = await maybeCompressAudio(f); await dbPut(id, p); STATE.recordings[id] = p; ok.push(id); } catch(e){ bad.push(f.name); }
-    }
+      if (!x){ unknown.push(f.name); return; }
+      if (!(f.type && /^audio\//i.test(f.type)) && !/\.(mp3|m4a|aac|wav|ogg|oga|webm|mp4|opus)$/i.test(f.name || '')){ bad.push(f.name); return; }
+      if (!f.size || f.size > 12 * 1024 * 1024){ bad.push(f.name); return; }
+      jobs.push({f: f, id: id});
+    });
+    /* 9.41.1: الملف الأكبر من 3 ميجابايت يُضغط في زمن مدته، فتُعالَج ثلاثة ملفات معًا ويظهر التقدّم */
+    var progress = function(){ showModal('⏳ جارٍ تجهيز الملفات', done + ' من ' + jobs.length + '\nالملف الكبير (WAV مثلًا) يُضغط في زمن مدته؛ الأسرع أن تُصدَّر الملفات من المسجّل بصيغة m4a أو mp3. لا تغلق الصفحة.', []); };
+    if (jobs.length) progress();
+    var next = 0;
+    var worker = async function(){
+      while (next < jobs.length){
+        var j = jobs[next++];
+        try { var p = await maybeCompressAudio(j.f); await dbPut(j.id, p); STATE.recordings[j.id] = p; ok.push(j.id); } catch(e){ bad.push(j.f.name); }
+        done++; progress();
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
     renderStudio();
     log('named-audio', {ok: ok.length, unknown: unknown.length, bad: bad.length});
     showModal('📁 الملفات المسمّاة', 'أُضيف ' + ok.length + ' تسجيلًا.' + (unknown.length ? '\n⚠️ لا عنصر بهذا الاسم: ' + unknown.slice(0, 6).join('، ') + (unknown.length > 6 ? '…' : '') : '') + (bad.length ? '\n⚠️ ليست صوتًا صالحًا أو أكبر من 12 ميجابايت: ' + bad.slice(0, 6).join('، ') : ''), [{label: 'حسنًا', class: 'primary', action: closeModal}]);

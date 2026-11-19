@@ -16,6 +16,7 @@ async function computeRefTrust(){
   else { try { REF_SIG = (d && c.v === 1 && await ecdsaVerify(c.key, c.sig, JSON.stringify({v: 1, ref: d}))) ? 'valid' : 'invalid'; } catch(e){ REF_SIG = 'invalid'; } }
   var pins = (PINNED_SUPERVISOR && Array.isArray(PINNED_SUPERVISOR.refDigests)) ? PINNED_SUPERVISOR.refDigests : [];
   if (d && pins.indexOf(d) >= 0) return 'builtin';
+  if (PINNED_SUPERVISOR && PINNED_SUPERVISOR.unavailable === true) return 'unavailable'; // 9.41.1: القائمة لم تُحمَّل
   var keys = supervisorKeys();
   if (REF_SIG === 'valid' && keys.some(function(k){ return k && jwkThumb(k) === jwkThumb(c.key); })) return 'verified';
   if (!keys.length) return 'unconfigured';
@@ -23,7 +24,7 @@ async function computeRefTrust(){
 }
 /* تُخفى تلاوات الشيخ وصور المرجع وأسماؤه إن لم تُوثَّق المادة في تطبيق سُجّل فيه مشرف. المنهج يبقى (معقَّمًا) مع تنبيه ظاهر. */
 function applyRefPolicy(){
-  REF_HIDDEN = supervisorKeys().length > 0 && REF_TRUST !== 'verified' && REF_TRUST !== 'builtin';
+  REF_HIDDEN = (supervisorKeys().length > 0 || REF_TRUST === 'unavailable') && REF_TRUST !== 'verified' && REF_TRUST !== 'builtin';
   if (!REF_HIDDEN) return;
   /* 9.39.13 (D6): منهج غير موثّق قد يعلّم حكمًا خاطئًا، والتنبيه لا يقرؤه طفل. فيُعرض المنهج المعتمد المدمج في الإصدار بدله
      (المصفوفة نفسها تُفرَّغ وتُملأ، فكل مرجع إليها يرى البديل). تسجيلات الطفل وتقدّمه تبقى كما هي. */
@@ -74,6 +75,7 @@ function hideUnrecordedListening(secs){
   return n;
 }
 function refStatusLine(){
+  if (REF_TRUST === 'unavailable') return {ok: false, text: '⚠️ تعذّر تحميل قائمة المشرفين الموثوقين، فأُخفيت تلاوات الشيخ وأسماء المرجع مؤقتًا. أعد فتح الملف وأنت متصل بالإنترنت.'};
   if (REF_HIDDEN && REF_CURRICULUM_REPLACED) return {ok: false, text: '⚠️ هذا الملف لا يحمل توقيع مشرف مسجَّل في هذا التطبيق، فعُرض المنهج المعتمد المدمج في التطبيق بدل منهجه، وأُخفيت تلاوات الشيخ وأسماء المرجع. تسجيلاتك وتقدّمك محفوظة.'};
   if (REF_HIDDEN) return {ok: false, text: '⚠️ المادة المرجعية في هذا الملف (المنهج وتلاوات الشيخ وأسماء المرجع) لا تحمل توقيع مشرف مسجَّل في هذا التطبيق' + (REF_TRUST === 'invalid' ? '، وقد تغيّرت بعد توقيعها' : '') + '. أُخفيت التلاوات والأسماء والصور، ولن تنتقل في أي ملف يُصدر منه.'};
   if (REF_TRUST === 'verified') return {ok: true, text: '✅ المادة المرجعية موقّعة من مشرف مسجَّل في هذا التطبيق.'};

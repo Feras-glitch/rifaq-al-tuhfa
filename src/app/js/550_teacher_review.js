@@ -117,13 +117,26 @@ function setRating(id, state){
   if ((!RATING_STATES[state] && state !== 'unusable') || !PACK_DATA.studentAudios || !PACK_DATA.studentAudios[id]) return;
   PACK_DATA.teacherRatings = PACK_DATA.teacherRatings || {};
   PACK_DATA.teacherRatings[id] = state;
+  rerenderReviewKeepingAudio();
+}
+/* 9.41.1: إعادة رسم القائمة توقف الصوت؛ فالتسجيل الذي كان يُسمع يكمل من موضعه في العنصر الجديد */
+function rerenderReviewKeepingAudio(){
+  var playing = null;
+  Array.prototype.forEach.call(document.querySelectorAll('#review-list audio'), function(a){ if (!a.paused && !a.ended && a.currentSrc) playing = {src: a.currentSrc, t: a.currentTime}; });
   showTeacherReview();
+  if (!playing) return;
+  setTimeout(function(){
+    var b = Array.prototype.filter.call(document.querySelectorAll('#review-list audio'), function(a){ return a.src === playing.src; })[0];
+    if (!b) return;
+    var go = function(){ try { b.currentTime = playing.t; } catch(e){} var p = b.play(); if (p && p.catch) p.catch(function(){}); };
+    if (b.readyState >= 1) go(); else b.addEventListener('loadedmetadata', go, {once: true});
+  }, 0);
 }
 function applyNoteCode(ev, id){
   var code = ev.target.value; if (!code) return;
   PACK_DATA.teacherNotes = PACK_DATA.teacherNotes || {};
   PACK_DATA.teacherNotes[id] = ((PACK_DATA.teacherNotes[id] ? PACK_DATA.teacherNotes[id] + ' — ' : '') + code).slice(0, 400);
-  showTeacherReview();
+  rerenderReviewKeepingAudio();
 }
 function setReview(id, status){
   if (!PACK_DATA.studentAudios[id]) return;

@@ -122,6 +122,7 @@ function load(){
 function syncPackStatuses(){
   // In an approved gift, inherited recordings are reference material only.
   if (PACK_DATA.packageType === 'approved_gift') return;
+  if (returnTampered()) return; // 9.41.1: قرارات معلم تغيّرت بعد توقيعها لا تُطبَّق
   var packRecords = PACK_DATA.studentAudios || {}, needCheck = false;
   STATE.studentAudios = STATE.studentAudios || {};
   Object.keys(packRecords).forEach(function(id){

@@ -8,4 +8,5 @@ function logResponse(q, correct){
   var L = STATE.respLog = Array.isArray(STATE.respLog) ? STATE.respLog : [];
   L.push({t: new Date().toISOString().slice(0, 16), k: k, s: String(s).slice(0, 64), q: String(q.id).slice(0, 64), c: correct ? 1 : 0, a: a});
   if (L.length > 1500) L.splice(0, L.length - 1500);
+  if (k === 'L') markLessonSeen(sec, q.id);
 }

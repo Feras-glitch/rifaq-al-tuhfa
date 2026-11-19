@@ -158,14 +158,12 @@ async function doExportStudent(exportKind){
     var reviewRound = (Number(PACK_DATA.reviewCount || PACK_DATA.submissionVersion) || 0) + 1;
     var reviewOrdinal = arabicReviewOrdinal(reviewRound);
     var blob = new Blob([replaced], {type: 'text/html;charset=utf-8'});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = (exportKind === 'gift' ? 'إعداد_المشرف_' : 'إرسال_للمراجعة_' + reviewOrdinal + '_') + safe + '.html';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+    var fname = (exportKind === 'gift' ? 'إعداد_المشرف_' : 'إرسال_للمراجعة_' + reviewOrdinal + '_') + safe + '.html';
     var sizeKB = Math.round(byteSize / 1024);
     if (exportKind !== 'gift'){ try { var _now = new Date().toISOString(); Object.keys(fullPack.studentAudios || {}).forEach(function(k){ if (STATE.studentAudios[k] && fullPack.studentAudios[k].status === 'pending') STATE.studentAudios[k].sentAt = _now; }); save(); } catch(e){} }
-    showModal('🎉 تم تجهيز الملف وتنزيله', (exportKind === 'gift' ? 'تم إنشاء إعداد المشرف المعتمد. شاركه مع الطالب المستفيد.' : 'تم إنشاء ملف المراجعة رقم ' + reviewRound + ' وتنزيله على جهازك. أرسله إلى المعلم') + ' · الحجم: ' + sizeKB + ' كيلوبايت.\n\nلا يُرسل الملف تلقائيًا.', [{label: '👍', class: 'success', action: closeModal}]);
+    var doneMsg = (exportKind === 'gift' ? 'تم إنشاء إعداد المشرف المعتمد. شاركه مع الطالب المستفيد.' : 'تم إنشاء ملف المراجعة رقم ' + reviewRound + ' وتنزيله على جهازك. أرسله إلى المعلم') + ' · الحجم: ' + sizeKB + ' كيلوبايت.\n\nلا يُرسل الملف تلقائيًا.';
+    if (canShareFile()) offerFile(blob, fname, '🎉 الملف جاهز', doneMsg.replace(' وتنزيله على جهازك', ''));
+    else { downloadBlob(blob, fname); showModal('🎉 تم تجهيز الملف وتنزيله', doneMsg, [{label: '👍', class: 'success', action: closeModal}]); }
   } catch(e){
     alert('فشل الإصدار: ' + e.message);
   } finally {

@@ -10,6 +10,12 @@ function qpcInit(){
     }, function(){});
   })).then(function(){ return QPC_OK; });
 }
+/* 9.41.1: إن فُتح الدرس قبل أن يجهز خط المصحف يُعاد رسمه حين يجهز. الاختبار لا يُعاد رسمه حفظًا لما بدأه الطفل. */
+function qpcRefreshVisible(){
+  if (!Object.keys(QPC_OK).length) return;
+  var v = document.getElementById('view-lesson');
+  if (v && !v.classList.contains('hidden') && document.querySelector('#lesson-content .quran') && !document.querySelector('#lesson-content .qpc')) renderLesson();
+}
 function qpcSkel(w){ return String(w).replace(/[ؐ-ًؚ-ٰٟۖ-ۭـ]/g, '').replace(/ٱ/g, 'ا'); }
 /* كلمات النص المعروض (بلا علامات الوقف المستقلة) مع علم الإبراز؛ مثل words_of في tools/build_qpc.py */
 function qpcWords(text){
