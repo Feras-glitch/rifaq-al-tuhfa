@@ -16,6 +16,8 @@ def _expected():
     pages = len(_json.load(open('curriculum/qpc/qpc_fonts.json', encoding='utf-8'))['fonts'])
     return pend, qpc, pages, shown
 EXP_PENDING, EXP_QPC, EXP_QPC_PAGES, EXP_PENDING_SHOWN = _expected()
+# 9.41: شرح ينتظر الشيخ: الرئيسي يعرض صيغته السابقة، والتجريبي الجديدة
+EXP_PENDING_ITEMS = sum(1 for s in _json.load(open('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', encoding='utf-8'))['sections'] for it in s['items'] if it.get('review') == 'pending')
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 BROWSER = os.environ.get('RIFAQ_BROWSER', 'chromium')
@@ -42,7 +44,9 @@ PROBE = """(() => { var pend = 0, bank = 0, mx = 0, n = 0;
   realSections().forEach(function(s){ (s.questions || []).concat(s.examQuestions || []).forEach(function(q){ n++; if (q.review === 'pending') pend++; if (/^mx_/.test(q.id)) mx++; });
     bank += (s.examQuestions || []).length; });
   var s3 = realSections().find(function(s){ return s.id === 's3_idgham'; }), x = s3.questions.find(function(q){ return q.id === 'x3_1'; });
-  return {ch: RIFAQ_CHANNEL, hidden: CONTENT_HIDDEN, pend: pend, bank: bank, mx: mx, n: n, s3: s3.questions.length, x31: x.text, x31src: x.source, key: STORAGE_KEY, secs: realSections().length}; })()"""
+  var it3 = s3.items[0], pendItems = 0; realSections().forEach(function(s){ (s.items || []).forEach(function(it){ if (it.review === 'pending') pendItems++; }); });
+  return {ch: RIFAQ_CHANNEL, hidden: CONTENT_HIDDEN, pend: pend, bank: bank, mx: mx, n: n, s3: s3.questions.length, x31: x.text, x31src: x.source, key: STORAGE_KEY, secs: realSections().length,
+    mutlaq: (it3.desc || '').indexOf('الإظهار المطلق') >= 0, pendItems: pendItems, itPrev: !!it3.prev}; })()"""
 
 async def main():
     tmp = tempfile.mkdtemp(prefix='rifaq_ch_')
@@ -73,14 +77,14 @@ async def main():
             ex = await ev(fr, "(() => { var les = {}; realSections().forEach(function(s){ s.questions.forEach(function(q){ les[q.id] = 1; }); }); var qs = CURRENT.section.questions; return [CURRENT.section.id, qs.length, qs.every(function(q){ return les[q.id] && q.review !== 'pending'; })]; })()")
             rec('C2 main hides all unreviewed questions (bank, mixed imla\'i, converted idgham back to Uthmani); final exam falls back to lesson questions',
                 m['ch'] == 'main' and m['hidden'] == EXP_PENDING and m['pend'] == 0 and m['bank'] == 0 and m['mx'] == 0 and m['s3'] == 18 and 'ۥ' in m['x31'] and m['x31src'] == '112:4 (نص تنزيل)'
-                and m['secs'] == 16 and not m['key'].startswith('beta_') and ex[0] == 'final_exam' and ex[1] > 0 and ex[2] and not errs, (m, ex, errs[:2]))
+                and m['secs'] == 16 and not m['mutlaq'] and m['pendItems'] == 0 and not m['itPrev'] and not m['key'].startswith('beta_') and ex[0] == 'final_exam' and ex[1] > 0 and ex[2] and not errs, (m, ex, errs[:2]))
 
             # C3 التجريبي: كل شيء ظاهر، وتخزين الطفل منفصل
             await pg.goto(BASE + '/beta/open.html?src=app'); fb = await appframe(pg)
             bt = await ev(fb, PROBE)
             fresh = await ev(fb, "[STATE.student.name || '', RIFAQ_HOST_DB()]".replace('RIFAQ_HOST_DB()', "(window.parent.RIFAQ_HOST || {}).db"))
             rec('C3 beta shows everything for review, with its own child storage and recent-files store',
-                bt['ch'] == 'beta' and bt['hidden'] == 0 and bt['pend'] == EXP_PENDING_SHOWN and bt['bank'] == 80 and bt['mx'] == 33 and bt['s3'] == 30 and 'ۥ' not in bt['x31'] and 'رسم إملائي' in bt['x31src']
+                bt['ch'] == 'beta' and bt['hidden'] == 0 and bt['pend'] == EXP_PENDING_SHOWN and bt['bank'] == 80 and bt['mx'] == 33 and bt['s3'] == 30 and 'ۥ' not in bt['x31'] and 'رسم إملائي' in bt['x31src'] and bt['mutlaq'] and bt['pendItems'] == EXP_PENDING_ITEMS
                 and bt['key'].startswith('beta_') and fresh[0] == '' and fresh[1] == 'beta_rifaq_host_v1' and not errs, (bt, fresh, errs[:2]))
 
             # C4 الرجوع إلى الرئيسي: تقدّم الطفل هناك باقٍ لم يمسّه التجريبي

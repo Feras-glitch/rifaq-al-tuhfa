@@ -44,14 +44,22 @@ var CONTENT_HIDDEN = 0;
 function contentChannelFilter(secs){
   if (RIFAQ_CHANNEL === 'beta' || !Array.isArray(secs)) return 0;
   var n = 0;
-  var fix = function(list){ return (Array.isArray(list) ? list : []).map(function(q){
+  /* سؤال أو شرح لم يراجعه الشيخ: يُعرض بصيغته السابقة (prev) إن كانت له، وإلا يُخفى. العدد للأسئلة وحدها */
+  var fix = function(list, isItem){ return (Array.isArray(list) ? list : []).map(function(q){
     if (!q || q.review !== 'pending') return q;
-    n++;
-    if (q.prev && typeof q.prev.text === 'string'){ var r = Object.assign({}, q, {text: q.prev.text}); if (typeof q.prev.question === 'string') r.question = q.prev.question; if (typeof q.prev.source === 'string') r.source = q.prev.source; if (q.prev.qpc) r.qpc = q.prev.qpc; else delete r.qpc; delete r.prev; delete r.review; return r; }
+    if (!isItem) n++;
+    var p = q.prev;
+    if (p && typeof p === 'object' && (typeof p.text === 'string' || typeof p.desc === 'string')){
+      var r = Object.assign({}, q);
+      ['text', 'desc', 'question', 'source'].forEach(function(f){ if (typeof p[f] === 'string') r[f] = p[f]; });
+      if (typeof p.text === 'string'){ if (p.qpc) r.qpc = p.qpc; else delete r.qpc; }
+      delete r.prev; delete r.review; return r;
+    }
     return null;
   }).filter(Boolean); };
   secs.forEach(function(s){
     if (!s || typeof s !== 'object' || s._synthetic) return;
+    if (Array.isArray(s.items)) s.items = fix(s.items, true);
     s.questions = fix(s.questions);
     if (Array.isArray(s.examQuestions)) s.examQuestions = fix(s.examQuestions);
   });

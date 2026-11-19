@@ -19,7 +19,7 @@ function reviewContent(x){
 function reviewUnits(){
   var out = [];
   (CURRICULUM || []).forEach(function(s){
-    (s.items || []).forEach(function(it){ out.push({uid: 'item:' + it.id, sec: s.id, kind: it.type === 'poem' ? 'matn' : 'task', x: it, pending: false, h: reviewHash(reviewContent(it))}); });
+    (s.items || []).forEach(function(it){ out.push({uid: 'item:' + it.id, sec: s.id, kind: it.type === 'poem' ? 'matn' : 'task', x: it, pending: it.review === 'pending', h: reviewHash(reviewContent(it))}); });
     (s.questions || []).forEach(function(q){ out.push({uid: 'q:' + q.id, sec: s.id, kind: 'q', x: q, pending: q.review === 'pending', h: reviewHash(reviewContent(q))}); });
     (s.examQuestions || []).forEach(function(q){ out.push({uid: 'q:' + q.id, sec: s.id, kind: 'exam', x: q, pending: q.review === 'pending', h: reviewHash(reviewContent(q))}); });
   });
@@ -44,7 +44,7 @@ function reviewBody(u){
   if (u.kind === 'matn' || u.kind === 'task'){
     h += '<div class="rv-text">' + reviewRich(x.text) + '</div>';
     if (x.desc) h += '<div class="rv-desc">' + reviewRich(x.desc) + '</div>';
-    return h;
+    return h + reviewPrevHTML(x);
   }
   h += '<div class="rv-q">' + reviewRich(x.text) + '</div>';
   if (x.question) h += '<div class="rv-q2">❓ ' + reviewRich(x.question) + '</div>';
@@ -58,7 +58,15 @@ function reviewBody(u){
   if (x.items && typeof x.items === 'object' && !Array.isArray(x.items)) h += '<table class="rv-pairs">' + Object.keys(x.items).map(function(k){ return '<tr><td><b>' + reviewEsc(k) + '</b></td><td>' + (x.items[k] || []).map(reviewEsc).join('، ') + '</td></tr>'; }).join('') + '</table>';
   if (x.type === 'listen') h += '<div class="rv-text">' + reviewEsc(x.word) + '</div><div class="rv-ans">الحكم: <b>' + reviewEsc(x.rule) + '</b></div><div class="rv-src">القراءة الخاطئة التي تُسجَّل عمدًا: ' + reviewEsc(x.lahn) + '</div>';
   if (x.explanation) h += '<div class="rv-expl">💡 ' + reviewRich(x.explanation) + '</div>';
-  return h;
+  return h + reviewPrevHTML(x);
+}
+/* 9.41: ما تغيّر — الصيغة السابقة التي يعرضها الموقع الرئيسي حتى يعتمد الشيخ الجديدة */
+function reviewPrevHTML(x){
+  var p = x && x.prev; if (!p || typeof p !== 'object') return '';
+  var parts = ['text', 'desc', 'question', 'source'].filter(function(f){ return typeof p[f] === 'string' && p[f] !== x[f]; });
+  if (!parts.length) return '';
+  return '<details class="rv-prev"><summary>↩️ الصيغة السابقة (المعروضة الآن على الموقع الرئيسي)</summary>' +
+    parts.map(function(f){ return '<div class="rv-desc">' + reviewRich(p[f]) + '</div>'; }).join('') + '</details>';
 }
 function reviewSectionTitle(id){ var s = (CURRICULUM || []).find(function(x){ return x.id === id; }); return s ? (s.emoji || '') + ' ' + s.title : id; }
 

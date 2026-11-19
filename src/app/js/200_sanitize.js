@@ -61,7 +61,11 @@ function safeIdString(id){
         };
         sec.questions = cleanQList(sec.questions);
         if (sec.examQuestions !== undefined) sec.examQuestions = cleanQList(sec.examQuestions); // 9.39.11 (ق2-ب): البنك المحجوز
-        sec.items.forEach(function(it){ it.id = reg(it.id); it.text = safeHTML(it.text); if (it.desc) it.desc = safeHTML(it.desc); var qp = cleanQpc(it.qpc); if (qp) it.qpc = qp; else delete it.qpc; });
+        sec.items.forEach(function(it){ it.id = reg(it.id); it.text = safeHTML(it.text); if (it.desc) it.desc = safeHTML(it.desc); var qp = cleanQpc(it.qpc); if (qp) it.qpc = qp; else delete it.qpc;
+          if (it.review !== 'pending') delete it.review; // 9.41: شرح ينتظر الشيخ وصيغته السابقة
+          if (it.prev && typeof it.prev === 'object' && !Array.isArray(it.prev) && (typeof it.prev.desc === 'string' || typeof it.prev.text === 'string')){
+            var ip = {}; ['text','desc'].forEach(function(f){ if (typeof it.prev[f] === 'string') ip[f] = safeHTML(it.prev[f]); }); var iq = cleanQpc(it.prev.qpc); if (iq) ip.qpc = iq; it.prev = ip;
+          } else delete it.prev; });
         sec.questions.concat(sec.examQuestions || []).forEach(function(q){
           q.id = reg(q.id);
           if (q.set !== 'A' && q.set !== 'B') delete q.set;
