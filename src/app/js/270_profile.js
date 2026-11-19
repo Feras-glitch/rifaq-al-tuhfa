@@ -17,7 +17,7 @@ function showProfile(){
     var h = '';
     keys.forEach(function(id){
       var status = STATE.studentAudios[id].status || 'pending';
-      var label = status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : (STATE.studentAudios[id].sentAt ? '⏳ بانتظار المعلم' : '💾 لم يُرسل بعد');
+      var label = status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '🔁 أعد تسجيله' : (STATE.studentAudios[id].sentAt ? '⏳ بانتظار المعلم' : '💾 لم يُرسل بعد');
       h += '<div data-style="padding:10px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;gap:8px">';
       h += '<div data-style="font-weight:800;color:var(--primary);font-size:.88rem">' + escapeHTML(itemLabelById(id)) + '</div>';
       h += '<span class="pill">' + label + '</span></div>';
@@ -26,4 +26,5 @@ function showProfile(){
   }
   show('view-profile');
   try { updateExamButtons(); updateRetestButtons(); } catch(e){}
+  try { inPersonProfileExtras(); } catch(e){} // 9.40
 }

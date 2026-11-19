@@ -66,7 +66,8 @@ function sanitizeBackupState(raw){
   st.progress = pr;
   var au = {}; Object.keys(st.studentAudios || {}).filter(idOk).slice(0, 200).forEach(function(k){ var a = st.studentAudios[k] || {};
     au[k] = {status: ['pending', 'approved', 'rejected'].indexOf(a.status) >= 0 ? a.status : 'pending'};
-    ['v', 'updatedAt', 'rid', 'source', 'sentAt'].forEach(function(f){ if (typeof a[f] === 'string') au[k][f] = a[f].slice(0, 64); }); if (a.partial) au[k].partial = true; });
+    ['v', 'updatedAt', 'rid', 'source', 'sentAt', 'reviewSource', 'reviewedAt'].forEach(function(f){ if (typeof a[f] === 'string') au[k][f] = a[f].slice(0, 64); }); if (a.partial) au[k].partial = true;
+    if (typeof a.note === 'string' && a.note) au[k].note = a.note.slice(0, 400); });
   st.studentAudios = au;
   if (st.assess){
     var cs = {}; Object.keys(st.assess.concepts || {}).filter(idOk).slice(0, 40).forEach(function(k){ var x = st.assess.concepts[k] || {};

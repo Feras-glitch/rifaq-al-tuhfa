@@ -789,6 +789,7 @@ async def main():
                 await st.click('text=ابدأ الاستوديو'); await pU.wait_for_timeout(800)
                 recs = await st.query_selector_all('button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(2500)
                 recs = await st.query_selector_all('button:has-text("إيقاف"), button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(1200)
+                await st.evaluate("document.querySelector('details.adv').open = true")  # 9.40: المفاتيح تحت «إعدادات متقدمة»
                 await st.click('#btn-sup-key'); await pU.wait_for_timeout(500)
                 supJwk = json.loads(await st.inner_text('#sup-key-json'))
                 async with pU.expect_download(timeout=30000) as dl:
@@ -1251,6 +1252,31 @@ async def main():
                     hz['btn'] and hz['cards'] == 5 and hz['hintShort'] and hz['b1'] == 1 and hz['days1'] == 1 and hz['b2'] == 0 and hz['due2'] and '1' in hz['cta'] and hz['kept'], hz)
             except Exception as e:
                 rec('R51/R52 (exception)', False, repr(e)[:200])
+
+            # R53 (9.40): مراجعة حضورية على جهاز الطفل: زر في «ملفي»، والتقييم يعتمد أو يعيد التسجيل، ويُحتسب في الشهادة، والملاحظة تظهر للطفل
+            try:
+                ctxI, pI, errsI = await ctx_page(b)
+                await pI.goto(BASE + '/open.html?src=app'); fI = await appframe(pI)
+                await setup_student(fI, 'دلال')
+                ir = await fI.evaluate("""(async () => {
+                  await dbPut('r2_1', new Blob([new Uint8Array([79,103,103,83])], {type: 'audio/webm'})); await dbPut('r5_1', new Blob([new Uint8Array([79,103,103,83])], {type: 'audio/webm'}));
+                  STATE.studentAudios = {r2_1: {status: 'pending', v: '1'}, r5_1: {status: 'pending', v: '1'}}; save();
+                  showProfile(); var btn = !!document.getElementById('btn-in-person');
+                  renderInPersonReview(); var cards = document.querySelectorAll('#ipr-overlay .hifz-card');
+                  cards[0].querySelector('textarea').value = 'أحسنت الإظهار';
+                  var rb = cards[0].querySelectorAll('.hifz-row')[1].querySelectorAll('button'); rb[0].click();
+                  var rb2 = cards[1].querySelectorAll('.hifz-row')[1].querySelectorAll('button'); rb2[2].click();
+                  var a = STATE.studentAudios; closeInPersonReview();
+                  var prof = document.getElementById('profile-recordings-list').innerText;
+                  return {btn: btn, cards: cards.length, s1: a.r2_1.status, s2: a.r5_1.status, src: a.r2_1.reviewSource, r1: STATE.teacherRatings.r2_1, r2: STATE.teacherRatings.r5_1,
+                          rated: certLevel().rated, note: prof.indexOf('أحسنت الإظهار') >= 0, again: prof.indexOf('أعد تسجيله') >= 0,
+                          kept: sanitizeBackupState(JSON.parse(JSON.stringify(STATE))).studentAudios.r2_1.note === 'أحسنت الإظهار'}; })()""")
+                await ctxI.close()
+                rec('R53 in-person review on the child\'s device: rate, approve or send back, counts for the certificate, note shown to the child, kept in backups',
+                    ir['btn'] and ir['cards'] == 2 and ir['s1'] == 'approved' and ir['s2'] == 'rejected' and ir['src'] == 'in_person' and ir['r1'] == 'mastered' and ir['r2'] == 'needs'
+                    and ir['rated'] == 2 and ir['note'] and ir['again'] and ir['kept'] and not errsI, (ir, errsI[:2]))
+            except Exception as e:
+                rec('R53 (exception)', False, repr(e)[:200])
 
             # R1 __proto__ injection rejected by host (and never shown)
             g3 = pack_of(gift); grp3 = g3['approvedPeerRecordings'][0]

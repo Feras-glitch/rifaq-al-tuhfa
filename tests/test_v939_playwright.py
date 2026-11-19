@@ -171,6 +171,7 @@ async def main():
         recs = await pU.query_selector_all('button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(3000)
         recs = await pU.query_selector_all('button:has-text("إيقاف"), button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(1200)
         dbn0 = await pU.evaluate("DB_NAME")
+        await pU.evaluate("document.querySelector('details.adv').open = true")  # 9.40: المفاتيح تحت «إعدادات متقدمة»
         await pU.fill('#in-trusted-keys', jwk)
         async with pU.expect_download(timeout=30000) as dl:
             await pU.click('#btn-export')

@@ -120,11 +120,14 @@
     <div class="card" style="margin-top:20px">
       <h2>📦 إصدار الملف التعليمي</h2>
       <div class="notice warn" id="export-hint">أكمل التسجيلات أولاً، أو صدّر ما لديك.</div>
-      <label style="display:block;margin:12px 0 4px;font-weight:700">🔐 مفاتيح توقيع المعلمين الموثوقة (اختياري لكن مُوصى به)</label>
-    <textarea id="in-trusted-keys" rows="3" placeholder='الصق مفتاح المعلم بصيغة JWK، مثل: {"kty":"EC","crv":"P-256","x":"…","y":"…"}' style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:12px monospace;direction:ltr"></textarea>
-    <div class="notice" style="font-size:.85rem">يُدرج هذا المفتاح في الملف، فيتحقق تطبيق الطفل من أن الاعتماد صادر عن المعلم. كل مفتاح في سطر منفصل أو داخل مصفوفة JSON.</div>
-    <button class="btn ghost" id="btn-sup-key" data-call='["showSupervisorPublicKey"]' type="button" style="margin:6px 0">🔑 مفتاح توقيع المشرف (لإعداد التطبيق)</button>
-    <div id="sup-key-box" class="notice hidden" style="font-size:.85rem"></div>
+      <details class="adv" style="margin:10px 0">
+        <summary style="cursor:pointer;font-weight:800;color:var(--primary);padding:6px 0">🔐 إعدادات متقدمة: مفاتيح التوقيع (للمدرسة أو المعلم البعيد)</summary>
+        <label style="display:block;margin:12px 0 4px;font-weight:700">🔐 مفاتيح توقيع المعلمين الموثوقة (اختياري لكن مُوصى به)</label>
+      <textarea id="in-trusted-keys" rows="3" placeholder='الصق مفتاح المعلم بصيغة JWK، مثل: {"kty":"EC","crv":"P-256","x":"…","y":"…"}' style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:12px monospace;direction:ltr"></textarea>
+      <div class="notice" style="font-size:.85rem">يُدرج هذا المفتاح في الملف، فيتحقق تطبيق الطفل من أن الاعتماد صادر عن المعلم. كل مفتاح في سطر منفصل أو داخل مصفوفة JSON.</div>
+      <button class="btn ghost" id="btn-sup-key" data-call='["showSupervisorPublicKey"]' type="button" style="margin:6px 0">🔑 مفتاح توقيع المشرف (لإعداد التطبيق)</button>
+      <div id="sup-key-box" class="notice hidden" style="font-size:.85rem"></div>
+      </details>
     <button class="btn export-btn" id="btn-export" data-call='["exportSheikhPack"]' type="button">💾 تصدير ملف رفاق التحفة (HTML)</button>
       <button class="btn ghost" id="btn-new-workspace" data-call='["newWorkspace"]' type="button">🆕 جلسة تسجيل جديدة</button>
       <button class="btn ghost block" style="margin-top:10px" data-call='["showResetDialog"]' type="button">🗑️ حذف جميع التسجيلات</button>

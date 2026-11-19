@@ -256,4 +256,6 @@ mark.pivot{background:#fff59d;color:inherit;border-bottom:3px solid #f9a825;bord
 .hifz-text{font-family:'Traditional Arabic','Amiri',serif;font-size:1.35rem;line-height:2;font-weight:700;color:var(--primary);margin:4px 0}
 .hifz-text div:nth-child(2){padding-inline-start:24px}
 .hifz-row{display:flex;gap:6px;flex-wrap:wrap}.hifz-res,.hifz-next{font-size:.8rem;color:var(--muted);margin-top:4px}
-
+/* 9.40: المراجعة الحضورية */
+.ipr-title{font-weight:800;color:var(--primary)}.ipr-note{width:100%;box-sizing:border-box;margin:6px 0;padding:8px;border:2px solid #cfd8dc;border-radius:10px;font:inherit;font-size:.9rem}
+.ipr-noteview{flex-basis:100%;font-size:.8rem;color:var(--muted)}

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/HEx0eCfcho7D/OhRVrnL5Zezl7UW1xp6S5eBN5L7BU='; style-src 'sha256-iY1pKCIdgH3eXXNxRokBz0OqbInyigds6VQuygdMvTo='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-sINX9fZAmCQ68eK9YlDsvBjSGtZB4MRIURlJqctIyGA='; style-src 'sha256-NrGI1eRbMw7oooE4iSDhbfoKrEskUszUJtkRINjDgs0='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -265,7 +265,9 @@ mark.pivot{background:#fff59d;color:inherit;border-bottom:3px solid #f9a825;bord
 .hifz-text{font-family:'Traditional Arabic','Amiri',serif;font-size:1.35rem;line-height:2;font-weight:700;color:var(--primary);margin:4px 0}
 .hifz-text div:nth-child(2){padding-inline-start:24px}
 .hifz-row{display:flex;gap:6px;flex-wrap:wrap}.hifz-res,.hifz-next{font-size:.8rem;color:var(--muted);margin-top:4px}
-
+/* 9.40: المراجعة الحضورية */
+.ipr-title{font-weight:800;color:var(--primary)}.ipr-note{width:100%;box-sizing:border-box;margin:6px 0;padding:8px;border:2px solid #cfd8dc;border-radius:10px;font:inherit;font-size:.9rem}
+.ipr-noteview{flex-basis:100%;font-size:.8rem;color:var(--muted)}
 /* ===== QX: أنماط الأسئلة التفاعلية ===== */
 .qx{display:block}.qx-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:2px dashed var(--primary-light);border-radius:14px;padding:8px 12px;margin-bottom:10px;font-weight:800;font-size:.9rem;color:var(--primary)}
 .qx-mis{color:var(--danger);white-space:nowrap}.qx-area{display:block}
@@ -2701,7 +2703,7 @@ function showProfile(){
     var h = '';
     keys.forEach(function(id){
       var status = STATE.studentAudios[id].status || 'pending';
-      var label = status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : (STATE.studentAudios[id].sentAt ? '⏳ بانتظار المعلم' : '💾 لم يُرسل بعد');
+      var label = status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '🔁 أعد تسجيله' : (STATE.studentAudios[id].sentAt ? '⏳ بانتظار المعلم' : '💾 لم يُرسل بعد');
       h += '<div data-style="padding:10px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;gap:8px">';
       h += '<div data-style="font-weight:800;color:var(--primary);font-size:.88rem">' + escapeHTML(itemLabelById(id)) + '</div>';
       h += '<span class="pill">' + label + '</span></div>';
@@ -2710,6 +2712,7 @@ function showProfile(){
   }
   show('view-profile');
   try { updateExamButtons(); updateRetestButtons(); } catch(e){}
+  try { inPersonProfileExtras(); } catch(e){} // 9.40
 }
 /* ===== ولي الأمر: الموافقة والرمز والبوابة ===== */
 function parentalGate(onPass, purpose){
@@ -3174,7 +3177,7 @@ function audSrc(v){ v = (v === null || v === undefined) ? '' : String(v); return
    كل زر يحمل data-call="[اسم, وسيط, ...]". المُرسِل يحدد الدالة بالاسم، والمُنفِّذ يتحقق من أنها دالة معروفة. */
 function ACT(name){ var args = Array.prototype.slice.call(arguments, 1); var payload = JSON.stringify([name].concat(args)); return ' data-call="' + String(payload).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '"'; }
 function clickById(id){ var el = document.getElementById(id); if (el) el.click(); }
-var CALLABLE_ALLOW = ["openHifz", "openHifzDue", "showGiftContents", "toggleOtherRule", "playVerse", "stopVerse", "answer", "applyNoteCode", "cancelTeacherFeedback", "clickById", "closeCertificate", "closePreview", "confirmTeacherRejection", "continueFromSplash", "deleteStudentRec", "doDownloadPreview", "doSharePreview", "downloadCertificate", "editProfile", "exportApprovedPack", "exportReturnedPack", "goHome", "handleReviewTeacherPhoto", "handleSetupPhoto", "markRosterDeleted", "nextFromResults", "openGuardianSettings", "openRoster", "openSection", "playStudentRec", "printCertificate", "saveSetup", "setRating", "setReview", "setReplyChannel", "setSetupGender", "shareCertificate", "showCertificate", "showExportDialog", "showProfile", "showReset", "startFinalExam", "startNewStudent", "startQuiz", "startRec", "startRetest", "startReviewSession", "toggleTeacherFeedbackRecording", "uploadReplacementAudio"]; /* 9.39: قائمة الدوال التي يجوز استدعاؤها من data-call/data-change */
+var CALLABLE_ALLOW = ["openInPersonReview", "openHifz", "openHifzDue", "showGiftContents", "toggleOtherRule", "playVerse", "stopVerse", "answer", "applyNoteCode", "cancelTeacherFeedback", "clickById", "closeCertificate", "closePreview", "confirmTeacherRejection", "continueFromSplash", "deleteStudentRec", "doDownloadPreview", "doSharePreview", "downloadCertificate", "editProfile", "exportApprovedPack", "exportReturnedPack", "goHome", "handleReviewTeacherPhoto", "handleSetupPhoto", "markRosterDeleted", "nextFromResults", "openGuardianSettings", "openRoster", "openSection", "playStudentRec", "printCertificate", "saveSetup", "setRating", "setReview", "setReplyChannel", "setSetupGender", "shareCertificate", "showCertificate", "showExportDialog", "showProfile", "showReset", "startFinalExam", "startNewStudent", "startQuiz", "startRec", "startRetest", "startReviewSession", "toggleTeacherFeedbackRecording", "uploadReplacementAudio"]; /* 9.39: قائمة الدوال التي يجوز استدعاؤها من data-call/data-change */
 document.addEventListener('click', function(ev){
   var el = ev.target && ev.target.closest ? ev.target.closest('[data-call]') : null;
   if (!el) return;
@@ -4482,6 +4485,84 @@ var RATING_STATES = {mastered: '✅ متقن', good: '👍 جيد', needs: '🔁
  // 9.39.15 (ق6-أ)
 var RATING_UNUSABLE = '🔇 لا يصلح للتقييم';
 var NOTE_BANK = ['الغنة قصيرة', 'المد أقل من المطلوب', 'الإدغام غير واضح', 'الإظهار غير واضح', 'الإقلاب يحتاج تكرارًا', 'الإخفاء ثقيل، خفّف الغنة', 'المخرج غير دقيق', 'أحسنتِ، أعيدي الحكم بتركيز أكبر'];
+/* ===== 9.40: مراجعة المعلم أو ولي الأمر على جهاز الطفل نفسه =====
+   في البيت يجلس المعلم بجانب الطفل، فلا حاجة إلى إرسال ملف ثم انتظار ملف معاد. من «ملفي»: «مراجعة التسجيلات هنا»
+   (خلف رمز ولي الأمر أو المسألة الحسابية). لكل تسجيل: استماع، ثم تقييم (متقن، جيد، يحتاج تدريبًا، لا يصلح للتقييم)
+   وملاحظة اختيارية. «متقن» و«جيد» تعتمد التسجيل، و«يحتاج تدريبًا» تعيده للطفل ليسجّله من جديد.
+   التقييم يُحفظ عند الطفل ويُحتسب في الشهادة، موسومًا «مراجعة حضورية» (بلا توقيع رقمي؛ الثقة هنا رمز ولي الأمر).
+   مسار الملفات الموقّع باقٍ كما هو للمعلم البعيد. */
+function inPersonRecordings(){
+  var A = STATE.studentAudios || {};
+  return Object.keys(A).filter(function(id){ return A[id] && typeof A[id] === 'object'; })
+    .sort(function(a, b){ var pa = (A[a].status || 'pending') === 'pending' ? 0 : 1, pb = (A[b].status || 'pending') === 'pending' ? 0 : 1; return pa - pb; });
+}
+function openInPersonReview(){
+  if (!inPersonRecordings().length){ toast('لا توجد تسجيلات بعد.'); return; }
+  parentalGate(renderInPersonReview, 'مراجعة المعلم أو ولي الأمر للتسجيلات');
+}
+function closeInPersonReview(){ var o = document.getElementById('ipr-overlay'); if (o) o.remove(); try { showProfile(); } catch(e){} }
+function inPersonSave(id, rating, note){
+  var A = STATE.studentAudios || {}, r = A[id]; if (!r || !RATING_STATES[rating] && rating !== 'unusable') return false;
+  r.status = (rating === 'mastered' || rating === 'good') ? 'approved' : 'rejected';
+  r.reviewSource = 'in_person'; r.reviewedAt = new Date().toISOString();
+  r.note = String(note || '').trim().slice(0, 400); if (!r.note) delete r.note;
+  STATE.teacherRatings = STATE.teacherRatings || {}; STATE.teacherRatings[id] = rating;
+  save(); return true;
+}
+function renderInPersonReview(){
+  var old = document.getElementById('ipr-overlay'); if (old) old.remove();
+  var ov = document.createElement('div'); ov.id = 'ipr-overlay'; ov.className = 'hifz-overlay';
+  var box = document.createElement('div'); box.className = 'hifz-box'; ov.appendChild(box);
+  var head = document.createElement('div'); head.className = 'hifz-head';
+  var h3 = document.createElement('h3'); h3.textContent = '👨‍🏫 مراجعة التسجيلات هنا'; head.appendChild(h3);
+  var x = document.createElement('button'); x.type = 'button'; x.className = 'btn ghost sm'; x.textContent = '✕'; x.setAttribute('aria-label', 'إغلاق'); x.addEventListener('click', closeInPersonReview); head.appendChild(x);
+  box.appendChild(head);
+  var intro = document.createElement('p'); intro.className = 'hifz-intro';
+  intro.textContent = 'للمعلم أو ولي الأمر بجانب الطفل: استمع إلى كل تسجيل ثم قيّمه. «يحتاج تدريبًا» يعيده للطفل ليسجّله من جديد. معايير التقييم في دليل المعلم.';
+  box.appendChild(intro);
+  var A = STATE.studentAudios || {}, R = STATE.teacherRatings || {};
+  inPersonRecordings().forEach(function(id){
+    var r = A[id], card = document.createElement('div'); card.className = 'hifz-card';
+    var t = document.createElement('div'); t.className = 'ipr-title'; t.textContent = itemLabelById(id); card.appendChild(t);
+    var st = document.createElement('div'); st.className = 'hifz-num';
+    var stText = function(){ var s = r.status || 'pending'; st.textContent = (s === 'approved' ? '✅ معتمد' : s === 'rejected' ? '🔁 يعيده الطفل' : '⏳ لم يُراجَع') + (r.reviewSource === 'in_person' ? ' · مراجعة حضورية' : '') + (R[id] && RATING_STATES[normRating(R[id])] ? ' · ' + RATING_STATES[normRating(R[id])] : ''); };
+    stText(); card.appendChild(st);
+    var row = document.createElement('div'); row.className = 'hifz-row';
+    var play = document.createElement('button'); play.type = 'button'; play.className = 'btn primary sm'; play.textContent = '▶ استمع';
+    play.addEventListener('click', function(){ playStudentRec(id); }); row.appendChild(play);
+    card.appendChild(row);
+    var note = document.createElement('textarea'); note.className = 'ipr-note'; note.rows = 2; note.maxLength = 400; note.placeholder = 'ملاحظة للطفل (اختيارية): مثلًا «أطل الغنة في النون المشددة»';
+    note.value = r.note || ''; card.appendChild(note);
+    var rates = document.createElement('div'); rates.className = 'hifz-row';
+    ['mastered', 'good', 'needs', 'unusable'].forEach(function(k){
+      var b = document.createElement('button'); b.type = 'button';
+      b.className = 'btn sm ' + (k === 'mastered' || k === 'good' ? 'success' : k === 'needs' ? 'gold' : 'ghost');
+      b.textContent = k === 'unusable' ? RATING_UNUSABLE : RATING_STATES[k];
+      b.addEventListener('click', function(){ if (inPersonSave(id, k, note.value)){ stText(); card.classList.remove('ok', 'again'); card.classList.add(k === 'mastered' || k === 'good' ? 'ok' : 'again'); toast('✔ حُفظ التقييم'); } });
+      rates.appendChild(b);
+    });
+    card.appendChild(rates);
+    box.appendChild(card);
+  });
+  var close = document.createElement('button'); close.type = 'button'; close.className = 'btn ghost block'; close.textContent = '↩ إنهاء المراجعة'; close.addEventListener('click', closeInPersonReview);
+  box.appendChild(close);
+  document.body.appendChild(ov);
+}
+/* زر المراجعة في «ملفي» وملاحظة المراجع تحت كل تسجيل */
+function inPersonProfileExtras(){
+  var list = document.getElementById('profile-recordings-list'); if (!list) return;
+  var A = STATE.studentAudios || {};
+  Array.prototype.forEach.call(list.children, function(row, i){
+    var id = Object.keys(A)[i]; if (!id || !A[id] || !A[id].note || row.querySelector('.ipr-noteview')) return;
+    var n = document.createElement('div'); n.className = 'ipr-noteview'; n.textContent = '📝 ' + A[id].note; row.style.flexWrap = 'wrap'; row.appendChild(n);
+  });
+  var old = document.getElementById('btn-in-person'); if (old) old.remove();
+  if (!Object.keys(A).length) return;
+  var b = document.createElement('button'); b.type = 'button'; b.id = 'btn-in-person'; b.className = 'btn purple block'; b.style.marginTop = '10px';
+  b.textContent = '👨‍🏫 مراجعة التسجيلات هنا (للمعلم أو ولي الأمر)';
+  b.addEventListener('click', openInPersonReview);
+  list.parentNode.appendChild(b);
+}
 /* ===== 9.25: قناة الرد، ولوحة المتابعة للمعلم، وملخص ولي الأمر ===== */
 var REPLY_CHANNELS = {text: '📝 نص', audio: '🎙️ صوت', both: '📝🎙️ نص وصوت'};
 function setReplyChannel(ev){
@@ -5308,7 +5389,8 @@ function sanitizeBackupState(raw){
   st.progress = pr;
   var au = {}; Object.keys(st.studentAudios || {}).filter(idOk).slice(0, 200).forEach(function(k){ var a = st.studentAudios[k] || {};
     au[k] = {status: ['pending', 'approved', 'rejected'].indexOf(a.status) >= 0 ? a.status : 'pending'};
-    ['v', 'updatedAt', 'rid', 'source', 'sentAt'].forEach(function(f){ if (typeof a[f] === 'string') au[k][f] = a[f].slice(0, 64); }); if (a.partial) au[k].partial = true; });
+    ['v', 'updatedAt', 'rid', 'source', 'sentAt', 'reviewSource', 'reviewedAt'].forEach(function(f){ if (typeof a[f] === 'string') au[k][f] = a[f].slice(0, 64); }); if (a.partial) au[k].partial = true;
+    if (typeof a.note === 'string' && a.note) au[k].note = a.note.slice(0, 400); });
   st.studentAudios = au;
   if (st.assess){
     var cs = {}; Object.keys(st.assess.concepts || {}).filter(idOk).slice(0, 40).forEach(function(k){ var x = st.assess.concepts[k] || {};
