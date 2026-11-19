@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src '@@SCRIPT_HASH@@'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; worker-src 'none'; frame-src 'none'; form-action 'none'; object-src 'none'; base-uri 'none'">
+<title>رحلة طالب العلم — استوديو إعداد رحلة رفاق التحفة</title>
+<style>
+@@STYLE@@</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <div id="view-setup">
+    <div class="topbar" style="margin:-16px -16px 16px">
+      <h1>🧭 رحلة طالب العلم</h1>
+      <div class="sub">في رحاب القرآن · سلسلة التجويد · الرحلة الأولى: رفاق التحفة</div>
+    </div>
+
+    <div class="notice info">
+      💡 <b>إعداد رحلة تعليمية:</b> أدخل بيانات الرحلة ومصادر التلاوة، ثم سجّل المادة الصوتية وصدّر ملفًا تعليميًا مستقلًا لتثبيت تحفة الأطفال.
+    </div>
+
+    <div class="card">
+      <h2>🎙️ بيانات الرحلة ومصادر التلاوة</h2>
+      <div class="form-group">
+        <label>اسم الشيخ / قارئ القرآن</label>
+        <input type="text" id="in-sheikh-name" placeholder="اسم الشيخ / قارئ القرآن" maxlength="80">
+      </div>
+      <div class="form-group">
+        <label>اسم المشرف</label>
+        <input type="text" id="in-supervisor-name" placeholder="اسم المشرف" maxlength="80">
+      </div>
+      <div class="form-group"><label>اسم منشد الأبيات</label><input type="text" id="in-poem-reciter" placeholder="اسم منشد الأبيات" maxlength="80">
+      </div>
+      <div class="form-group">
+        <label>صورة الشيخ / قارئ القرآن</label>
+        <div class="photo-picker">
+          <div class="photo-preview" data-call='["clickById","in-sheikh-photo"]'>
+            <span class="placeholder" id="sheikh-photo-placeholder">📷</span>
+            <img id="sheikh-photo-img" class="hidden" alt="">
+          </div>
+          <input type="file" id="in-sheikh-photo" accept="image/*" class="hidden" data-change="handleSheikhPhoto">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>صورة المشرف</label>
+        <div class="photo-picker">
+          <div class="photo-preview" data-call='["clickById","in-supervisor-photo"]'>
+            <span class="placeholder" id="supervisor-photo-placeholder">📷</span>
+            <img id="supervisor-photo-img" class="hidden" alt="">
+          </div>
+          <input type="file" id="in-supervisor-photo" accept="image/*" class="hidden" data-change="handleSupervisorPhoto">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>صورة منشد الأبيات</label>
+        <div class="photo-picker">
+          <div class="photo-preview" data-call='["clickById","in-poem-reciter-photo"]'>
+            <span class="placeholder" id="poem-reciter-photo-placeholder">📷</span>
+            <img id="poem-reciter-photo-img" class="hidden" alt="">
+          </div>
+          <input type="file" id="in-poem-reciter-photo" accept="image/*" class="hidden" data-change="handlePoemReciterPhoto">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🏫 جهة الإصدار (اختياري)</h2>
+      <div class="form-group">
+        <label>اسم المدرسة أو المركز</label>
+        <input type="text" id="in-school-name" placeholder="مثال: مدرسة تحفيظ القرآن" maxlength="60">
+      </div>
+      <div class="form-group">
+        <label>الشعار</label>
+        <div class="photo-picker">
+          <div class="photo-preview" data-call='["clickById","in-school-logo"]'>
+            <span class="placeholder" id="school-logo-placeholder">🏫</span>
+            <img id="school-logo-img" class="hidden" alt="">
+          </div>
+          <input type="file" id="in-school-logo" accept="image/*" class="hidden" data-change="handleSchoolLogo">
+        </div>
+      </div>
+    </div>
+
+    <button class="btn primary block" data-call='["startStudio"]' type="button">▶️ ابدأ الاستوديو</button>
+  </div>
+
+  <div id="view-studio" class="hidden">
+    <div class="topbar" style="margin:-16px -16px 16px">
+      <h1>🎙️ إعداد الرحلة التعليمية</h1>
+      <div class="sub" id="studio-sub">—</div>
+    </div>
+
+    <div class="progress-header">
+      <div class="row">
+        <div class="count" id="progress-count">0 من 32</div>
+        <div class="pct" id="progress-pct">0%</div>
+      </div>
+      <div class="progress-track"><div id="progress-fill" style="width:0%"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>📚 المنهج</h2>
+      <div class="notice" id="curr-status">يُستخدم المنهج المضمَّن. يمكنك استيراد منهج جديد بصيغة JSON (يُفحص قبل القبول).</div>
+      <input type="file" id="in-curriculum" accept=".json,application/json" class="hidden" data-change="importCurriculum">
+      <button class="btn" type="button" data-call='["clickById","in-curriculum"]'>📥 استيراد منهج (JSON)</button>
+    </div>
+
+    <div id="groups-container"></div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>📦 إصدار الملف التعليمي</h2>
+      <div class="notice warn" id="export-hint">أكمل التسجيلات أولاً، أو صدّر ما لديك.</div>
+      <label style="display:block;margin:12px 0 4px;font-weight:700">🔐 مفاتيح توقيع المعلمين الموثوقة (اختياري لكن مُوصى به)</label>
+    <textarea id="in-trusted-keys" rows="3" placeholder='الصق مفتاح المعلم بصيغة JWK، مثل: {"kty":"EC","crv":"P-256","x":"…","y":"…"}' style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:12px monospace;direction:ltr"></textarea>
+    <div class="notice" style="font-size:.85rem">يُدرج هذا المفتاح في الملف، فيتحقق تطبيق الطفل من أن الاعتماد صادر عن المعلم. كل مفتاح في سطر منفصل أو داخل مصفوفة JSON.</div>
+    <button class="btn ghost" id="btn-sup-key" data-call='["showSupervisorPublicKey"]' type="button" style="margin:6px 0">🔑 مفتاح توقيع المشرف (لإعداد التطبيق)</button>
+    <div id="sup-key-box" class="notice hidden" style="font-size:.85rem"></div>
+    <button class="btn export-btn" id="btn-export" data-call='["exportSheikhPack"]' type="button">💾 تصدير ملف رفاق التحفة (HTML)</button>
+      <button class="btn ghost" id="btn-new-workspace" data-call='["newWorkspace"]' type="button">🆕 جلسة تسجيل جديدة</button>
+      <button class="btn ghost block" style="margin-top:10px" data-call='["showResetDialog"]' type="button">🗑️ حذف جميع التسجيلات</button>
+    </div>
+
+    <details style="margin-top:16px">
+      <summary style="cursor:pointer;padding:10px;background:#fff;border-radius:12px;font-size:.85rem;color:var(--muted)">🔍 سجل التشخيص</summary>
+      <pre id="log" style="background:#101522;color:#dbeafe;padding:12px;border-radius:10px;direction:ltr;text-align:left;overflow:auto;font-size:.75rem;max-height:200px;margin-top:8px">—</pre>
+    </details>
+  </div>
+
+</div>
+
+<!-- Modal عام -->
+<div id="modal" class="modal-bg hidden">
+  <div class="modal">
+    <h3 id="modal-title">—</h3>
+    <div id="modal-body" style="color:var(--muted);font-size:.9rem;line-height:1.7;margin:0 0 16px;white-space:pre-line">—</div>
+    <div id="modal-actions"></div>
+  </div>
+</div>
+
+
+<script>
+@@SCRIPT@@</script>
+</body>
+</html>

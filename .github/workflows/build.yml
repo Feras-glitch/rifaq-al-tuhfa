@@ -35,6 +35,8 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
+      - name: ملفات التطبيق والاستوديو مبنية من المصادر (src/) دون تعديل يدوي
+        run: python3 -I tools/build.py --check
       - name: بناء الموقع (النسخة التجريبية، فالمحتوى كله ظاهر للاختبارات)
         run: python3 tools/build_web.py _site --channel beta
       - name: فحص المنهج ومحرك التقييم
@@ -63,6 +65,10 @@ jobs:
         run: python3 tests/test_host_playwright.py
       - name: القناتان (الرئيسي يخفي غير المراجَع، والتجريبي منفصل)
         run: python3 -I tests/test_channels.py
+      - name: مسارات التطبيق الكاملة (الطالب، المعلم، الاستوديو، الإهداء)
+        env:
+          RIFAQ_SITE: ${{ github.workspace }}/_site
+        run: python3 tests/test_v939_playwright.py
 
   webkit:
     # 9.39.12: محرك Safari (آيفون). لا يمنع النشر حتى يستقر؛ فشله ظاهر في نتيجة التشغيل.

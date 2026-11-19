@@ -1,0 +1,16 @@
+{
+ "packageId": "pack_kids_stage1",
+ "packageType": "student_fresh",
+ "schemaVersion": 2,
+ "appVersion": "9.39",
+ "sheikhName": "الشيخ",
+ "poemReciterName": "المنشد",
+ "supervisorName": "المشرف",
+ "teacherName": "المعلم",
+ "teacherGender": "boy",
+ "studentName": "",
+ "studentId": "",
+ "masterAudios": {},
+ "studentAudios": {},
+ "trustedTeacherKeys": []
+}

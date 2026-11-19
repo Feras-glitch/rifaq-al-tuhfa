@@ -29,7 +29,7 @@ for s in C['sections']:
         out.append('| البيت | الصدر | العجز | ✓ معتمد | التعديل |'); out.append('|---|---|---|---|---|')
         for v in verses:
             n += 1
-            parts = [p.strip() for p in re.split(r'\s{2,}', plain(v)) if p.strip()]
+            parts = [plain(x).strip() for x in re.findall(r'<span class="v-[ab]">(.*?)</span>', v)] or [p.strip() for p in re.split(r'\s{2,}', plain(v)) if p.strip()]
             a, b = (parts + ['', ''])[:2] if len(parts) >= 2 else (plain(v), '')
             out.append('| %d | %s | %s | ☐ | |' % (n, a, b))
             for k, msg in ASK.items():

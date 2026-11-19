@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#283593">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src '@@SCRIPT_HASH@@'; style-src '@@STYLE_HASH@@'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
+<style>
+@@STYLE@@</style>
+</head>
+<body>
+
+<div id="view-splash" class="splash">
+  <div class="splash-badge" id="splash-badge">🎓 إعداد تعليمي</div>
+  <div class="splash-avatar" id="splash-avatar"><span class="emoji">🌟</span></div>
+  <div class="from" id="splash-from">إعداد من</div>
+  <h1 id="splash-role">المشرف</h1>
+  <div class="name" id="splash-name">—</div>
+  <div class="splash-greetings" id="splash-greetings"></div>
+  <div id="splash-role-choice"></div>
+  <button class="splash-skip" data-call="[&quot;continueFromSplash&quot;]" type="button">← تخطي</button>
+  <div class="splash-hint" id="splash-hint"></div>
+</div>
+
+<div id="view-student-setup" class="intro-screen hidden">
+  <div class="card" data-style="max-width:480px;width:100%">
+    <h1 data-style="font-size:1.5rem;color:var(--primary);text-align:center;margin:0 0 4px" id="setup-title">قبل أن نبدأ</h1>
+    <p data-style="text-align:center;color:var(--muted);margin:0 0 20px;font-size:.92rem">عرفنا بنفسك حتى نُعدّ بطاقتك</p>
+    <div id="gift-source-card" class="card hidden" data-style="margin-bottom:14px;background:linear-gradient(135deg,#fff8e1,#fff);border-color:#ffd54f">
+      <div data-style="font-weight:900;color:#8a5a00;margin-bottom:10px" id="gift-source-role">🎓 صاحبة الإهداء</div>
+      <div data-style="display:flex;align-items:center;gap:12px">
+        <div class="avatar" id="gift-source-avatar" data-style="width:64px;height:64px;flex:0 0 64px"><span class="emoji">🌟</span></div>
+        <div><div data-style="font-weight:900" id="gift-source-name">—</div><div data-style="font-size:.8rem;color:var(--muted);margin-top:4px" id="gift-source-description">هذه زميلتك صاحبة التسجيلات المعتمدة.</div><div data-style="font-size:.82rem;color:var(--primary);font-weight:800;margin-top:6px" id="gift-teacher-line">تحت إشراف المعلم —</div><div data-style="font-size:.82rem;color:var(--muted);margin-top:5px" id="gift-source-action">سجّل بصوتك أنت، ثم أرسل تسجيلاتك للمعلم، ومن ثم تهدي ملفك لزملائك وأصدقائك لتنشر النفع.</div></div>
+      </div>
+    </div>
+    <div id="gift-supervisor-card" class="card hidden" data-style="margin-bottom:14px;background:#eef3ff;border-color:#c5cae9">
+      <div data-style="font-weight:900;color:var(--primary);margin-bottom:8px">👨‍🏫 تحت إشراف المعلم</div>
+      <div data-style="display:flex;align-items:center;gap:10px">
+        <div class="avatar" id="gift-supervisor-avatar" data-style="width:48px;height:48px;flex:0 0 48px"><span class="emoji">👨‍🏫</span></div>
+        <div><div data-style="font-weight:900" id="gift-supervisor-name">—</div><div data-style="font-size:.78rem;color:var(--muted)">المعلم الذي راجع التسجيلات واعتمدها</div></div>
+      </div>
+    </div>
+    <div class="form-group"><label>📛 اسمك</label><input type="text" id="setup-name" placeholder="اكتب اسمك الكامل" maxlength="40"></div>
+    <div class="form-group">
+      <label>👦 {اختر|اختاري} شخصيتك</label>
+      <div class="gender-picker">
+        <button type="button" class="gender-option" id="setup-boy" data-call="[&quot;setSetupGender&quot;, &quot;boy&quot;]"><span class="icon">🦸‍♂️</span><span class="label">ولد</span></button>
+        <button type="button" class="gender-option" id="setup-girl" data-call="[&quot;setSetupGender&quot;, &quot;girl&quot;]"><span class="icon">🧚‍♀️</span><span class="label">بنت</span></button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>📸 صورتك (اختياري)</label>
+      <div class="photo-picker">
+        <div class="photo-preview" data-call="[&quot;clickById&quot;,&quot;setup-photo&quot;]">
+          <span class="placeholder" id="setup-photo-placeholder">📷</span>
+          <img id="setup-photo-img" class="hidden" alt="">
+        </div>
+        <input type="file" id="setup-photo" accept="image/*" class="hidden" data-change="handleSetupPhoto">
+      </div>
+    </div>
+    <button class="btn primary block" data-call="[&quot;saveSetup&quot;]" type="button">🚀 لنبدأ الرحلة!</button>
+    <button class="btn ghost block" id="btn-new-student" data-call="[&quot;startNewStudent&quot;]" type="button" data-style="margin-top:8px">👤 طالب جديد / تبديل الطالب</button>
+  </div>
+</div>
+
+<div id="view-home" class="hidden">
+  <div class="app">
+    <div class="app-header">
+      <div class="avatar" id="home-avatar"></div>
+      <div class="info"><h1 id="home-name">—</h1><div class="subtitle" id="home-sub">—</div></div>
+    </div>
+    <div class="card featured">
+      <div data-style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div data-style="font-weight:800;color:var(--primary)">📊 تقدمك</div>
+        <div class="pill gold" id="total-points-pill">0 نقطة</div>
+      </div>
+      <div class="progress"><div id="total-progress" data-style="width:0%"></div></div>
+      <div data-style="margin-top:8px;font-size:.88rem;color:var(--muted)" id="progress-label">—</div>
+    </div>
+    <h2 data-style="color:var(--primary);font-size:1.05rem;margin:18px 4px 10px">📚 رحلتك التعليمية</h2>
+    <div class="section-list" id="section-list"></div>
+    <div class="top-actions">
+      <button class="btn ghost" data-call="[&quot;showProfile&quot;]" type="button">👤 ملفي</button>
+      <button class="btn gold" data-call="[&quot;showCertificate&quot;]" type="button" id="btn-cert-home">🏅 شهادتي</button>
+    </div>
+  </div>
+</div>
+
+<div id="view-lesson" class="hidden">
+  <div class="app">
+    <div class="app-header">
+      <div class="avatar" id="lesson-avatar"></div>
+      <div class="info"><h1 id="lesson-section-title">—</h1><div class="subtitle" id="lesson-progress-label">—</div></div>
+      <button class="btn ghost sm" data-call="[&quot;goHome&quot;]" type="button">✕</button>
+    </div>
+    <div id="lesson-content"></div>
+  </div>
+</div>
+
+<div id="view-quiz" class="hidden">
+  <div class="app">
+    <div class="quiz-header">
+      <span class="quiz-counter" id="quiz-counter">1 / 5</span>
+      <span class="quiz-points" id="quiz-points">+0</span>
+    </div>
+    <div class="progress" data-style="margin-bottom:14px"><div id="quiz-progress" data-style="width:0%"></div></div>
+    <div class="question-box" id="question-text">—</div>
+    <div class="options" id="options"></div>
+    <div id="feedback-box"></div>
+  </div>
+</div>
+
+<div id="view-results" class="hidden">
+  <div class="app">
+    <div class="results-hero">
+      <div class="big-stars" id="result-stars"></div>
+      <h2 id="result-title">—</h2>
+      <p data-style="color:var(--muted);margin:0" id="result-message">—</p>
+    </div>
+    <div class="score-circle" id="result-circle"><div class="inner"><span class="num" id="result-score">0</span><span class="lbl">نقطة</span></div></div>
+    <div class="card text-center">
+      <div data-style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <div class="pill" id="result-correct">✅ 0</div>
+        <div class="pill" id="result-wrong">❌ 0</div>
+      </div>
+    </div>
+    <button class="btn primary block" data-call="[&quot;nextFromResults&quot;]" type="button">متابعة</button>
+    <button class="btn ghost block" data-style="margin-top:10px" data-call="[&quot;goHome&quot;]" type="button">🏠 الرئيسية</button>
+  </div>
+</div>
+
+<div id="view-profile" class="hidden">
+  <div class="app">
+    <div class="app-header">
+      <div class="avatar" id="profile-avatar"></div>
+      <div class="info"><h1 id="profile-name">—</h1><div class="subtitle" id="profile-sub">—</div></div>
+      <button class="btn ghost sm" data-call="[&quot;goHome&quot;]" type="button">✕</button>
+    </div>
+    <div class="card featured">
+      <div data-style="display:flex;justify-content:space-between;align-items:center">
+        <div data-style="font-weight:800;color:var(--primary)">🏆 نقاطك</div>
+        <div class="pill gold" id="profile-points">0</div>
+      </div>
+      <div data-style="margin-top:8px;font-size:.88rem;color:var(--muted)" id="profile-stats">—</div>
+    </div>
+    <div class="card">
+      <h2 data-style="margin-top:0;color:var(--primary);font-size:1rem">🎙️ تسجيلاتي</h2>
+      <div id="profile-recordings-list"></div>
+    </div>
+    <button class="btn primary block" data-call="[&quot;showExportDialog&quot;, &quot;submission&quot;]" type="button" id="btn-submit-home">📨 إرسال للمعلم للمراجعة</button>
+    <button class="btn block" data-style="margin-top:10px" data-call="[&quot;startFinalExam&quot;,1]" type="button" id="btn-final-exam">🎓 الاختبار النهائي — الجلسة الأولى</button>
+    <button class="btn block" data-style="margin-top:10px" data-call="[&quot;startFinalExam&quot;,2]" type="button" id="btn-final-exam-2">🎓 الاختبار النهائي — الجلسة الثانية</button>
+    <button class="btn block" data-style="margin-top:10px" data-call="[&quot;startRetest&quot;]" type="button" id="btn-retest">🔁 إعادة المفاهيم المخفقة</button>
+    <button class="btn block" data-style="margin-top:10px" data-call="[&quot;startReviewSession&quot;]" type="button" id="btn-review-session">🔄 جلسة المراجعة</button>
+    <button class="btn block" data-style="margin-top:10px" data-call="[&quot;openGuardianSettings&quot;]" type="button" id="btn-guardian-settings">⚙️ إعدادات ولي الأمر</button><p data-style="font-size:.75rem;color:#777;text-align:center;margin:12px 0">نص القرآن: تنزيل — Tanzil Project (ترخيص CC BY 3.0) · tanzil.net</p>
+    <button class="btn ghost block" data-style="margin-top:10px" data-call="[&quot;editProfile&quot;]" type="button">✏️ تعديل ملفي</button>
+  </div>
+</div>
+
+<div id="view-teacher-review" class="hidden">
+  <div class="app">
+    <div class="app-header">
+      <div class="avatar" data-style="background:linear-gradient(135deg,#7B1FA2,#AB47BC)"><span class="emoji">👨‍🏫</span></div>
+      <div class="info"><h1>👨‍🏫 صفحة مراجعة المعلم</h1><div class="subtitle" id="review-student-name">—</div></div>
+      <button class="btn ghost sm" data-call="[&quot;goHome&quot;]" type="button">✕</button>
+    </div>
+    <div class="review-stats">
+      <div class="num" id="review-approved-count">0</div>
+      <div class="lbl">تسجيلات معتمدة</div>
+    </div>
+    <div class="notice info">استمع لكل تسجيل. اعتمد أو ارفض. عند الرفض يجب إرفاق تعليق صوتي يوضح التصحيح.</div>
+    <div class="card"><div class="form-group"><label>اسم المعلم المراجع</label><input id="review-teacher-name" type="text" maxlength="60" placeholder="اسم المعلم الذي راجع التسجيلات"></div><div class="form-group"><label>صورة المعلم / المعلمة</label><div class="photo-picker"><div class="photo-preview" data-style="width:76px;height:76px" data-call="[&quot;clickById&quot;,&quot;review-teacher-photo&quot;]"><span class="placeholder" id="review-teacher-photo-placeholder">👨‍🏫</span><img id="review-teacher-photo-img" class="hidden" alt=""></div><input type="file" id="review-teacher-photo" accept="image/*" class="hidden" data-change="handleReviewTeacherPhoto"></div></div></div>
+    <div id="review-list"></div>
+    <div class="card" data-style="margin-top:16px">
+      <h2 data-style="margin-top:0;color:var(--primary);font-size:1rem">📤 خيارات التصدير</h2>
+      <button class="btn success block" data-call="[&quot;exportApprovedPack&quot;]" type="button" data-style="margin-bottom:8px">🎓 إصدار إعداد المشرف المعتمد</button>
+      <button class="btn gold block" data-call="[&quot;exportReturnedPack&quot;]" type="button">📨 إعادة الملف للطالب للتعديل</button>
+    </div>
+  </div>
+</div>
+
+<div id="view-tf" class="hidden">
+  <div class="app">
+    <div class="app-header">
+      <div class="avatar" data-style="background:linear-gradient(135deg,#c62828,#e53935)"><span class="emoji">📢</span></div>
+      <div class="info"><h1>تعليقات المعلم</h1><div class="subtitle" id="tf-sub">—</div></div>
+      <button class="btn ghost sm" data-call="[&quot;goHome&quot;]" type="button">✕</button>
+    </div>
+    <div class="notice warn" id="tf-summary">—</div>
+    <div id="tf-list"></div>
+    <div class="card" data-style="margin-top:14px">
+      <button class="btn gold block" data-call="[&quot;showExportDialog&quot;, &quot;submission&quot;]" type="button" id="btn-reexport">📨 إرسال التسجيلات المعدلة للمعلم</button>
+    </div>
+  </div>
+</div>
+
+<div id="view-certificate" class="cert-overlay hidden">
+  <div class="cert-wrap">
+    <div class="certificate" id="certificate-card">
+      <div class="cert-inner">
+        <span class="cert-corner tl">✦</span><span class="cert-corner tr">✦</span>
+        <span class="cert-corner bl">✦</span><span class="cert-corner br">✦</span>
+        <div class="cert-header">
+          <div class="cert-medal">🏅</div>
+          <h1 class="cert-title">شهادة إتقان</h1>
+          <p class="cert-subtitle">منهج تحفة الأطفال</p>
+        </div>
+        <div id="cert-school-box" class="cert-school" data-style="display:none">
+          <div id="cert-school-logo"></div>
+          <div class="cert-school-info">
+            <span class="cert-school-label">بمدرسة</span>
+            <span class="cert-school-name" id="cert-school-name">—</span>
+          </div>
+        </div>
+        <div class="cert-divider"></div>
+        <div class="cert-photo-wrap"><div class="cert-photo" id="cert-photo"><span class="emoji">🌟</span></div></div>
+        <div class="cert-body">
+          <p class="cert-award">تتشرف هذه الشهادة بأن تمنح</p>
+          <h2 class="cert-name" id="cert-name">—</h2>
+          <div class="cert-role" id="cert-role">🏆 بطل المنهج</div>
+          <p class="cert-desc" id="cert-desc">—</p>
+        </div>
+        <div class="cert-stats" id="cert-stats"></div>
+        <div class="cert-footer">
+          <div class="cert-sign">
+            <div class="sign-label" id="cert-sheikh-label">الشيخ</div>
+            <div class="sign-line"></div>
+            <div class="sign-name" id="cert-sheikh-name">—</div>
+          </div>
+          <div class="cert-sign" id="cert-supervisor-sign">
+            <div class="sign-label" id="cert-supervisor-label">بإشراف المعلم</div>
+            <div class="sign-line"></div>
+            <div class="sign-name" id="cert-supervisor-name">—</div>
+          </div>
+          <div class="cert-seal" id="cert-seal">معتمد<br>رسمي</div>
+        </div>
+        <div class="cert-date" id="cert-date">—</div>
+        <div class="cert-id" id="cert-id">—</div>
+      </div>
+    </div>
+    <div class="cert-actions">
+      <button class="btn gold" data-call="[&quot;printCertificate&quot;]" type="button">🖨️ طباعة</button>
+      <button class="btn primary" data-call="[&quot;shareCertificate&quot;]" type="button">📤 مشاركة الصورة</button>
+      <button class="btn success" data-call="[&quot;downloadCertificate&quot;]" type="button">💾 تنزيل الصورة</button>
+      <button class="btn" data-call="[&quot;closeCertificate&quot;]" type="button">✕ إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<div id="view-preview" class="preview-overlay hidden">
+  <img id="preview-img" alt="الشهادة">
+  <div class="cert-actions" data-style="max-width:400px">
+    <button class="btn gold" data-call="[&quot;doSharePreview&quot;]" type="button">📤 مشاركة الآن</button>
+    <button class="btn" data-call="[&quot;doDownloadPreview&quot;]" type="button">💾 تنزيل</button>
+    <button class="btn" data-call="[&quot;closePreview&quot;]" type="button">✕ إغلاق</button>
+  </div>
+</div>
+
+<div id="modal" class="modal-bg hidden">
+  <div class="modal">
+    <h3 id="modal-title">—</h3>
+    <p id="modal-body">—</p>
+    <div id="modal-actions"></div>
+  </div>
+</div>
+
+
+<div id="teacher-feedback-modal" class="modal-bg hidden">
+  <div class="modal">
+    <h3>🎙️ تعليق للطالب (صوتي و/أو كتابي)</h3>
+    <p id="teacher-feedback-label">{سجّل|سجّلي} توجيهًا صوتيًا، أو {اكتب|اكتبي} ملاحظتك، أو كليهما.</p>
+    <audio id="teacher-feedback-preview" controls class="hidden" data-style="width:100%;margin:10px 0"></audio>
+    <textarea id="teacher-feedback-text" maxlength="400" rows="3" placeholder="{اكتب|اكتبي} ملاحظتك للطالب هنا (اختياري إذا سجلت صوتًا)" data-style="width:100%;margin:8px 0;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;box-sizing:border-box"></textarea>
+    <div data-style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <button class="btn ghost" id="teacher-feedback-record" data-call="[&quot;toggleTeacherFeedbackRecording&quot;]" type="button">🎙️ {ابدأ|ابدئي} التسجيل</button>
+      <button class="btn ghost" data-call="[&quot;cancelTeacherFeedback&quot;]" type="button">إلغاء</button>
+      <button class="btn danger" id="teacher-feedback-confirm" data-call="[&quot;confirmTeacherRejection&quot;]" type="button">❌ تأكيد الرفض</button>
+    </div>
+    <div id="teacher-feedback-status" data-style="margin-top:10px;color:var(--muted)">يلزم تعليق واحد على الأقل (صوتي أو كتابي) قبل تأكيد الرفض.</div>
+  </div>
+</div>
+
+<script>
+@@SCRIPT@@</script>
+</body>
+</html>

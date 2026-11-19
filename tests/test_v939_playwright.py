@@ -1,7 +1,13 @@
 GIFT_EXPORT_JS = "(function(){ exportApprovedPack(); (function w(n){ var m=document.getElementById('modal'); var b=Array.prototype.slice.call(document.querySelectorAll('#modal-actions button')).filter(function(x){ return x.textContent.indexOf('إصدار الإهداء')>=0; })[0]; if (b && m && !m.classList.contains('hidden')){ window.__giftMsg=document.getElementById('modal-body').textContent; b.click(); } else if (n<150) setTimeout(function(){ w(n+1); },100); })(0); })()"  # 9.39.10: بيان الإهداء في نافذة التطبيق لا في confirm
 import asyncio, json, re, os, html as H
 from playwright.async_api import async_playwright
-D = '/home/claude/v939'
+import shutil, sys, tempfile
+# 9.40: مستقل بذاته — يُنشئ مجلدًا مؤقتًا من بناء القناة التجريبية (RIFAQ_SITE، افتراضيًا _site) ومن المنهج المصدر
+_SITE = os.environ.get('RIFAQ_SITE', '_site')
+D = tempfile.mkdtemp(prefix='rifaq_v939_')
+for _src, _dst in (('app/index.html', 'out_app.html'), ('trial/index.html', 'out_mobile.html'), ('studio/index.html', 'out_studio.html')):
+    shutil.copy(os.path.join(_SITE, _src), os.path.join(D, _dst))
+shutil.copy('curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json', os.path.join(D, 'curriculum.json'))
 # 9.39.14: out_app.html وout_mobile.html تُنسخان من بناء القناة التجريبية (_site/app/index.html و_site/trial/index.html بعد
 # build_web.py --channel beta)، لأن الفحص يمر على كل أسئلة المنهج، والرئيسي يخفي ما لم يراجعه الشيخ (يغطيه tests/test_channels.py).
 RESULTS = []
@@ -277,5 +283,6 @@ async def main():
         await b.close()
     json.dump(RESULTS, open(f'{D}/test_results.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('\nSUMMARY:', sum(1 for r in RESULTS if r[1]), '/', len(RESULTS), 'passed')
+    if not RESULTS or not all(r[1] for r in RESULTS): sys.exit(1)
 
 asyncio.run(main())

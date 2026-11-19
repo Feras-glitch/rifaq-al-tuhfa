@@ -1,0 +1,14 @@
+{
+ "packageId": "pack_s34",
+ "packageType": "student_fresh",
+ "schemaVersion": 2,
+ "appVersion": "9.39",
+ "sheikhName": "الشيخ",
+ "teacherName": "المعلم",
+ "teacherGender": "boy",
+ "studentName": "",
+ "studentId": "",
+ "masterAudios": {},
+ "studentAudios": {},
+ "trustedTeacherKeys": []
+}

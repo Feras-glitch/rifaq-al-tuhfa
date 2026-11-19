@@ -213,8 +213,10 @@ def poem_verses(sid):
     for it in s['items']:
         if it['type'] == 'poem':
             for line in it['text'].split('<br>'):
-                h = [x.strip() for x in re.split(r'\s{2,}', line.strip()) if x.strip()]
-                if len(h) == 2: vs.append(h)
+                # 9.40: صيغة المتن في المصدر الواحد <span class="v-a">صدر</span><span class="v-b">عجز</span>
+                h = re.findall(r'<span class="v-[ab]">(.*?)</span>', line)
+                if not h: h = [x.strip() for x in re.split(r'\s{2,}', line.strip()) if x.strip()]
+                if len(h) == 2: vs.append([x.strip() for x in h])
     return vs
 def eqv(a, b): return strip_cmp(a) == strip_cmp(b)
 

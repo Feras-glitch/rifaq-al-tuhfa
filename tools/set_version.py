@@ -1,23 +1,21 @@
 # -*- coding: utf-8 -*-
-"""يضبط رقم الإصدار في كل مكان دفعة واحدة: التطبيق ونسخة التجربة والاستوديو وحزمة أندرويد (وويندوز إن وُجدت).
-tools/build_web.py يرفض البناء إن اختلف الرقم بينها. بعده: python3 -I tools/rebuild_html.py
-التشغيل: python3 -I tools/set_version.py 9.39.13"""
-import json, os, re, sys
+"""يضبط رقم الإصدار: src/VERSION وحزمة أندرويد، ثم يبني التطبيق والاستوديو (tools/build.py).
+التشغيل: python3 -I tools/set_version.py 9.40.0"""
+import json, os, re, subprocess, sys
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if len(sys.argv) != 2 or not re.fullmatch(r'\d+\.\d+(\.\d+)?', sys.argv[1]):
     sys.exit('usage: set_version.py X.Y.Z')
 V = sys.argv[1]
-for f in ['app/تطبيق_الطالب_والمعلم_v9.39.html', 'app/تجربة_المرحلة1_للهاتف_v9.39.html', 'studio/استوديو_المشرف_v9.39.html']:
-    s = open(f, encoding='utf-8').read()
-    s2, n = re.subn(r"var APP_VERSION = '[^']*';", "var APP_VERSION = '" + V + "';", s, count=1)
-    if n != 1: sys.exit('APP_VERSION not found in ' + f)
-    if s2 != s: open(f, 'w', encoding='utf-8').write(s2)
-    print(f, V)
+open(os.path.join(ROOT, 'src', 'VERSION'), 'w', encoding='utf-8').write(V + '\n')
+print('src/VERSION', V)
 for pj in ['native/android/package.json', 'native/windows/package.json']:
-    if not os.path.exists(pj): continue
-    raw = open(pj, encoding='utf-8').read()
+    p = os.path.join(ROOT, pj)
+    if not os.path.exists(p): continue
+    raw = open(p, encoding='utf-8').read()
     raw2, n = re.subn(r'("version":\s*")[^"]*(")', lambda m: m.group(1) + V + m.group(2), raw, count=1)
     if n != 1: sys.exit('version not found in ' + pj)
     json.loads(raw2)
-    if raw2 != raw: open(pj, 'w', encoding='utf-8').write(raw2)
+    if raw2 != raw: open(p, 'w', encoding='utf-8').write(raw2)
     print(pj, V)
+subprocess.check_call([sys.executable, '-I', os.path.join(ROOT, 'tools', 'build.py')])
