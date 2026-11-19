@@ -84,7 +84,9 @@
       </div>
     </div>
 
+    <div id="setup-err" class="notice warn hidden" role="alert"></div>
     <button class="btn primary block" data-call='["startStudio"]' type="button">▶️ ابدأ الاستوديو</button>
+    <button class="btn ghost block" style="margin-top:12px" data-call='["openSheikhReview"]' type="button">📋 للشيخ: المراجعة العلمية للمنهج (دون إعداد)</button>
   </div>
 
   <div id="view-studio" class="hidden">
@@ -108,6 +110,11 @@
       <button class="btn" type="button" data-call='["clickById","in-curriculum"]'>📥 استيراد منهج (JSON)</button>
     </div>
 
+    <div class="card">
+      <h2>📋 المراجعة العلمية</h2>
+      <div class="notice info" style="margin-bottom:10px">الشيخ يراجع شرح كل درس وأبيات المتن والمهام وكل سؤال، ويصدّر ملف مراجعة يُدمج في المنهج.</div>
+      <button class="btn purple block" data-call='["openSheikhReview"]' type="button">📋 افتح المراجعة العلمية</button>
+    </div>
     <div id="groups-container"></div>
 
     <div class="card" style="margin-top:20px">

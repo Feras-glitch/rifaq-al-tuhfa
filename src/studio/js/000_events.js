@@ -1,5 +1,5 @@
 /* 9.39.12 (E1): موزّع الأحداث — لا معالجات مضمَّنة؛ data-call = ["اسم الدالة", وسائط...]، وdata-change = اسم دالة تستقبل الحدث */
-var STUDIO_CALLABLE = ['clickById','startStudio','showSupervisorPublicKey','exportSheikhPack','newWorkspace','showResetDialog','toggleGroup','playRecording','startRec','deleteRec','recordNextVerse'];
+var STUDIO_CALLABLE = ['clickById','startStudio','showSupervisorPublicKey','exportSheikhPack','newWorkspace','showResetDialog','toggleGroup','playRecording','startRec','deleteRec','recordNextVerse','openSheikhReview','closeSheikhReview','reviewDecide','exportSheikhReview'];
 var STUDIO_CHANGE = ['handleSheikhPhoto','handleSupervisorPhoto','handlePoemReciterPhoto','handleSchoolLogo','importCurriculum','uploadRec'];
 function clickById(id){ var el = document.getElementById(String(id)); if (el) el.click(); }
 document.addEventListener('click', function(ev){

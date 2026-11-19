@@ -372,8 +372,11 @@ function handleSchoolLogo(event){
 function startStudio(){
   var sheikhName = $('in-sheikh-name').value.trim();
   var supervisorName = $('in-supervisor-name').value.trim();
-  if (!sheikhName){ alert('اكتب اسم الشيخ / قارئ القرآن أولاً.'); return; }
-  if (!supervisorName){ alert('اكتب اسم المشرف أولاً.'); return; }
+  var err = document.getElementById('setup-err');
+  function need(id, msg){ if (err){ err.textContent = msg; err.classList.remove('hidden'); } var el = document.getElementById(id); if (el){ el.focus(); el.scrollIntoView({block: 'center'}); } }
+  if (!sheikhName){ need('in-sheikh-name', '✍️ اكتب اسم الشيخ / قارئ القرآن أولًا.'); return; }
+  if (!supervisorName){ need('in-supervisor-name', '✍️ اكتب اسم المشرف أولًا.'); return; }
+  if (err) err.classList.add('hidden');
   STATE.sheikhName = sheikhName;
   STATE.supervisorName = supervisorName;
   STATE.poemReciterName = ($('in-poem-reciter').value || '').trim();

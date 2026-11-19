@@ -65,6 +65,8 @@ jobs:
         run: python3 tests/test_host_playwright.py
       - name: القناتان (الرئيسي يخفي غير المراجَع، والتجريبي منفصل)
         run: python3 -I tests/test_channels.py
+      - name: مراجعة الشيخ (بصمات الاستوديو تطابق أداة الدمج، والدمج والواجهة يعملان)
+        run: python3 -I tests/test_sheikh_review.py
       - name: مسارات التطبيق الكاملة (الطالب، المعلم، الاستوديو، الإهداء)
         env:
           RIFAQ_SITE: ${{ github.workspace }}/_site
