@@ -51,6 +51,18 @@ h1{margin:0;font-size:2rem;color:var(--primary);letter-spacing:-.5px}
 .card p{margin:0 0 8px;font-size:.9rem;color:var(--muted);line-height:1.7}
 .go{font-size:.86rem;font-weight:800;color:var(--accent)}
 .card.primary .go{color:var(--primary)}
+/* 9.40: باب الطفل كبير وواضح، وأبواب الكبار أصغر تحت عنوانها */
+.card.start{background:linear-gradient(135deg,#283593,#5c6bc0);border:0;color:#fff;padding:22px 18px;align-items:center}
+.card.start .ico{background:#ffffff26;font-size:2.4rem;flex-basis:68px;height:68px}
+.card.start h2{color:#fff;font-size:1.6rem;margin-bottom:2px}
+.card.start p{color:#e8ebff;font-size:.98rem}
+.card.start .go{color:var(--accent);font-size:1.05rem}
+.grp{margin:26px 4px 0;font-size:.95rem;color:var(--muted);font-weight:800}
+.cards.small{gap:10px;margin-top:10px}
+.cards.small .card{padding:12px 14px}
+.cards.small .ico{font-size:1.5rem;flex-basis:44px;height:44px}
+.cards.small h2{font-size:1.02rem}
+.cards.small p{font-size:.85rem;margin-bottom:4px}
 
 .info{
   background:#fff;border:1px solid #dde3f3;border-radius:18px;
@@ -73,6 +85,7 @@ h1{margin:0;font-size:2rem;color:var(--primary);letter-spacing:-.5px}
   .card,.info,.status{background:#1d2235;border-color:#2c3350}
   .ico{background:#262d47}
   h1,.card h2,.info h3{color:#9fb0ff}
+  .card.start{background:linear-gradient(135deg,#283593,#3f4fa8)}.card.start h2{color:#fff}
   .notice{background:linear-gradient(135deg,#2a2412,#1f1d14);border-color:#8a6d00}
   .notice-t{color:#ffd34d}.notice p{color:#cbbd8e}
 }
