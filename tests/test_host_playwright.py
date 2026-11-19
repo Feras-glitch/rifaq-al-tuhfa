@@ -787,8 +787,8 @@ async def main():
                 st = [f for f in pU.frames if '/studio/index.html' in f.url][0]
                 await st.fill('#in-sheikh-name', 'الشيخ أيمن'); await st.fill('#in-supervisor-name', 'فراس')
                 await st.click('text=ابدأ الاستوديو'); await pU.wait_for_timeout(800)
-                recs = await st.query_selector_all('button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(2500)
-                recs = await st.query_selector_all('button:has-text("إيقاف"), button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(1200)
+                recs = await st.query_selector_all('#groups-container button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(2500)
+                recs = await st.query_selector_all('#groups-container button:has-text("إيقاف"), #groups-container button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(1200)
                 await st.evaluate("document.querySelector('details.adv').open = true")  # 9.40: المفاتيح تحت «إعدادات متقدمة»
                 await st.click('#btn-sup-key'); await pU.wait_for_timeout(500)
                 supJwk = json.loads(await st.inner_text('#sup-key-json'))

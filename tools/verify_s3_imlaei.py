@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """9.39.13 (ق3-أ): فاحص أسئلة الإدغام الـ12 في s3 بعد عرضها بالرسم الإملائي.
-التشغيل: python3 -I tools/verify_s3_imlaei_9.39.13.py
+التشغيل: python3 -I tools/verify_s3_imlaei.py
 يفحص لكل سؤال:
  1) المصدر «السورة س:آ (رسم إملائي، قوبل بنص تنزيل)» واسم السورة من quran-uthmani.xml.
  2) أن كلمات النص متتالية في الآية في نص تنزيل (الهيكل الحرفي بعد حذف الضبط؛ «ىٰ» وسط الكلمة ألف).
@@ -16,11 +16,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 os.chdir(ROOT)
 # أدوات التحليل من فاحص 9.39.11 (ما قبل الفحوص فقط)
-_src = open(os.path.join(HERE, 'verify_lesson_items_9.39.11.py'), encoding='utf-8').read()
+_src = open(os.path.join(HERE, 'verify_lesson_items.py'), encoding='utf-8').read()
 _cut = _src.index('# ---------------------------------------------------------------- 1) البنية')
 _ns = {'__name__': 'helpers'}
 _argv = sys.argv; sys.argv = [sys.argv[0]]
-exec(compile(_src[:_cut], 'verify_lesson_items_9.39.11.py', 'exec'), _ns)
+exec(compile(_src[:_cut], 'verify_lesson_items.py', 'exec'), _ns)
 sys.argv = _argv
 parse, key_imlai, plain, is_mark_token = _ns['parse'], _ns['key_imlai'], _ns['plain'], _ns['is_mark_token']
 sites, following_letter, nun_rule, label_core = _ns['sites'], _ns['following_letter'], _ns['nun_rule'], _ns['label_core']

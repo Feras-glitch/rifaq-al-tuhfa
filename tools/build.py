@@ -7,11 +7,13 @@
   src/app/shell.html               هيكل الصفحة وفيه @@STYLE@@ و@@SCRIPT@@ و@@SCRIPT_HASH@@ و@@STYLE_HASH@@
   src/app/css/*.css                الأنماط بترتيب أسماء الملفات (فيها @@QPC_FONTS@@)
   src/shared/*.js                  مشترك بين التطبيق والاستوديو (نواة أنواع الأسئلة QX)، يدخل بترتيب اسمه
-  src/app/js/*.js                  السكربت بترتيب أسماء الملفات (فيه @@APP_VERSION@@ و@@PACK_DATA@@ و@@QPC_PROBE@@)
+  src/app/js/*.js                  السكربت بترتيب أسماء الملفات (فيه @@APP_VERSION@@ و@@PACK_DATA@@ و@@QPC_PROBE@@ و@@RATING_CRITERIA@@)
   src/app/packs/app.json|trial.json  بيانات الحزمة دون المنهج
   src/studio/...                   مثلها، وفيها @@CURRICULUM@@ و@@APP_TEMPLATE_B64@@
   curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json   المنهج (المصدر الوحيد)
   curriculum/qpc/qpc_fonts.json             خطوط المصحف المقتطعة
+  curriculum/rating_criteria.json   معايير تقييم التلاوة (المصدر الوحيد؛ منها أيضًا docs/TEACHER_RUBRIC.md)
+ويرفض البناء أي دالة عُرّفت مرتين في المستوى الأعلى من سكربت واحد، فلا تعود «طبقات الاستبدال».
 المخرجات: app/تطبيق_الطالب_والمعلم_v9.39.html، app/تجربة_المرحلة1_للهاتف_v9.39.html، studio/استوديو_المشرف_v9.39.html
 الاستعمال:  python3 -I tools/build.py          يبني ويكتب
             python3 -I tools/build.py --check  يتحقق أن الملفات المحفوظة مطابقة للمصادر (في CI)"""
@@ -20,6 +22,7 @@ import base64, glob, hashlib, json, os, re, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUR = 'curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json'
 FONTS = 'curriculum/qpc/qpc_fonts.json'
+RATING = 'curriculum/rating_criteria.json'
 OUT_APP = 'app/تطبيق_الطالب_والمعلم_v9.39.html'
 OUT_TRIAL = 'app/تجربة_المرحلة1_للهاتف_v9.39.html'
 OUT_STUDIO = 'studio/استوديو_المشرف_v9.39.html'
@@ -48,6 +51,18 @@ def fill(text, **kv):
     return text
 
 
+TOP_FN = re.compile(r'^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(', re.M)
+
+
+def no_duplicates(js, label):
+    # تعريف واحد لكل دالة في المستوى الأعلى: التعريف الثاني يُخفي الأول بصمت
+    seen, dup = set(), []
+    for name in TOP_FN.findall(js):
+        if name in seen: dup.append(name)
+        seen.add(name)
+    if dup: sys.exit('%s: functions defined more than once: %s' % (label, ', '.join(sorted(set(dup)))))
+
+
 def page(shell, style, script):
     h = fill(shell, STYLE=style, SCRIPT=script)
     # البصمة على النص الكامل بين الوسمين، كما يحسبها المتصفح
@@ -68,6 +83,9 @@ def build():
     probe = json.dumps({p: chr(F[p]['codepoints'][0]) for p in pages}, ensure_ascii=True)
     style = fill(cat('src/app/css/*.css'), QPC_FONTS=fonts_css)
     js = cat('src/shared/*.js', 'src/app/js/*.js')
+    no_duplicates(js, 'app')
+    rating = json.loads(rd(RATING)); rating.pop('meta', None)
+    js = fill(js, RATING_CRITERIA=json.dumps(rating, ensure_ascii=False, separators=(',', ':')))
     shell = rd('src/app/shell.html')
     out = {}
     for name, path in (('app', OUT_APP), ('trial', OUT_TRIAL)):
@@ -75,7 +93,9 @@ def build():
         pk['curriculum'] = sections
         script = fill(js, APP_VERSION=version, PACK_DATA=json.dumps(pk, ensure_ascii=False), QPC_PROBE=probe)
         out[path] = page(shell, style, script)
-    sjs = fill(cat('src/shared/*.js', 'src/studio/js/*.js'), APP_VERSION=version, CURRICULUM=json.dumps(sections, ensure_ascii=False),
+    sjs = cat('src/shared/*.js', 'src/studio/js/*.js')
+    no_duplicates(sjs, 'studio')
+    sjs = fill(sjs, APP_VERSION=version, CURRICULUM=json.dumps(sections, ensure_ascii=False),
                APP_TEMPLATE_B64=base64.b64encode(out[OUT_APP].encode('utf-8')).decode())
     out[OUT_STUDIO] = page(rd('src/studio/shell.html'), cat('src/studio/css/*.css'), sjs)
     return out

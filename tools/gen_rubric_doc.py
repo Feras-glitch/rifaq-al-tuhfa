@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""يولّد docs/TEACHER_RUBRIC.md من curriculum/rating_criteria_9.39.15.json، فلا تختلف الوثيقة عما يراه المعلم في التطبيق.
-التشغيل: python3 -I tools/gen_rubric_doc.py   (ثم tools/patch_app_9.39.15.py يضمّن الملف نفسه في التطبيق)"""
+"""يولّد docs/TEACHER_RUBRIC.md من curriculum/rating_criteria.json، فلا تختلف الوثيقة عما يراه المعلم في التطبيق.
+التشغيل: python3 -I tools/gen_rubric_doc.py   (وtools/build.py يضمّن الملف نفسه في التطبيق)"""
 import json, os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-C = json.load(open(os.path.join(ROOT, 'curriculum', 'rating_criteria_9.39.15.json'), encoding='utf-8'))
+C = json.load(open(os.path.join(ROOT, 'curriculum', 'rating_criteria.json'), encoding='utf-8'))
 CUR = json.load(open(os.path.join(ROOT, 'curriculum', 'منهج_المرحلة1_كامل_معتمد_v1.3.json'), encoding='utf-8'))
 items = {it['id']: (s['title'], it) for s in CUR['sections'] for it in s['items']}
 
@@ -14,7 +14,7 @@ def cell(t):
 out = []
 out.append('# دليل المعلم لتقييم التلاوة (الإصدار 9.39.15، قرار ق6)')
 out.append('')
-out.append('> **' + C['meta']['status'] + '.** هذه الوثيقة مولَّدة من `curriculum/rating_criteria_9.39.15.json` بالأداة `tools/gen_rubric_doc.py`، والتطبيق يعرض النص نفسه للمعلم عند التقييم. أي تعديل يُكتب في ملف JSON، ثم تُولَّد الوثيقة ويُبنى التطبيق.')
+out.append('> **' + C['meta']['status'] + '.** هذه الوثيقة مولَّدة من `curriculum/rating_criteria.json` بالأداة `tools/gen_rubric_doc.py`، والتطبيق يعرض النص نفسه للمعلم عند التقييم. أي تعديل يُكتب في ملف JSON، ثم تُولَّد الوثيقة ويُبنى التطبيق.')
 out.append('')
 out.append('## المقياس')
 for k in ('mastered', 'good', 'needs', 'unusable'):

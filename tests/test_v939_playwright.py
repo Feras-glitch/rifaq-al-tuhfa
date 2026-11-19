@@ -154,22 +154,16 @@ async def main():
         await pU.goto(f'file://{D}/out_studio.html'); await pU.wait_for_timeout(600)
         await pU.fill('#in-sheikh-name', 'الشيخ أيمن'); await pU.fill('#in-supervisor-name', 'فراس')
         await pU.get_by_text('ابدأ الاستوديو').click(); await pU.wait_for_timeout(600)
-        finp = await pU.query_selector('input[type=file][data-change="importCurriculum"], input[type=file]#curr-file, input[type=file]')
-        # find the curriculum import input
-        inputs = await pU.query_selector_all('input[type=file]')
-        target = None
-        for inp in inputs:
-            acc = (await inp.get_attribute('accept')) or ''
-            oc = (await inp.get_attribute('onchange')) or (await inp.get_attribute('data-change')) or ''
-            if 'json' in acc.lower() or 'importCurriculum' in oc: target = inp
+        # 9.41: حقل استيراد المنهج بعينه (في الاستوديو حقل JSON آخر لحزم التسجيل)
+        target = await pU.query_selector('input[type=file][data-change="importCurriculum"]')
         if target:
             await target.set_input_files(f'{D}/curriculum.json'); await pU.wait_for_timeout(600)
             st = await pU.inner_text('#curr-status')
             rec('T9b R05 studio imports {meta,sections} file', '✅' in st, st[:120])
         else:
             rec('T9b R05 studio import input found', False, 'no input')
-        recs = await pU.query_selector_all('button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(3000)
-        recs = await pU.query_selector_all('button:has-text("إيقاف"), button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(1200)
+        recs = await pU.query_selector_all('#groups-container button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(3000)
+        recs = await pU.query_selector_all('#groups-container button:has-text("إيقاف"), #groups-container button:has-text("سجّل")'); await recs[0].click(); await pU.wait_for_timeout(1200)
         dbn0 = await pU.evaluate("DB_NAME")
         await pU.evaluate("document.querySelector('details.adv').open = true")  # 9.40: المفاتيح تحت «إعدادات متقدمة»
         await pU.fill('#in-trusted-keys', jwk)
