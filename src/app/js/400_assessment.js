@@ -119,62 +119,6 @@ function assessSummary(state, sections){
 }
 
 
-var CONSENT_VERSION = 2;
-var REC_MAX_MS = 180000;
-var REC_MIN_MS = 1500;      // أقل مدة مقبولة لتسجيل: ثانية ونصف      // حد أقصى ثلاث دقائق للتسجيل الواحد
-var REC_SILENCE_MS = 6000;    // بعد هذه المدة بلا صوت يُنبَّه الطفل
-var REC_SILENCE_LEVEL = 0.012;
-function hasConsent(){
-  var c = STATE.student && STATE.student.consent;
-  return !!(c && c.v === CONSENT_VERSION && c.guardian && c.permissions && c.permissions.record === true && c.permissions.review === true);
-}
-function consentForExport(){
-  var c = STATE.student && STATE.student.consent;
-  if (!c || c.v !== CONSENT_VERSION) return null;
-  var perm = c.permissions || {};
-  return {v: CONSENT_VERSION, guardian: String(c.guardian || '').slice(0, 60), at: String(c.at || '').slice(0, 40),
-    permissions: {record: perm.record === true, review: perm.review === true, shareWithPeers: perm.shareWithPeers === true},
-    excludedRecordings: Object.keys(c.excludedRecordings || {}).slice(0, 200).reduce(function(o,k){ o[String(k).slice(0,64)] = true; return o; }, {})};
-}
-function sharesWithPeers(){
-  var c = STATE.student && STATE.student.consent;
-  return !!(c && c.v === CONSENT_VERSION && c.permissions && c.permissions.shareWithPeers === true);
-}
-/* القرار DECISION-001: ثلاثة أذونات مستقلة، والمشاركة غير مفعّلة افتراضيًا */
-function ensureConsent(onAccept){
-  if (hasConsent()){ onAccept(); return; }
-  var ov = document.createElement('div');
-  ov.id = 'consent-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  var card = document.createElement('div');
-  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
-  card.innerHTML = '<h3 data-style="margin:0 0 8px">🛡️ موافقة ولي الأمر</h3>' +
-    '<label data-style="display:block;margin:8px 0 4px">اسم ولي الأمر:</label>' +
-    '<input id="consent-name" type="text" maxlength="60" data-style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit">' +
-    (guardianPinSet() ? '' : '<label data-style="display:block;margin:10px 0 4px">رمز ولي الأمر (4 أرقام) — يُطلب قبل الإعدادات والتصفير، فلا {تخبر|تخبري} به الطفل:</label>' +
-      '<div data-style="display:flex;gap:8px"><input id="consent-pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="الرمز" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr">' +
-      '<input id="consent-pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="أعده" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr"></div>') +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-record" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على تسجيل صوت الطفل وحفظه على هذا الجهاز للتعلم.</span></label>' +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-review" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على إرسال التسجيلات إلى المعلم للمراجعة التعليمية فقط.</span></label>' +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;background:#f5f5f5;border-radius:10px;padding:8px"><input id="consent-share" type="checkbox" data-style="margin-top:6px"> <span><b>اختياري:</b> أوافق على أن تُضمَّن التسجيلات المعتمدة في حزم تصل إلى أطفال آخرين. يمكنني استبعاد أي تسجيل، وسحب هذه الموافقة في أي وقت (لا يسترجع ذلك ما سبق نسخه).</span></label>' +
-    '<p id="consent-err" data-style="color:#b3261e;margin:4px 0;min-height:1.2em"></p>' +
-    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="consent-no" class="btn">إلغاء</button><button type="button" id="consent-ok" class="btn success">حفظ وابدأ</button></div>';
-  ov.appendChild(card); document.body.appendChild(ov);
-  $('consent-no').onclick = function(){ ov.remove(); };
-  $('consent-ok').onclick = async function(){
-    var name = ($('consent-name').value || '').trim().slice(0, 60);
-    if (name.length < 3){ $('consent-err').textContent = 'اكتب اسم ولي الأمر (٣ أحرف على الأقل).'; return; }
-    var pinErr = $('consent-pin') ? guardianPinProblem($('consent-pin').value, $('consent-pin2').value) : ''; // 9.39.13 (D7)
-    if (pinErr){ $('consent-err').textContent = pinErr; return; }
-    if (!$('consent-record').checked || !$('consent-review').checked){ $('consent-err').textContent = 'الموافقتان الأولى والثانية مطلوبتان للتسجيل.'; return; }
-    if ($('consent-pin')){ try { await setGuardianPin($('consent-pin').value); } catch(e){ $('consent-err').textContent = 'تعذّر حفظ الرمز على هذا الجهاز.'; return; } }
-    STATE.student = STATE.student || {};
-    STATE.student.consent = {v: CONSENT_VERSION, guardian: name, at: new Date().toISOString(),
-      permissions: {record: true, review: true, shareWithPeers: !!$('consent-share').checked},
-      excludedRecordings: {}};
-    save(); ov.remove(); onAccept();
-  };
-}
 /* لوحة ولي الأمر: تغيير المشاركة وسحبها واستبعاد تسجيلات بعينها */
 /* DECISION-002 (الافتراضي المعتمد): حذف بيانات الطالب من هذا الجهاز فقط.
    يحذف: الحالة والموافقة والتقدّم، وكل قواعد الصوت الخاصة بهذه الحزمة.

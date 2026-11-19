@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-0i39xYUpnudNgT1upaxxP/HzfLByTsfQeuQFxMa85cI='; style-src 'sha256-Cvw7nx1F0TROqp8LGl94kEw2Oa2qTX7Y29+WVMIiq/g='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-oRWOsGyO0Gvh/FKlP9bJvJjJWMGe2qtsWz4e6UjS95U='; style-src 'sha256-Cvw7nx1F0TROqp8LGl94kEw2Oa2qTX7Y29+WVMIiq/g='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -1193,6 +1193,7 @@ function safeIdString(id){
   } catch(e) { console.error('sanitizePackData failed', e); }
 })();
 
+/* ===== الحالة والتخزين: ملفات الطلاب وlocalStorage وIndexedDB ===== */
 var CURRICULUM = PACK_DATA.curriculum || [
   {id:"sec_1",title:"المقدمة والتعريف",emoji:"📖",
    items:[{id:"v1",text:"يَقُولُ رَاجِي رَحْمَةِ الْغَفُورِ<br>دَوْمًا سُلَيْمَانُ هُوَ الْجَمْزُورِي",desc:"يبدأ الناظم."}],
@@ -1252,31 +1253,6 @@ var STATE = {
   recipientOnboarded: false
 };
 
-function $(id){ return document.getElementById(id); }
-function escapeHTML(value){
-  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]; });
-}
-function genderWord(gender, male, female){ return gender === 'girl' ? female : male; }
-function personAvatarHTML(photo, gender, alt, size){
-  var px = size || 46;
-  var safeAlt = escapeHTML(alt || '');
-  if (photo) return '<span class="person-avatar" data-style="width:'+px+'px;height:'+px+'px"><img data-media="'+mediaRef('img', photo)+'" alt="'+safeAlt+'"></span>';
-  var emoji = gender === 'girl' ? '🧚‍♀️' : '🦸‍♂️';
-  return '<span class="person-avatar person-avatar-placeholder" data-style="width:'+px+'px;height:'+px+'px">'+emoji+'</span>';
-}
-function audioPersonBlock(photo, gender, name, label, audio, extraClass){
-  if (!audio) return '';
-  return '<div class="person-audio '+(extraClass||'')+'">'+personAvatarHTML(photo,gender,name,34)+'<div class="person-audio-main"><div class="person-audio-label">'+escapeHTML(label)+(name ? ' — '+escapeHTML(name) : '')+'</div><audio controls data-media="'+mediaRef('aud', audio)+'"></audio></div></div>';
-}
-function giftSourceTerms(giverGender, recipientGender, teacherGender){
-  var giverFemale = giverGender === 'girl', recipientFemale = recipientGender === 'girl', teacherFemale = teacherGender === 'girl';
-  return {
-    role: giverFemale ? '🎓 صاحبة الإهداء' : '🎓 صاحب الإهداء',
-    description: giverFemale ? 'هذه زميلتك صاحبة التسجيلات المعتمدة.' : 'هذا زميلك صاحب التسجيلات المعتمدة.',
-    teacher: 'تحت إشراف '+(teacherFemale ? 'المعلمة' : 'المعلم'),
-    action: recipientFemale ? 'سجّلي بصوتك أنت، ثم أرسلي تسجيلاتك إلى '+(teacherFemale ? 'المعلمة' : 'المعلم')+'، ومن ثم تهدين ملفك لزميلاتك وأصدقائك لتنشرين النفع.' : 'سجّل بصوتك أنت، ثم أرسل تسجيلاتك إلى '+(teacherFemale ? 'المعلمة' : 'المعلم')+'، ومن ثم تهدي ملفك لزملائك وأصدقائك لتنشر النفع.'
-  };
-}
 function normalizeState(raw){
   raw = raw && typeof raw === 'object' ? raw : {};
   var base = {student:{name:'',gender:'boy',photo:null,supervisorName:'',supervisorGender:'boy'},progress:{},stats:{totalPoints:0,completedSections:0,perfectSections:0,totalAttempts:0},studentAudios:{},role:null,sawSplash:false,recipientOnboarded:false};
@@ -1541,15 +1517,32 @@ async function dbDel(key){
   });
 }
 
-function show(id){
-  ['view-splash','view-student-setup','view-home','view-lesson','view-quiz','view-results','view-profile','view-teacher-review','view-tf','view-certificate','view-preview'].forEach(function(v){
-    var el = $(v); if(!el) return;
-    el.classList.toggle('hidden', v !== id);
+/* 9.39.4 (RT9393-01): استئناف كل حذف معلّق عند الإقلاع (لا عند فتح القاعدة فقط)، ومنع هذه النافذة من استعادة طفل محذوف */
+function resumePendingDeletions(){
+  var tombs = readTombs(); if (!tombs.length) return;
+  var mine = tombFor(DB_NAME, STORAGE_KEY);
+  if (mine) CHILD_DATA_DELETED = true;
+  tombs.forEach(function(t){
+    try { if (t.s) localStorage.removeItem(t.s); } catch(e){}
+    deleteDbFully(t.d, t.s).then(function(){ if (mine && (t.d === DB_NAME || t.s === STORAGE_KEY)){ alert('اكتمل حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.'); location.reload(); } }, function(e){ console.warn('pending delete failed', e); });
   });
-  if (id !== 'view-certificate' && id !== 'view-preview') window.scrollTo(0, 0);
-  try { document.querySelectorAll('.confetti').forEach(function(c){ c.remove(); }); } catch(e){}
-  navGuardSync(id);
+  if (mine) setTimeout(function(){ if (tombFor(DB_NAME, STORAGE_KEY)) { try { showModal('⏳ حذف بيانات الطالب لم يكتمل', 'التطبيق مفتوح في نافذة أو تبويب آخر يمنع الحذف. أغلق النوافذ الأخرى؛ سيكتمل الحذف تلقائيًا. لن يُحفظ شيء لهذا الطالب حتى يكتمل.', [{label: 'حسنًا', class: 'primary', action: closeModal}]); } catch(e){} } }, 1200);
 }
+function realSections(){ return CURRICULUM.filter(function(s){ return !s._synthetic; }); }
+function recalcStats(){
+  var tP = 0, comp = 0, perf = 0, att = 0;
+  realSections().forEach(function(s){ /* 9.39.10: الاختبار والمراجعة ليسا أقسامًا من المنهج */
+    var pr = STATE.progress[s.id];
+    if (pr){
+      tP += pr.bestScore || 0;
+      if (pr.stars > 0) comp++;
+      if (pr.stars === 3) perf++;
+      att += pr.attempts || 0;
+    }
+  });
+  STATE.stats = {totalPoints: tP, completedSections: comp, perfectSections: perf, totalAttempts: att};
+}
+/* ===== أدوات الواجهة: العرض والتنقل والرسائل ===== */
 /* 9.39.10: زر «رجوع» في الهاتف/المتصفح يعود داخل التطبيق (إلى الخريطة) بدل الخروج منه وفقد الاختبار الجاري */
 var NAV_GUARD = false;
 var NAV_DEEP = ['view-lesson','view-quiz','view-results','view-profile','view-certificate','view-preview'];
@@ -1586,155 +1579,78 @@ function teacherByline(){
 function hasTeacherFeedbacks(){
   return !!(PACK_DATA.teacherFeedbacks && Object.keys(PACK_DATA.teacherFeedbacks).length > 0);
 }
-function detectMode(){
-  var type = PACK_DATA.packageType;
-  if (type === 'student_returned') return 'student-returned';
-  if (type === 'approved_gift' || PACK_DATA.approved === true) return 'friend';
-  if (type === 'student_submission' || type === 'teacher_review') return 'teacher-review';
-  if (PACK_DATA.studentName) return 'user-choice';
-  if (hasTeacherFeedbacks()) return 'student-returned';
-  return 'student-fresh';
+
+
+function $(id){ return document.getElementById(id); }
+function escapeHTML(value){
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]; });
 }
-
-function isGenericName(n){ n = String(n || '').trim(); return !n || ['الشيخ', 'المشرف', 'المشرفة', 'المعلم', 'المعلمة', '—'].indexOf(n) >= 0; } // 9.39.12 (I4)
-function buildSplash(){
-  var isGirl = false;
-  var av = $('splash-avatar');
-  var mode = detectMode();
-  if (mode === 'friend' && PACK_DATA.sourceGiftStudentPhoto) av.innerHTML = '<img data-media="' + mediaRef('img', PACK_DATA.sourceGiftStudentPhoto) + '" alt="صورة صاحب الإهداء">';
-  else if (PACK_DATA.supervisorPhoto || PACK_DATA.sheikhPhoto) av.innerHTML = '<img data-media="' + mediaRef('img', (PACK_DATA.supervisorPhoto || PACK_DATA.sheikhPhoto)) + '" alt="">';
-  else av.innerHTML = '<span class="emoji">👨‍🏫</span>';
-
-  var skipBtn = document.querySelector('.splash-skip');
-  if (skipBtn) skipBtn.textContent = mode === 'teacher-review' ? '👨‍🏫 فتح شاشة المراجعة' : mode === 'student-returned' ? '📢 عرض ملاحظات المعلم' : '← تخطي';
-  var splash = $('view-splash');
-  splash.classList.remove('teacher-mode','friend-mode','returned-mode');
-
-  if (mode === 'friend'){
-    splash.classList.add('friend-mode');
-    var sg = PACK_DATA.sourceGiftStudentGender || 'boy';
-    var tg = PACK_DATA.teacherGender || 'boy';
-    $('splash-badge').textContent = '🎓 إعداد المشرف';
-    $('splash-from').textContent = 'إهداء من ' + (sg === 'girl' ? 'زميلتك ' : 'زميلك ') + (PACK_DATA.sourceGiftStudentName || (sg === 'girl' ? 'إحدى زميلاتك' : 'أحد زملائك'));
-    $('splash-role').textContent = sg === 'girl' ? 'إهداء من زميلتك' : 'إهداء من زميلك';
-    $('splash-name').textContent = 'بإشراف ' + (tg === 'girl' ? 'المعلمة' : 'المعلم') + (PACK_DATA.teacherName && PACK_DATA.teacherName !== 'المعلم' ? ' ' + PACK_DATA.teacherName : '');
-    $('splash-hint').textContent = '{أدخل|أدخلي} اسمك وجنسك وصورتك، ثم تبدأ رحلتك أنت.';
-  } else if (mode === 'student-returned'){
-    splash.classList.add('returned-mode');
-    $('splash-badge').textContent = '📢 تعليقات المعلم';
-    $('splash-from').textContent = '{راجع|راجعي} تسجيلاتك';
-    $('splash-role').textContent = 'تعليقات المعلم';
-    $('splash-name').textContent = 'بانتظارك ' + (PACK_DATA.studentName || '') + '!';
-    $('splash-hint').textContent = 'اضغط تخطي لعرض تعليقات المعلم.';
-  } else if (mode === 'teacher-review'){
-    splash.classList.add('teacher-mode');
-    $('splash-badge').textContent = '📨 ملف مراجعة الطالب';
-    $('splash-from').textContent = 'هذا الملف مخصص للمعلم المشرف';
-    $('splash-role').textContent = 'مراجعة تسجيلات الطالب';
-    $('splash-name').textContent = PACK_DATA.studentName || '—';
-    $('splash-hint').textContent = 'اضغط للمتابعة إلى شاشة مراجعة التسجيلات.';
-  } else {
-    var spN = PACK_DATA.supervisorName || PACK_DATA.sheikhName || '';
-    $('splash-badge').textContent = '🎓 إعداد تعليمي';
-    if (isGenericName(spN)){ $('splash-from').textContent = 'مرحبًا بك في'; $('splash-role').textContent = 'رفاق التحفة'; $('splash-name').textContent = 'منهج تحفة الأطفال'; }
-    else { $('splash-role').textContent = 'المشرف'; $('splash-name').textContent = spN; }
-  }
-
-  var g = $('splash-greetings'); g.innerHTML = '';
-  var hasN = !!PACK_DATA.welcomeAudioNeutral;
-  var hasM = !!PACK_DATA.welcomeAudioMale;
-  var hasF = !!PACK_DATA.welcomeAudioFemale;
-  if (hasN || hasM || hasF) {
-    var h = document.createElement('div');
-    h.style.cssText = 'font-size:.82rem;opacity:.9;margin-bottom:8px;width:100%';
-    h.textContent = '🎧 {اسمع|اسمعي} التحية:';
-    g.appendChild(h);
-    if (hasN) g.appendChild(makeGreetBtn('🎧 عامة', PACK_DATA.welcomeAudioNeutral));
-    if (hasM) g.appendChild(makeGreetBtn('👦 للأولاد', PACK_DATA.welcomeAudioMale));
-    if (hasF) g.appendChild(makeGreetBtn('👧 للبنات', PACK_DATA.welcomeAudioFemale));
-  }
-
-  var rc = $('splash-role-choice');
-  rc.innerHTML = '';
-  if (mode === 'teacher-review'){
-    rc.className = 'role-choice';
-    var tb = document.createElement('button'); tb.type='button'; tb.className='teacher'; tb.textContent='👨‍🏫 فتح شاشة المراجعة';
-    tb.onclick=function(){ STATE.role='teacher'; save(); continueFromSplash(); };
-    rc.appendChild(tb);
-  } else if (mode === 'user-choice'){
-    rc.className = 'role-choice';
-    rc.innerHTML = '<div data-style="font-size:.9rem;margin-bottom:6px;opacity:.9">من أنت؟</div>';
-    var t = document.createElement('button');
-    t.type = 'button'; t.className = 'teacher';
-    t.textContent = '👨‍🏫 المعلم المشرف (مراجعة)';
-    t.onclick = function(){ STATE.role = 'teacher'; save(); continueFromSplash(); };
-    var s = document.createElement('button');
-    s.type = 'button'; s.className = 'student';
-    s.textContent = '👦 الطالب صاحب الملف';
-    s.onclick = function(){ STATE.role = 'student'; save(); continueFromSplash(); };
-    rc.appendChild(t); rc.appendChild(s);
-  } else {
-    rc.className = '';
+function genderWord(gender, male, female){ return gender === 'girl' ? female : male; }
+function personAvatarHTML(photo, gender, alt, size){
+  var px = size || 46;
+  var safeAlt = escapeHTML(alt || '');
+  if (photo) return '<span class="person-avatar" data-style="width:'+px+'px;height:'+px+'px"><img data-media="'+mediaRef('img', photo)+'" alt="'+safeAlt+'"></span>';
+  var emoji = gender === 'girl' ? '🧚‍♀️' : '🦸‍♂️';
+  return '<span class="person-avatar person-avatar-placeholder" data-style="width:'+px+'px;height:'+px+'px">'+emoji+'</span>';
+}
+function audioPersonBlock(photo, gender, name, label, audio, extraClass){
+  if (!audio) return '';
+  return '<div class="person-audio '+(extraClass||'')+'">'+personAvatarHTML(photo,gender,name,34)+'<div class="person-audio-main"><div class="person-audio-label">'+escapeHTML(label)+(name ? ' — '+escapeHTML(name) : '')+'</div><audio controls data-media="'+mediaRef('aud', audio)+'"></audio></div></div>';
+}
+function show(id){
+  ['view-splash','view-student-setup','view-home','view-lesson','view-quiz','view-results','view-profile','view-teacher-review','view-tf','view-certificate','view-preview'].forEach(function(v){
+    var el = $(v); if(!el) return;
+    el.classList.toggle('hidden', v !== id);
+  });
+  if (id !== 'view-certificate' && id !== 'view-preview') window.scrollTo(0, 0);
+  try { document.querySelectorAll('.confetti').forEach(function(c){ c.remove(); }); } catch(e){}
+  navGuardSync(id);
+}
+function toast(m){
+  var e = document.createElement('div');
+  e.className = 'toast'; e.textContent = m;
+  document.body.appendChild(e);
+  setTimeout(function(){ e.remove(); }, 3000);
+}
+function confetti(n){
+  var c = ['#FFC107','#E91E63','#2196F3','#4CAF50','#FF5722','#9C27B0','#00BCD4'];
+  for (var i = 0; i < (n || 30); i++){
+    var e = document.createElement('div');
+    e.className = 'confetti';
+    e.style.left = Math.random()*100 + '%';
+    e.style.background = c[Math.floor(Math.random()*c.length)];
+    e.style.animationDuration = (1.5 + Math.random()*1.5) + 's';
+    document.body.appendChild(e);
+    setTimeout(function(){ e.remove(); }, 3500);
   }
 }
-function makeGreetBtn(label, src){
-  var b = document.createElement('button');
-  b.type = 'button'; b.textContent = label;
-  b.onclick = function(){
-    document.querySelectorAll('audio').forEach(function(a){ try{ a.pause(); }catch(e){} });
-    document.querySelectorAll('.splash-greetings button').forEach(function(x){ x.classList.remove('playing'); });
-    var audio = new Audio(src);
-    audio.play().catch(function(){});
-    b.classList.add('playing');
-    audio.onended = function(){ b.classList.remove('playing'); };
-  };
-  return b;
+function showModal(t, b, actions){
+  $('modal-title').textContent = t;
+  $('modal-body').textContent = b;
+  var a = $('modal-actions'); a.innerHTML = '';
+  actions.forEach(function(x){
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn ' + (x.class || 'primary');
+    btn.textContent = x.label; btn.style.margin = '4px';
+    btn.onclick = x.action;
+    a.appendChild(btn);
+  });
+  $('modal').classList.remove('hidden');
 }
-function continueFromSplash(){
-  STATE.sawSplash = true; save();
-  var mode = detectMode();
-  // Package mode is authoritative: never let a stale local role or the Skip button turn a teacher package into a student session.
-  if (mode === 'teacher-review') STATE.role = 'teacher';
-  else if (mode === 'student-returned') STATE.role = 'student';
-  else if (mode === 'friend') STATE.role = 'friend';
-  else if (!STATE.role) STATE.role = 'student';
-
-  if (STATE.role === 'teacher' && (PACK_DATA.packageType === 'student_submission' || PACK_DATA.packageType === 'teacher_review')){
-    // A submission package is a teacher-review package. Never route it through
-    // the student's profile/setup screen, even when this browser has stale state.
-    showTeacherReview();
-    return;
-  }
-  if (mode === 'friend') {
-    // Every approved gift starts with a fresh recipient profile. Never inherit the giver's profile.
-    STATE.student = {name:'', gender:'boy', photo:null, supervisorName:'', supervisorGender:'boy'};
-    STATE.progress = {};
-    STATE.stats = {totalPoints:0,completedSections:0,perfectSections:0,totalAttempts:0};
-    STATE.studentAudios = {};
-    STATE.role = 'friend';
-    STATE.sawSplash = true;
-    save();
-    buildSetup(); show('view-student-setup');
-    return;
-  }
-  if (mode === 'student-returned' || STATE.role === 'student'){
-    if (STATE.student.name){
-      applyTheme();
-      if (mode === 'student-returned') { renderTFView(); show('view-tf'); }
-      else { show('view-home'); renderHome(); }
-    } else {
-      buildSetup();
-      show('view-student-setup');
-    }
-  } else if (STATE.role === 'teacher'){
-    buildSetup();
-    show('view-student-setup');
-  } else {
-    buildSetup();
-    show('view-student-setup');
-  }
+function closeModal(){ $('modal').classList.add('hidden'); }
+function showReset(){
+  /* 9.39.10: المسار المحمي نفسه لحذف بيانات الطفل (علامة دائمة، إبلاغ النوافذ، لا إعلان قبل الاكتمال، حذف النسخ في المضيفة)
+     9.39.11 (ق5-أ): لم يعد له زر في الرئيسية، ويمر ببوابة ولي الأمر أينما استُدعي */
+  parentalGate(function(){ deleteChildDataOnDevice(); }, 'التصفير يحذف بيانات الطالب من هذا الجهاز.');
 }
-
+function plainText(h){ var d = document.createElement('div'); d.innerHTML = String(h === undefined || h === null ? '' : h); return d.textContent.replace(/\s+/g, ' ').trim(); }
+function toLatinDigits(s){ return String(s || '').replace(/[٠-٩]/g, function(d){ return String(d.charCodeAt(0) - 0x0660); }).replace(/[۰-۹]/g, function(d){ return String(d.charCodeAt(0) - 0x06F0); }).replace(/\s+/g, ''); }
+/* صيغة {مذكر|مؤنث} تُختار حسب جنس الطفل المسجَّل */
+/* 9.39: تمييز العدد العربي للعدادات */
+function arCount(n, one, two, few){ n = Number(n) || 0; if (n === 1) return one + ' واحد'; if (n === 2) return two; if (n >= 3 && n <= 10) return n + ' ' + few; return n + ' ' + one + (one.slice(-1) === 'ة' ? '' : 'ًا'); }
+function GT(t){ if (t === null || t === undefined) return t; var fem = !!(STATE.student && STATE.student.gender === 'girl'); return String(t).replace(/\{([^{}|]*)\|([^{}]*)\}/g, function(_, m, f){ return fem ? f : m; }); }
+/* ===== الترحيب وإعداد الطالب ===== */
 var setupGender = 'boy', setupPhoto = null;
 function buildSetup(){
   var isTeacher = STATE.role === 'teacher';
@@ -1905,63 +1821,157 @@ function applyTheme(){
   document.body.classList.add('theme-' + (STATE.student.gender || 'boy'));
 }
 
-function renderHome(){
-  applyTheme();
-  var s = STATE.student;
-  var av = $('home-avatar');
-  if (s.photo) av.innerHTML = '<img data-media="' + mediaRef('img', s.photo) + '" alt="">';
-  else av.innerHTML = '<span class="emoji">' + (s.gender === 'girl' ? '🧚‍♀️' : '🦸‍♂️') + '</span>';
-  $('home-name').textContent = s.name || '—';
 
-  var sub = 'في رحاب القرآن · رفاق التحفة' + (!isGenericName(PACK_DATA.sheikhName) ? ' · المادة التعليمية: ' + PACK_DATA.sheikhName : '');
-  if (PACK_DATA.packageType === 'approved_gift' && (PACK_DATA.sourceGiftStudentName || PACK_DATA.studentName)) {
-    sub = 'إهداء من ' + (PACK_DATA.sourceGiftStudentGender === 'girl' ? 'زميلتك ' : 'زميلك ') + (PACK_DATA.sourceGiftStudentName || PACK_DATA.studentName || '—') + ' • بإشراف ' + teacherByline();
-  }
-  $('home-sub').textContent = sub;
-  var refB = document.getElementById('home-ref-banner'); // 9.39.11 (ق1-ب)
-  if (REF_HIDDEN){
-    if (!refB){ refB = document.createElement('div'); refB.id = 'home-ref-banner'; refB.className = 'notice warn'; refB.style.cssText = 'margin:10px 0;font-size:.88rem'; var sl0 = $('section-list'); if (sl0 && sl0.parentNode) sl0.parentNode.insertBefore(refB, sl0); }
-    refB.textContent = '⚠️ هذا الملف لا يحمل توقيع المشرف المعتمد، فأُخفيت تلاوات الشيخ. اطلب من معلمك الملف الأصلي.';
-  } else if (refB) refB.remove();
-  var gcBtn = document.getElementById('home-gift-contents-btn');
-  if (PACK_DATA.packageType === 'approved_gift'){
-    if (!gcBtn){ gcBtn = document.createElement('button'); gcBtn.id = 'home-gift-contents-btn'; gcBtn.type = 'button'; gcBtn.className = 'btn ghost'; gcBtn.style.cssText = 'margin-top:6px;font-size:.8rem;padding:4px 10px';
-      gcBtn.textContent = '🎁 ماذا في هذا الإهداء؟'; gcBtn.setAttribute('data-call', '["showGiftContents"]'); $('home-sub').parentNode.appendChild(gcBtn); }
-  } else if (gcBtn) gcBtn.remove();
-
-  var _real = realSections();
-  var completed = 0, totalStars = 0, maxStars = _real.length * 3;
-  _real.forEach(function(sec){
-    var pr = STATE.progress[sec.id];
-    if (pr && pr.stars > 0) completed++;
-    totalStars += (pr && pr.stars) || 0;
-  });
-  var pct = maxStars ? Math.round(totalStars / maxStars * 100) : 0;
-  $('total-progress').style.width = pct + '%';
-  $('total-points-pill').textContent = (STATE.stats.totalPoints || 0) + ' نقطة';
-  $('progress-label').textContent = completed + ' من ' + _real.length + ' أقسام — ' + totalStars + '/' + maxStars + ' نجوم';
-
-  var html = '';
-  CURRICULUM.forEach(function(sec){
-    var pr = STATE.progress[sec.id] || {stars: 0};
-    var sh = '';
-    for (var i = 1; i <= 3; i++) sh += '<span class="star' + (i <= pr.stars ? ' earned' : '') + '">⭐</span>';
-    html += '<div class="section-card" ' + ACT('openSection', sec.id) + '>';
-    html += '<div class="sec-icon">' + sec.emoji + '</div>';
-    html += '<div class="sec-info"><h3>' + sec.title + '</h3>';
-    html += '<div class="sec-meta">' + arCount(sec.items.length, 'عنصر', 'عنصران', 'عناصر') + ' · ' + arCount(sec.questions.length, 'سؤال', 'سؤالان', 'أسئلة') + '</div>';
-    html += '<div class="sec-stars">' + sh + '</div></div>';
-    html += '<span data-style="color:var(--muted);font-size:1.3rem">›</span></div>';
-  });
-  $('section-list').innerHTML = html;
-
-  if (hasTeacherFeedbacks() && STATE.role !== 'friend'){
-    // show feedback banner
-  }
-  renderTrack();
+function detectMode(){
+  var type = PACK_DATA.packageType;
+  if (type === 'student_returned') return 'student-returned';
+  if (type === 'approved_gift' || PACK_DATA.approved === true) return 'friend';
+  if (type === 'student_submission' || type === 'teacher_review') return 'teacher-review';
+  if (PACK_DATA.studentName) return 'user-choice';
+  if (hasTeacherFeedbacks()) return 'student-returned';
+  return 'student-fresh';
 }
-function goHome(){ renderHome(); show('view-home'); }
+function isGenericName(n){ n = String(n || '').trim(); return !n || ['الشيخ', 'المشرف', 'المشرفة', 'المعلم', 'المعلمة', '—'].indexOf(n) >= 0; }
+ // 9.39.12 (I4)
+function buildSplash(){
+  var isGirl = false;
+  var av = $('splash-avatar');
+  var mode = detectMode();
+  if (mode === 'friend' && PACK_DATA.sourceGiftStudentPhoto) av.innerHTML = '<img data-media="' + mediaRef('img', PACK_DATA.sourceGiftStudentPhoto) + '" alt="صورة صاحب الإهداء">';
+  else if (PACK_DATA.supervisorPhoto || PACK_DATA.sheikhPhoto) av.innerHTML = '<img data-media="' + mediaRef('img', (PACK_DATA.supervisorPhoto || PACK_DATA.sheikhPhoto)) + '" alt="">';
+  else av.innerHTML = '<span class="emoji">👨‍🏫</span>';
 
+  var skipBtn = document.querySelector('.splash-skip');
+  if (skipBtn) skipBtn.textContent = mode === 'teacher-review' ? '👨‍🏫 فتح شاشة المراجعة' : mode === 'student-returned' ? '📢 عرض ملاحظات المعلم' : '← تخطي';
+  var splash = $('view-splash');
+  splash.classList.remove('teacher-mode','friend-mode','returned-mode');
+
+  if (mode === 'friend'){
+    splash.classList.add('friend-mode');
+    var sg = PACK_DATA.sourceGiftStudentGender || 'boy';
+    var tg = PACK_DATA.teacherGender || 'boy';
+    $('splash-badge').textContent = '🎓 إعداد المشرف';
+    $('splash-from').textContent = 'إهداء من ' + (sg === 'girl' ? 'زميلتك ' : 'زميلك ') + (PACK_DATA.sourceGiftStudentName || (sg === 'girl' ? 'إحدى زميلاتك' : 'أحد زملائك'));
+    $('splash-role').textContent = sg === 'girl' ? 'إهداء من زميلتك' : 'إهداء من زميلك';
+    $('splash-name').textContent = 'بإشراف ' + (tg === 'girl' ? 'المعلمة' : 'المعلم') + (PACK_DATA.teacherName && PACK_DATA.teacherName !== 'المعلم' ? ' ' + PACK_DATA.teacherName : '');
+    $('splash-hint').textContent = '{أدخل|أدخلي} اسمك وجنسك وصورتك، ثم تبدأ رحلتك أنت.';
+  } else if (mode === 'student-returned'){
+    splash.classList.add('returned-mode');
+    $('splash-badge').textContent = '📢 تعليقات المعلم';
+    $('splash-from').textContent = '{راجع|راجعي} تسجيلاتك';
+    $('splash-role').textContent = 'تعليقات المعلم';
+    $('splash-name').textContent = 'بانتظارك ' + (PACK_DATA.studentName || '') + '!';
+    $('splash-hint').textContent = 'اضغط تخطي لعرض تعليقات المعلم.';
+  } else if (mode === 'teacher-review'){
+    splash.classList.add('teacher-mode');
+    $('splash-badge').textContent = '📨 ملف مراجعة الطالب';
+    $('splash-from').textContent = 'هذا الملف مخصص للمعلم المشرف';
+    $('splash-role').textContent = 'مراجعة تسجيلات الطالب';
+    $('splash-name').textContent = PACK_DATA.studentName || '—';
+    $('splash-hint').textContent = 'اضغط للمتابعة إلى شاشة مراجعة التسجيلات.';
+  } else {
+    var spN = PACK_DATA.supervisorName || PACK_DATA.sheikhName || '';
+    $('splash-badge').textContent = '🎓 إعداد تعليمي';
+    if (isGenericName(spN)){ $('splash-from').textContent = 'مرحبًا بك في'; $('splash-role').textContent = 'رفاق التحفة'; $('splash-name').textContent = 'منهج تحفة الأطفال'; }
+    else { $('splash-role').textContent = 'المشرف'; $('splash-name').textContent = spN; }
+  }
+
+  var g = $('splash-greetings'); g.innerHTML = '';
+  var hasN = !!PACK_DATA.welcomeAudioNeutral;
+  var hasM = !!PACK_DATA.welcomeAudioMale;
+  var hasF = !!PACK_DATA.welcomeAudioFemale;
+  if (hasN || hasM || hasF) {
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:.82rem;opacity:.9;margin-bottom:8px;width:100%';
+    h.textContent = '🎧 {اسمع|اسمعي} التحية:';
+    g.appendChild(h);
+    if (hasN) g.appendChild(makeGreetBtn('🎧 عامة', PACK_DATA.welcomeAudioNeutral));
+    if (hasM) g.appendChild(makeGreetBtn('👦 للأولاد', PACK_DATA.welcomeAudioMale));
+    if (hasF) g.appendChild(makeGreetBtn('👧 للبنات', PACK_DATA.welcomeAudioFemale));
+  }
+
+  var rc = $('splash-role-choice');
+  rc.innerHTML = '';
+  if (mode === 'teacher-review'){
+    rc.className = 'role-choice';
+    var tb = document.createElement('button'); tb.type='button'; tb.className='teacher'; tb.textContent='👨‍🏫 فتح شاشة المراجعة';
+    tb.onclick=function(){ STATE.role='teacher'; save(); continueFromSplash(); };
+    rc.appendChild(tb);
+  } else if (mode === 'user-choice'){
+    rc.className = 'role-choice';
+    rc.innerHTML = '<div data-style="font-size:.9rem;margin-bottom:6px;opacity:.9">من أنت؟</div>';
+    var t = document.createElement('button');
+    t.type = 'button'; t.className = 'teacher';
+    t.textContent = '👨‍🏫 المعلم المشرف (مراجعة)';
+    t.onclick = function(){ STATE.role = 'teacher'; save(); continueFromSplash(); };
+    var s = document.createElement('button');
+    s.type = 'button'; s.className = 'student';
+    s.textContent = '👦 الطالب صاحب الملف';
+    s.onclick = function(){ STATE.role = 'student'; save(); continueFromSplash(); };
+    rc.appendChild(t); rc.appendChild(s);
+  } else {
+    rc.className = '';
+  }
+}
+function makeGreetBtn(label, src){
+  var b = document.createElement('button');
+  b.type = 'button'; b.textContent = label;
+  b.onclick = function(){
+    document.querySelectorAll('audio').forEach(function(a){ try{ a.pause(); }catch(e){} });
+    document.querySelectorAll('.splash-greetings button').forEach(function(x){ x.classList.remove('playing'); });
+    var audio = new Audio(src);
+    audio.play().catch(function(){});
+    b.classList.add('playing');
+    audio.onended = function(){ b.classList.remove('playing'); };
+  };
+  return b;
+}
+function continueFromSplash(){
+  STATE.sawSplash = true; save();
+  var mode = detectMode();
+  // Package mode is authoritative: never let a stale local role or the Skip button turn a teacher package into a student session.
+  if (mode === 'teacher-review') STATE.role = 'teacher';
+  else if (mode === 'student-returned') STATE.role = 'student';
+  else if (mode === 'friend') STATE.role = 'friend';
+  else if (!STATE.role) STATE.role = 'student';
+
+  if (STATE.role === 'teacher' && (PACK_DATA.packageType === 'student_submission' || PACK_DATA.packageType === 'teacher_review')){
+    // A submission package is a teacher-review package. Never route it through
+    // the student's profile/setup screen, even when this browser has stale state.
+    showTeacherReview();
+    return;
+  }
+  if (mode === 'friend') {
+    // Every approved gift starts with a fresh recipient profile. Never inherit the giver's profile.
+    STATE.student = {name:'', gender:'boy', photo:null, supervisorName:'', supervisorGender:'boy'};
+    STATE.progress = {};
+    STATE.stats = {totalPoints:0,completedSections:0,perfectSections:0,totalAttempts:0};
+    STATE.studentAudios = {};
+    STATE.role = 'friend';
+    STATE.sawSplash = true;
+    save();
+    buildSetup(); show('view-student-setup');
+    return;
+  }
+  if (mode === 'student-returned' || STATE.role === 'student'){
+    if (STATE.student.name){
+      applyTheme();
+      if (mode === 'student-returned') { renderTFView(); show('view-tf'); }
+      else { show('view-home'); renderHome(); }
+    } else {
+      buildSetup();
+      show('view-student-setup');
+    }
+  } else if (STATE.role === 'teacher'){
+    buildSetup();
+    show('view-student-setup');
+  } else {
+    buildSetup();
+    show('view-student-setup');
+  }
+}
+function editProfile(){ buildSetup(); show('view-student-setup'); }
+/* ===== الخريطة والدرس ===== */
 var CURRENT = {section:null, qIdx:0, score:0, correct:0, wrong:0};
 
 function openSection(sid){
@@ -2067,6 +2077,73 @@ function curriculumTasks(masters){
   });
   return out;
 }
+
+function renderHome(){
+  applyTheme();
+  var s = STATE.student;
+  var av = $('home-avatar');
+  if (s.photo) av.innerHTML = '<img data-media="' + mediaRef('img', s.photo) + '" alt="">';
+  else av.innerHTML = '<span class="emoji">' + (s.gender === 'girl' ? '🧚‍♀️' : '🦸‍♂️') + '</span>';
+  $('home-name').textContent = s.name || '—';
+
+  var sub = 'في رحاب القرآن · رفاق التحفة' + (!isGenericName(PACK_DATA.sheikhName) ? ' · المادة التعليمية: ' + PACK_DATA.sheikhName : '');
+  if (PACK_DATA.packageType === 'approved_gift' && (PACK_DATA.sourceGiftStudentName || PACK_DATA.studentName)) {
+    sub = 'إهداء من ' + (PACK_DATA.sourceGiftStudentGender === 'girl' ? 'زميلتك ' : 'زميلك ') + (PACK_DATA.sourceGiftStudentName || PACK_DATA.studentName || '—') + ' • بإشراف ' + teacherByline();
+  }
+  $('home-sub').textContent = sub;
+  var refB = document.getElementById('home-ref-banner'); // 9.39.11 (ق1-ب)
+  if (REF_HIDDEN){
+    if (!refB){ refB = document.createElement('div'); refB.id = 'home-ref-banner'; refB.className = 'notice warn'; refB.style.cssText = 'margin:10px 0;font-size:.88rem'; var sl0 = $('section-list'); if (sl0 && sl0.parentNode) sl0.parentNode.insertBefore(refB, sl0); }
+    refB.textContent = '⚠️ هذا الملف لا يحمل توقيع المشرف المعتمد، فأُخفيت تلاوات الشيخ. اطلب من معلمك الملف الأصلي.';
+  } else if (refB) refB.remove();
+  var gcBtn = document.getElementById('home-gift-contents-btn');
+  if (PACK_DATA.packageType === 'approved_gift'){
+    if (!gcBtn){ gcBtn = document.createElement('button'); gcBtn.id = 'home-gift-contents-btn'; gcBtn.type = 'button'; gcBtn.className = 'btn ghost'; gcBtn.style.cssText = 'margin-top:6px;font-size:.8rem;padding:4px 10px';
+      gcBtn.textContent = '🎁 ماذا في هذا الإهداء؟'; gcBtn.setAttribute('data-call', '["showGiftContents"]'); $('home-sub').parentNode.appendChild(gcBtn); }
+  } else if (gcBtn) gcBtn.remove();
+
+  var _real = realSections();
+  var completed = 0, totalStars = 0, maxStars = _real.length * 3;
+  _real.forEach(function(sec){
+    var pr = STATE.progress[sec.id];
+    if (pr && pr.stars > 0) completed++;
+    totalStars += (pr && pr.stars) || 0;
+  });
+  var pct = maxStars ? Math.round(totalStars / maxStars * 100) : 0;
+  $('total-progress').style.width = pct + '%';
+  $('total-points-pill').textContent = (STATE.stats.totalPoints || 0) + ' نقطة';
+  $('progress-label').textContent = completed + ' من ' + _real.length + ' أقسام — ' + totalStars + '/' + maxStars + ' نجوم';
+
+  var html = '';
+  CURRICULUM.forEach(function(sec){
+    var pr = STATE.progress[sec.id] || {stars: 0};
+    var sh = '';
+    for (var i = 1; i <= 3; i++) sh += '<span class="star' + (i <= pr.stars ? ' earned' : '') + '">⭐</span>';
+    html += '<div class="section-card" ' + ACT('openSection', sec.id) + '>';
+    html += '<div class="sec-icon">' + sec.emoji + '</div>';
+    html += '<div class="sec-info"><h3>' + sec.title + '</h3>';
+    html += '<div class="sec-meta">' + arCount(sec.items.length, 'عنصر', 'عنصران', 'عناصر') + ' · ' + arCount(sec.questions.length, 'سؤال', 'سؤالان', 'أسئلة') + '</div>';
+    html += '<div class="sec-stars">' + sh + '</div></div>';
+    html += '<span data-style="color:var(--muted);font-size:1.3rem">›</span></div>';
+  });
+  $('section-list').innerHTML = html;
+
+  if (hasTeacherFeedbacks() && STATE.role !== 'friend'){
+    // show feedback banner
+  }
+  renderTrack();
+}
+function goHome(){ renderHome(); show('view-home'); }
+/* ===== الإهداء وتسجيلات الزملاء ===== */
+function giftSourceTerms(giverGender, recipientGender, teacherGender){
+  var giverFemale = giverGender === 'girl', recipientFemale = recipientGender === 'girl', teacherFemale = teacherGender === 'girl';
+  return {
+    role: giverFemale ? '🎓 صاحبة الإهداء' : '🎓 صاحب الإهداء',
+    description: giverFemale ? 'هذه زميلتك صاحبة التسجيلات المعتمدة.' : 'هذا زميلك صاحب التسجيلات المعتمدة.',
+    teacher: 'تحت إشراف '+(teacherFemale ? 'المعلمة' : 'المعلم'),
+    action: recipientFemale ? 'سجّلي بصوتك أنت، ثم أرسلي تسجيلاتك إلى '+(teacherFemale ? 'المعلمة' : 'المعلم')+'، ومن ثم تهدين ملفك لزميلاتك وأصدقائك لتنشرين النفع.' : 'سجّل بصوتك أنت، ثم أرسل تسجيلاتك إلى '+(teacherFemale ? 'المعلمة' : 'المعلم')+'، ومن ثم تهدي ملفك لزملائك وأصدقائك لتنشر النفع.'
+  };
+}
 function buildGiftContents(groups, masters){
   masters = (masters && typeof masters === 'object') ? masters : {};
   var have = {};
@@ -2100,7 +2177,8 @@ function giftContentsText(gc){
   });
   return lines.join('\n');
 }
-function trustedPeerGroups(){ return peerAudiosAllowed() ? normalizePeerGroups().filter(peerGroupVerified) : []; } // 9.39.11 (ق1-ب)
+function trustedPeerGroups(){ return peerAudiosAllowed() ? normalizePeerGroups().filter(peerGroupVerified) : []; }
+ // 9.39.11 (ق1-ب)
 function hiddenPeerGroupCount(){ return peerAudiosAllowed() ? normalizePeerGroups().filter(function(g){ return !peerGroupVerified(g); }).length : 0; }
 function displayedGiftContents(){ return buildGiftContents(trustedPeerGroups(), PACK_DATA.masterAudios); }
 function giftContentsDisplayText(){
@@ -2149,14 +2227,165 @@ function peerAudioBlocks(itemId){
   });
   return out.join('');
 }
-function getStudentRec(itemId){
-  if (STATE.role === 'teacher'){
-    var r2 = PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId];
-    if (r2) return r2.audio;
-  }
-  return null;
+/* ===== الاختبار: عرض السؤال والإجابة والنتيجة ===== */
+function startQuiz(){
+  var sec = CURRENT.section;
+  if (sec && sec._full) sec = CURRENT.section = sec._full; // «إعادة الاختبار» تسحب من الدرس كاملًا
+  if (sec && !sec._synthetic && (sec.questions || []).length > LESSON_QUIZ_MAX) CURRENT.section = lessonQuizAttempt(sec); // 9.39.13 (ق3-ب)
+  CURRENT.wrongIds = []; CURRENT.examWrong = [];
+  CURRENT.qIdx = 0; CURRENT.score = 0; CURRENT.correct = 0; CURRENT.wrong = 0;
+  renderQuestion();
+  show('view-quiz');
+  ensureQuizNav(); // 9.32
 }
-
+function renderQuestion(){
+  renderQuestionContent();
+  try { addSheikhAudioToQuestion(); } catch(e){} // 9.36
+}
+function renderQuestionContent(){
+  var sec = CURRENT.section;
+  var q = sec.questions[CURRENT.qIdx];
+  var total = sec.questions.length, cur = CURRENT.qIdx + 1;
+  $('quiz-counter').textContent = cur + ' / ' + total;
+  $('quiz-points').textContent = '+' + CURRENT.score;
+  $('quiz-progress').style.width = ((cur - 1) / total * 100) + '%';
+  $('feedback-box').innerHTML = '';
+  var qHtml = '';
+  if (QX.has(q.type)){
+    $('question-text').innerHTML = '<span class="question-badge badge-mc">' + QX.types[q.type].label + '</span><div data-style="margin-top:8px">' + GT(q.text) + '</div>' + (q.hint ? '<div class="verse-hint">💡 ' + GT(q.hint) + '</div>' : '');
+    renderQX(q); return;
+  }
+  if (q.type === 'extraction'){
+    var t = detectTextType(q);
+    var T = termsForType(t);
+    var bCls = t === 'quran' ? 'badge-extract-quran' : 'badge-extract-poem';
+    qHtml = '<span class="question-badge ' + bCls + '">' + T.badge + '</span>';
+    qHtml += '<div class="verse-box' + (t === 'quran' ? ' quran' : '') + '">';
+    qHtml += '<span class="verse-text"' + (t === 'poem' ? ' data-style="font-size:1.35rem"' : '') + '>' + (t === 'quran' ? quranHTML(q.text, q) : q.text) + '</span>';
+    if (q.hint) qHtml += '<span class="verse-hint">💡 ' + GT(q.hint) + '</span>';
+    if (q.source) qHtml += '<span class="verse-source">' + q.source + '</span>';
+    qHtml += '</div><div class="extract-points">❓ ' + GT(q.question) + '</div>';
+  } else if (q.type === 'true_false'){
+    qHtml = '<span class="question-badge badge-tf">✅ صواب أو خطأ</span><div data-style="margin-top:8px">🤔 ' + GT(q.text) + '</div>';
+  } else {
+    qHtml = '<span class="question-badge badge-mc">🔤 اختيار متعدد</span><div data-style="margin-top:8px">' + GT(q.text) + '</div>';
+  }
+  $('question-text').innerHTML = qHtml;
+  var opts = $('options');
+  if (q.type === 'true_false'){
+    opts.innerHTML = '<button class="option-btn" data-idx="true" data-call="[&quot;answer&quot;, true]"><span class="opt-letter">✓</span> صحيح</button>' +
+                     '<button class="option-btn" data-idx="false" data-call="[&quot;answer&quot;, false]"><span class="opt-letter">✗</span> خطأ</button>';
+  } else {
+/* 9.39: الحروف حتى ستة خيارات (كان الخامس يظهر undefined)، والخيارات تُخلط عند كل عرض مع إبقاء المؤشر الأصلي للتصحيح */
+    var L = ['أ','ب','ج','د','هـ','و'];
+    var order = q.options.map(function(_, i){ return i; });
+    for (var oi = order.length - 1; oi > 0; oi--){ var oj = Math.floor(Math.random() * (oi + 1)); var ot = order[oi]; order[oi] = order[oj]; order[oj] = ot; }
+    opts.innerHTML = order.map(function(i, pos){ return '<button class="option-btn" data-idx="' + i + '" ' + ACT('answer', i) + '><span class="opt-letter">' + (L[pos] || (pos + 1)) + '</span> ' + q.options[i] + '</button>'; }).join('');
+  }
+}
+function answer(choice){
+  if (inExamMode()){ // 9.39.11 (ق2-ب): وضع القياس — لا يُكشف الصحيح أثناء الجلسة
+    var qe = CURRENT.section.questions[CURRENT.qIdx];
+    document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; if (String(b.dataset.idx) === String(choice)) b.classList.add('chosen'); });
+    finishAnswer(choice === qe.answer, qe); return;
+  }
+  var q = CURRENT.section.questions[CURRENT.qIdx];
+  var correct = (choice === q.answer);
+  document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; });
+  var chB = null, corB = null;
+  document.querySelectorAll('#options .option-btn').forEach(function(b){
+    var idx = b.dataset.idx;
+    if (String(idx) === String(choice)) chB = b;
+    if (String(idx) === String(q.answer)) corB = b;
+  });
+  if (correct){ if (chB) chB.classList.add('correct'); }
+  else { if (chB) chB.classList.add('wrong'); if (corB) corB.classList.add('correct'); }
+  finishAnswer(correct, q);
+}
+function finishAnswer(correct, q){
+  if (inExamMode()){ finishAnswerExam(correct, q); return; } // 9.39.11 (ق2-ب)
+  try { if (CURRENT.section && !CURRENT.section._synthetic) logResponse(q, correct); } catch(e){} // 9.39.12 (A4)
+  if (!correct && CURRENT.section && !CURRENT.section._synthetic){ CURRENT.wrongIds = CURRENT.wrongIds || []; if (CURRENT.wrongIds.indexOf(q.id) < 0) CURRENT.wrongIds.push(q.id); } // 9.33: «راجع ما أخطأت فيه»
+  if (CURRENT.section && CURRENT.section._synthetic) { CURRENT.examResults = CURRENT.examResults || []; CURRENT.examResults.push({id: q.id, ok: !!correct}); }
+  if (correct){
+    CURRENT.score += q.points; CURRENT.correct++;
+    confetti(q.type === 'extraction' ? 30 : 20);
+    showFB(true, q.explanation);
+  } else {
+    CURRENT.wrong++;
+    showFB(false, q.explanation);
+  }
+  $('quiz-points').textContent = '+' + CURRENT.score;
+  var fb = $('feedback-box');
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn primary block';
+  btn.style.marginTop = '14px';
+  btn.textContent = (CURRENT.qIdx + 1 < CURRENT.section.questions.length) ? '➡️ السؤال التالي' : '🎉 شاهد النتيجة';
+  btn.onclick = function(){
+    CURRENT.qIdx++;
+    if (CURRENT.qIdx < CURRENT.section.questions.length) renderQuestion();
+    else finishQuiz();
+  };
+  fb.appendChild(btn);
+  /* 9.39.10: الشرح بعد الإجابة كان يقع تحت حافة الشاشة الصغيرة فلا يراه الطفل */
+  try { var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; fb.scrollIntoView({block: 'nearest', behavior: rm ? 'auto' : 'smooth'}); } catch(e){ try { fb.scrollIntoView(false); } catch(x){} }
+}
+function showFB(isCorrect, expl){
+  expl = GT(expl);
+  var t = isCorrect ? (Math.random() < 0.5 ? '✅ {أحسنت|أحسنتِ}!' : '🌟 ممتاز!') : '🤔 ليست هذه الإجابة. {انظر|انظري} السبب هنا 👇 ثم {انتقل|انتقلي} إلى السؤال التالي';
+  $('feedback-box').innerHTML = '<div class="feedback' + (isCorrect ? '' : ' wrong') + '"><div class="title">' + t + '</div><div class="explain">' + expl + '</div></div>';
+}
+function finishQuiz(){
+  var prevSnap = (CURRENT.section && !CURRENT.section._synthetic && STATE.progress[CURRENT.section.id]) ? Object.assign({}, STATE.progress[CURRENT.section.id]) : null;
+  var sec = CURRENT.section;
+  if (sec.id === 'final_exam' || sec.id === 'retest_session'){ assessApplyExam(); }
+  if (sec.id === 'review_session'){ assessApplyReview(); }
+  var totalP = sec.questions.reduce(function(a, q){ return a + q.points; }, 0);
+  var pct = totalP ? CURRENT.score / totalP : 0;
+  // مكافأة الجهد: إكمال الاختبار يمنح نجمة، والنتيجة الجيدة والممتازة تضيفان نجمتين
+  var stars = 1 + (pct >= 0.7 ? 1 : 0) + (pct >= 0.95 ? 1 : 0);
+  var prev = STATE.progress[sec.id] || {bestScore: 0, stars: 0, attempts: 0};
+  /* 9.39.11 (ق2-ب): نجوم الدرس من المحاولة الأولى (قياس)، وأفضل نتيجة ونجومها تُحفظ منفصلة (تدريب) */
+  if (!sec._synthetic) STATE.progress[sec.id] = {
+    bestScore: Math.max(prev.bestScore || 0, CURRENT.score),
+    stars: (prev.attempts > 0 && prev.stars > 0) ? prev.stars : stars,
+    bestStars: Math.max(prev.bestStars || prev.stars || 0, stars),
+    attempts: (prev.attempts || 0) + 1
+  };
+  recalcStats();
+  save();
+  showResults(stars, pct);
+  addResultsNav(); // 9.33
+  if (sec._exam && STATE.assess && STATE.assess.inProgress){ STATE.assess.inProgress = null; save(); } // 9.39.12 (A6): اكتملت الجلسة
+  renderExamReport();
+  firstAttemptNote(sec, prevSnap);
+  try { if (!sec._synthetic) maybeBackupReminder(); } catch(e){} // 9.39.13 (D12)
+}
+function showResults(stars, pct){
+  var el = $('result-stars');
+  var h = '';
+  for (var i = 0; i < 3; i++) h += '<span class="star' + (i < stars ? ' earned' : '') + '">⭐</span>';
+  el.innerHTML = h;
+  var titles = ['', 'محاولة جيدة!', 'أداء رائع!', '{أنت بطل|أنتِ بطلة}! 🌟'];
+  var msgs = ['', '{استمر|استمري} في التدريب', '{اقتربت|اقتربتِ} من الكمال ✨', 'ممتاز، {استمر|استمري} 🎉'];
+  $('result-title').textContent = GT(titles[stars] || '{أحسنت|أحسنتِ}');
+  $('result-message').textContent = GT(msgs[stars] || '{استمر|استمري}');
+  $('result-score').textContent = CURRENT.score;
+  $('result-correct').textContent = '✅ ' + CURRENT.correct;
+  $('result-wrong').textContent = '❌ ' + CURRENT.wrong;
+  $('result-circle').style.setProperty('--deg', Math.round(pct * 360) + 'deg');
+  if (stars === 3) confetti(60);
+  show('view-results');
+  if (inExamMode()){ $('result-stars').innerHTML = ''; $('result-title').textContent = '📋 انتهت الجلسة'; $('result-message').textContent = GT('{اقرأ|اقرئي} الملخص أدناه'); } // القياس بالمفاهيم لا بالنجوم
+}
+function nextFromResults(){
+  var _r = realSections();
+  var idx = _r.findIndex(function(s){ return s.id === CURRENT.section.id; });
+  if (idx >= 0 && idx + 1 < _r.length) openSection(_r[idx + 1].id);
+  else goHome();
+}
+/* ===== التسجيل الصوتي للطفل: التسجيل والضغط والتشغيل والحذف ===== */
 var activeRec = null, activeId = null, chunks = [];
 function updateRecordingUI(itemId, state){
   var safeId = String(itemId).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -2196,6 +2425,456 @@ function updateRecordingUI(itemId, state){
   }
 }
 
+function getStudentRec(itemId){
+  if (STATE.role === 'teacher'){
+    var r2 = PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId];
+    if (r2) return r2.audio;
+  }
+  return null;
+}
+/* مؤشر مستوى الصوت + تنبيه الصمت */
+function startLevelMeter(stream, onSilence){
+  var box = document.createElement('div');
+  box.id = 'rec-meter';
+  box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:9998;background:#263238;color:#fff;border-radius:14px;padding:10px 12px;font-size:.95rem';
+  box.innerHTML = '<div id="rec-meter-msg">🎙️ يتم التسجيل…</div><div data-style="height:10px;background:#455a64;border-radius:6px;margin-top:6px;overflow:hidden"><div id="rec-meter-bar" data-style="height:100%;width:0;background:#66bb6a;transition:width .08s"></div></div>';
+  document.body.appendChild(box);
+  var ctx = null, raf = 0, quietSince = Date.now(), warned = false;
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext; ctx = new AC();
+    var src = ctx.createMediaStreamSource(stream); var an = ctx.createAnalyser(); an.fftSize = 512; src.connect(an);
+    var buf = new Uint8Array(an.fftSize);
+    (function tick(){
+      an.getByteTimeDomainData(buf); var sum = 0;
+      for (var i = 0; i < buf.length; i++){ var v = (buf[i] - 128) / 128; sum += v * v; }
+      var rms = Math.sqrt(sum / buf.length);
+      var bar = $('rec-meter-bar'); if (bar) bar.style.width = Math.min(100, Math.round(rms * 300)) + '%';
+      if (rms > REC_SILENCE_LEVEL){ quietSince = Date.now(); warned = false; $('rec-meter-msg').textContent = '🎙️ يتم التسجيل…'; }
+      else if (!warned && Date.now() - quietSince > REC_SILENCE_MS){ warned = true; $('rec-meter-msg').textContent = '🔇 لا أسمع صوتك! اقترب من الميكروفون واقرأ بصوت واضح.'; if (onSilence) onSilence(); }
+      raf = setTimeout(tick, 100);
+    })();
+  } catch(e){ $('rec-meter-msg').textContent = '🎙️ يتم التسجيل…'; }
+  return function stop(){ clearTimeout(raf); try { if (ctx) ctx.close(); } catch(e){} var b = $('rec-meter'); if (b) b.remove(); };
+}
+async function startRec(itemId){
+  var packRec = PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId];
+  var isGiftPackage = PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true;
+  var ownRec = STATE.studentAudios && STATE.studentAudios[itemId];
+  if (!isGiftPackage && packRec && packRec.status === 'approved' && (!ownRec || ownRec.status === 'approved')){ alert('هذا التسجيل معتمد ولا يمكن تغييره.'); return; }
+  if (activeRec){
+    if (activeId === itemId && activeRec.state === 'recording'){ activeRec.stop(); return; }
+    alert('يوجد تسجيل نشط.'); return;
+  }
+  if (!hasConsent()){ ensureConsent(function(){ startRec(itemId); }); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window.MediaRecorder === 'undefined'){ alert('لا يتاح تسجيل الميكروفون في هذا المتصفح أو السياق. افتح الملف عبر HTTPS/localhost، أو استخدم خيار رفع تسجيل جاهز.'); return; }
+  try {
+    updateRecordingUI(itemId, 'starting');
+    var stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true, noiseSuppression: true}});
+    var stopMeter = null, maxTimer = null, interrupted = null;
+    var mimeCandidates = ['audio/webm;codecs=opus','audio/webm','audio/mp4'];
+    var chosenMime = mimeCandidates.find(function(m){ return typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(m); });
+    var rec;
+    try {
+      rec = chosenMime ? new MediaRecorder(stream,{mimeType:chosenMime,audioBitsPerSecond:24000}) : new MediaRecorder(stream,{audioBitsPerSecond:24000});
+    } catch(_e) {
+      rec = chosenMime ? new MediaRecorder(stream,{mimeType:chosenMime}) : new MediaRecorder(stream);
+    }
+    activeRec = rec; activeId = itemId; chunks = [];
+    rec.ondataavailable = function(e){ if (e.data.size > 0) chunks.push(e.data); };
+    rec.onerror = function(){ interrupted = 'تعطّل التسجيل فجأة، وحُفظ ما سُجّل حتى الآن.'; try { rec.stop(); } catch(e){} };
+    try { var at = stream.getAudioTracks()[0]; if (at) at.onended = function(){ interrupted = 'انقطع الميكروفون، وحُفظ ما سُجّل حتى الآن.'; try { rec.stop(); } catch(e){} }; } catch(e){}
+    var onVis = function(){ if (document.hidden && rec.state === 'recording'){ interrupted = 'خرجت من التطبيق أثناء التسجيل، فحُفظ ما سُجّل حتى الآن.'; try { rec.stop(); } catch(e){} } };
+    document.addEventListener('visibilitychange', onVis);
+    rec.onstop = async function(){
+      updateRecordingUI(itemId, 'saving');
+      clearTimeout(maxTimer); document.removeEventListener('visibilitychange', onVis);
+      if (stopMeter) stopMeter();
+      try { stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){}
+      if (interrupted) alert(interrupted);
+      var blob = new Blob(chunks, {type: rec.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm'});
+      try {
+if (Date.now() - recStartedAt < REC_MIN_MS && !interrupted){ toast(GT('⏱️ التسجيل قصير جدًا، هل {قرأت|قرأتِ} الآية كاملة؟ {أعد|أعيدي} التسجيل.')); activeRec = null; activeId = null; chunks = []; updateRecordingUI(itemId, false); return; }
+        await dbPut(itemId, blob);
+                STATE.studentAudios[itemId] = {status: 'pending', updatedAt: new Date().toISOString(), rid: newRecId(), partial: !!interrupted};
+        if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId] && PACK_DATA.studentAudios[itemId].status === 'rejected') {
+          // Keep the teacher's original feedback and the master/reference audio available to the student.
+          // A new student recording must never erase the teacher's correction.
+          if (PACK_DATA.studentAudios[itemId]) PACK_DATA.studentAudios[itemId].feedback = PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[itemId] ? PACK_DATA.teacherFeedbacks[itemId] : PACK_DATA.studentAudios[itemId].feedback;
+        }
+        save();
+      } catch(e){ alert('فشل الحفظ: ' + e.message); }
+      activeRec = null; activeId = null; chunks = [];
+      updateRecordingUI(itemId, false);
+      // if we are in TF view, re-render it
+      if (!$('view-tf').classList.contains('hidden')) renderTFView();
+      else renderLesson();
+    };
+    rec.start();
+    var recStartedAt = Date.now();
+    updateRecordingUI(itemId, true);
+    stopMeter = startLevelMeter(stream, null);
+    maxTimer = setTimeout(function(){
+      if (rec.state === 'recording'){ alert('وصل التسجيل إلى الحد الأقصى (' + Math.round(REC_MAX_MS / 60000 * 10) / 10 + ' دقيقة) وتوقّف تلقائيًا.'); try { rec.stop(); } catch(e){} }
+    }, REC_MAX_MS);
+  } catch(e){
+    updateRecordingUI(itemId, false);
+    showModal('🎙️ الميكروفون لا يعمل الآن', GT('{اطلب|اطلبي} من أحد الكبار أن يسمح للتطبيق باستخدام الميكروفون، ثم {جرّب|جرّبي} مرة أخرى.') +
+      '\n\nللكبار: الإذن مرفوض أو لا يوجد ميكروفون (' + String(e && e.name || 'خطأ') + '). افتح إعدادات المتصفح أو الجهاز واسمح بالميكروفون. إن فتحت الملف مباشرة من مجلد على الجهاز فافتحه من تطبيق «رفاق التحفة» أو موقعه.',
+      [{label: 'حسنًا', class: 'primary', action: closeModal}]);
+    activeRec = null; activeId = null;
+  }
+}
+async function maybeCompressAudio(file){
+  if (!file || !file.size || file.size <= 3*1024*1024) return file;
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC || typeof MediaRecorder === 'undefined') return file;
+  var ctx = null;
+  try {
+    var buf = await file.arrayBuffer();
+    ctx = new AC();
+    var audioBuffer = await ctx.decodeAudioData(buf.slice(0));
+    if (!audioBuffer || !audioBuffer.duration) throw new Error('تعذر فك ترميز الصوت');
+    var dest = ctx.createMediaStreamDestination();
+    var mimes = ['audio/webm;codecs=opus','audio/webm','audio/mp4'];
+    var mime = mimes.find(function(m){ return typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(m); });
+    var recorder;
+    try { recorder = mime ? new MediaRecorder(dest.stream,{mimeType:mime,audioBitsPerSecond:24000}) : new MediaRecorder(dest.stream,{audioBitsPerSecond:24000}); }
+    catch(_e){ recorder = mime ? new MediaRecorder(dest.stream,{mimeType:mime}) : new MediaRecorder(dest.stream); }
+    var chunks=[];
+    recorder.ondataavailable=function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+    var out = await new Promise(function(resolve,reject){
+      recorder.onerror=function(){ reject(new Error('فشل ضغط الصوت')); };
+      recorder.onstop=function(){
+        var blob=new Blob(chunks,{type:recorder.mimeType || (chunks[0]&&chunks[0].type) || 'audio/webm'});
+        resolve(blob);
+      };
+      var source=ctx.createBufferSource(); source.buffer=audioBuffer; source.connect(dest);
+      source.onended=function(){ if(recorder.state==='recording') recorder.stop(); };
+      try { recorder.start(250); source.start(0); } catch(e){ reject(e); }
+    });
+    if (out && out.size && out.size < file.size) return out;
+  } catch(e){ console.warn('audio compression skipped',e); }
+  finally { if(ctx) try{ await ctx.close(); }catch(_e){} }
+  return file;
+}
+function isAudioFile(file){
+  if (!file) return false;
+  if (file.type && /^audio\//i.test(file.type)) return true;
+  return /\.(mp3|m4a|aac|wav|ogg|oga|webm|mp4|opus)$/i.test(file.name || '');
+}
+async function uploadReplacementAudio(event, itemId){
+  var file = event.target.files && event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  /* 9.39.3 (R11): مسار رفع الملف يخضع لبوابة الموافقة نفسها التي يخضع لها الميكروفون */
+  if (!hasConsent()){ ensureConsent(function(){ alert('تم حفظ الموافقة. اختر الملف الصوتي مرة أخرى.'); }); return; }
+  if (!isAudioFile(file)){ alert('اختر ملفًا صوتيًا صالحًا.'); return; }
+  if (file.size > 12 * 1024 * 1024){ alert('حجم التسجيل كبير جدًا (أكثر من 12 ميجابايت). اختر تسجيلًا أقصر أو ملفًا مضغوطًا.'); return; }
+  try {
+    toast('⏳ جاري تجهيز وضغط التسجيل إذا لزم...');
+    var prepared = await maybeCompressAudio(file);
+    await dbPut(itemId, prepared);
+    STATE.studentAudios[itemId] = {status:'pending', updatedAt:new Date().toISOString(), rid: newRecId(), source: prepared !== file ? 'uploaded-compressed' : 'uploaded-replacement'};
+    // Preserve the teacher correction while the student prepares the new recording.
+    if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId] && PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[itemId]) { PACK_DATA.studentAudios[itemId].feedback = PACK_DATA.teacherFeedbacks[itemId]; }
+    save();
+    renderTFView();
+    toast('✅ حُفظ التسجيل البديل، وأصبح بانتظار مراجعة المعلم.');
+  } catch(err){ alert('تعذر حفظ التسجيل البديل: ' + (err && err.message ? err.message : err)); }
+}
+async function playStudentRec(itemId){
+  // In TF view use the pack audio; in lesson use IndexedDB
+  var blob = await dbGet(itemId);
+  if (!blob){
+    var inPack = PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId];
+    if (inPack && inPack.audio){
+      document.querySelectorAll('audio').forEach(function(a){ try{ a.pause(); }catch(e){} });
+      var au = new Audio(inPack.audio);
+      au.play().catch(function(){});
+      return;
+    }
+    alert('التسجيل مفقود'); return;
+  }
+  document.querySelectorAll('audio').forEach(function(a){ try{ a.pause(); }catch(e){} });
+  var url = URL.createObjectURL(blob);
+  var audio = new Audio(url);
+  audio.onended = function(){ URL.revokeObjectURL(url); };
+  audio.play().catch(function(){});
+}
+async function deleteStudentRec(itemId){
+  if (!confirm('حذف هذا التسجيل؟')) return;
+  await dbDel(itemId);
+  delete STATE.studentAudios[itemId];
+  save();
+  renderLesson();
+}
+var REC_MAX_MS = 180000;
+var REC_MIN_MS = 1500;
+      // أقل مدة مقبولة لتسجيل: ثانية ونصف      // حد أقصى ثلاث دقائق للتسجيل الواحد
+var REC_SILENCE_MS = 6000;
+    // بعد هذه المدة بلا صوت يُنبَّه الطفل
+var REC_SILENCE_LEVEL = 0.012;
+/* ===== الملف الشخصي ===== */
+function showProfile(){
+  var s = STATE.student;
+  var av = $('profile-avatar');
+  if (s.photo) av.innerHTML = '<img data-media="' + mediaRef('img', s.photo) + '" alt="">';
+  else av.innerHTML = '<span class="emoji">' + (s.gender === 'girl' ? '🧚‍♀️' : '🦸‍♂️') + '</span>';
+  $('profile-name').textContent = s.name || '—';
+  $('profile-sub').textContent = s.gender === 'girl' ? '🌸 طالبة متميزة' : '⭐ طالب متميز';
+  $('profile-points').textContent = STATE.stats.totalPoints || 0;
+  $('profile-stats').textContent = 'أقسام: ' + (STATE.stats.completedSections || 0) + '/' + realSections().length + ' · مفاهيم متقنة: ' + certLevel().mastered + '/' + realSections().length;
+
+  var list = $('profile-recordings-list');
+  var keys = Object.keys(STATE.studentAudios);
+  if (!keys.length){
+    list.innerHTML = '<div class="notice info">لم تسجّل شيئاً بعد.</div>';
+  } else {
+    var h = '';
+    keys.forEach(function(id){
+      var status = STATE.studentAudios[id].status || 'pending';
+      var label = status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : (STATE.studentAudios[id].sentAt ? '⏳ بانتظار المعلم' : '💾 لم يُرسل بعد');
+      h += '<div data-style="padding:10px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;gap:8px">';
+      h += '<div data-style="font-weight:800;color:var(--primary);font-size:.88rem">' + escapeHTML(itemLabelById(id)) + '</div>';
+      h += '<span class="pill">' + label + '</span></div>';
+    });
+    list.innerHTML = h;
+  }
+  show('view-profile');
+  try { updateExamButtons(); updateRetestButtons(); } catch(e){}
+}
+/* ===== ولي الأمر: الموافقة والرمز والبوابة ===== */
+function parentalGate(onPass, purpose){
+  if (guardianPinSet()){ pinGate(onPass, purpose); return; }
+  arithmeticGate(function(){ if (hasConsent()) pinSetupDialog(onPass, 'ضع رمزًا من 4 أرقام لولي الأمر. سيُطلب بدل المسألة الحسابية من الآن.'); else onPass(); }, purpose);
+}
+function arithmeticGate(onPass, purpose, waitSec){
+  var old = document.getElementById('parent-gate'); if (old) old.remove();
+  var ov = document.createElement('div'); ov.id = 'parent-gate';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:380px;width:100%;padding:18px;text-align:center;line-height:1.8';
+  var h = document.createElement('h3'); h.style.cssText = 'margin:0 0 6px'; h.textContent = '🔒 لولي الأمر فقط';
+  var p = document.createElement('p'); p.style.cssText = 'margin:0 0 8px'; p.textContent = (purpose || 'هذه الإعدادات لولي الأمر.') + ' اكتب ناتج الضرب للمتابعة:';
+  var q = document.createElement('div'); q.id = 'parent-gate-q'; q.style.cssText = 'font-size:1.7rem;font-weight:800;direction:ltr;margin:6px 0';
+  var inp = document.createElement('input'); inp.id = 'parent-gate-answer'; inp.type = 'text'; inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.maxLength = 4;
+  inp.style.cssText = 'width:120px;font-size:1.3rem;text-align:center;padding:8px;border:2px solid #cfd8dc;border-radius:12px;direction:ltr';
+  var msg = document.createElement('div'); msg.id = 'parent-gate-msg'; msg.style.cssText = 'min-height:1.6em;color:#b3261e;font-size:.9rem;margin:6px 0';
+  var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
+  var ok = document.createElement('button'); ok.type = 'button'; ok.id = 'parent-gate-ok'; ok.className = 'btn primary'; ok.textContent = 'متابعة';
+  var cancel = document.createElement('button'); cancel.type = 'button'; cancel.id = 'parent-gate-cancel'; cancel.className = 'btn ghost'; cancel.textContent = 'إلغاء';
+  row.appendChild(ok); row.appendChild(cancel);
+  [h, p, q, inp, msg, row].forEach(function(e){ card.appendChild(e); });
+  ov.appendChild(card); document.body.appendChild(ov);
+  var a = 0, b = 0, tries = 0;
+  function newQ(){ do { a = 12 + Math.floor(Math.random() * 88); } while (a % 10 === 0 || a % 11 === 0); b = 3 + Math.floor(Math.random() * 7); q.textContent = a + ' × ' + b + ' = ?'; inp.value = ''; }
+  newQ();
+  if (waitSec > 0){ // 9.39.13 (D7): استعادة الرمز المنسي حاجز صبر لا يحتمله طفل
+    ok.disabled = true; inp.disabled = true; var left = waitSec;
+    var tick = function(){ if (!document.body.contains(ov)) return; if (left <= 0){ ok.disabled = false; inp.disabled = false; msg.textContent = ''; try { inp.focus(); } catch(e){} return; } msg.textContent = '⏳ انتظر ' + left + ' ثانية ثم اكتب الناتج.'; left--; setTimeout(tick, 1000); };
+    tick();
+  }
+  function check(){
+    if (ok.disabled) return;
+    if (toLatinDigits(inp.value) === String(a * b)){ ov.remove(); onPass(); return; }
+    tries++;
+    if (tries >= 3){
+      ok.disabled = true; inp.disabled = true; msg.textContent = 'محاولات كثيرة. انتظر 30 ثانية.';
+      setTimeout(function(){ if (!document.body.contains(ov)) return; ok.disabled = false; inp.disabled = false; tries = 0; msg.textContent = ''; newQ(); }, 30000);
+      return;
+    }
+    msg.textContent = 'الإجابة غير صحيحة. هذه مسألة أخرى.'; newQ();
+  }
+  ok.onclick = check;
+  cancel.onclick = function(){ ov.remove(); };
+  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') check(); });
+  try { inp.focus(); } catch(e){}
+}
+function guardianPinSet(){ var p = STATE.student && STATE.student.guardianPin; return !!(p && typeof p.h === 'string' && typeof p.s === 'string'); }
+function guardianPinProblem(a, b){
+  a = toLatinDigits(a); b = toLatinDigits(b);
+  if (!/^[0-9]{4}$/.test(a)) return 'رمز ولي الأمر أربعة أرقام.';
+  if (a !== b) return 'الرمزان غير متطابقين.';
+  if (/^(\d)\1{3}$/.test(a) || '0123456789'.indexOf(a) >= 0 || '9876543210'.indexOf(a) >= 0) return 'اختر رمزًا لا يسهل تخمينه (لا 1111 ولا 1234).';
+  return '';
+}
+async function guardianPinHash(pin, salt){ return sha256b64('rifaq-guardian-pin|' + salt + '|' + toLatinDigits(pin)); }
+async function setGuardianPin(pin){
+  var u = new Uint8Array(16); crypto.getRandomValues(u); var salt = b64FromBytes(u);
+  STATE.student = STATE.student || {};
+  STATE.student.guardianPin = {s: salt, h: await guardianPinHash(pin, salt), at: new Date().toISOString()};
+  save();
+}
+function gateShell(title, text){
+  var old = document.getElementById('parent-gate'); if (old) old.remove();
+  var ov = document.createElement('div'); ov.id = 'parent-gate';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:380px;width:100%;padding:18px;text-align:center;line-height:1.8';
+  var h = document.createElement('h3'); h.style.cssText = 'margin:0 0 6px'; h.textContent = title;
+  var p = document.createElement('p'); p.style.cssText = 'margin:0 0 8px'; p.textContent = text;
+  card.appendChild(h); card.appendChild(p); ov.appendChild(card); document.body.appendChild(ov);
+  return {ov: ov, card: card};
+}
+function pinInput(id, ph){
+  var i = document.createElement('input'); i.id = id; i.type = 'password'; i.setAttribute('inputmode', 'numeric'); i.setAttribute('autocomplete', 'off'); i.maxLength = 4; i.placeholder = ph || '••••';
+  i.style.cssText = 'width:130px;font-size:1.4rem;letter-spacing:.4em;text-align:center;padding:8px;border:2px solid #cfd8dc;border-radius:12px;direction:ltr;margin:4px';
+  return i;
+}
+function pinGate(onPass, purpose){
+  var g = gateShell('🔒 لولي الأمر فقط', (purpose || 'هذه الإعدادات لولي الأمر.') + ' اكتب رمز ولي الأمر:');
+  var inp = pinInput('parent-gate-pin'); g.card.appendChild(inp);
+  var msg = document.createElement('div'); msg.id = 'parent-gate-msg'; msg.style.cssText = 'min-height:1.6em;color:#b3261e;font-size:.9rem;margin:6px 0'; g.card.appendChild(msg);
+  var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
+  var ok = document.createElement('button'); ok.type = 'button'; ok.id = 'parent-gate-ok'; ok.className = 'btn primary'; ok.textContent = 'متابعة';
+  var cancel = document.createElement('button'); cancel.type = 'button'; cancel.id = 'parent-gate-cancel'; cancel.className = 'btn ghost'; cancel.textContent = 'إلغاء';
+  row.appendChild(ok); row.appendChild(cancel); g.card.appendChild(row);
+  var forgot = document.createElement('button'); forgot.type = 'button'; forgot.id = 'parent-gate-forgot'; forgot.className = 'btn ghost'; forgot.textContent = 'نسيت الرمز؟';
+  forgot.style.cssText = 'margin-top:8px;font-size:.85rem'; g.card.appendChild(forgot);
+  var tries = 0;
+  async function check(){
+    if (ok.disabled) return;
+    var p = STATE.student.guardianPin, v = toLatinDigits(inp.value);
+    if (/^[0-9]{4}$/.test(v) && await guardianPinHash(v, p.s) === p.h){ g.ov.remove(); onPass(); return; }
+    tries++; inp.value = '';
+    if (tries >= 3){
+      ok.disabled = true; inp.disabled = true; msg.textContent = 'محاولات كثيرة. انتظر 30 ثانية.';
+      setTimeout(function(){ if (!document.body.contains(g.ov)) return; ok.disabled = false; inp.disabled = false; tries = 0; msg.textContent = ''; }, 30000);
+      return;
+    }
+    msg.textContent = 'الرمز غير صحيح.';
+  }
+  ok.onclick = check;
+  cancel.onclick = function(){ g.ov.remove(); };
+  forgot.onclick = function(){ g.ov.remove(); arithmeticGate(function(){ pinSetupDialog(onPass, 'ضع رمزًا جديدًا لولي الأمر (4 أرقام).'); }, 'استعادة رمز ولي الأمر.', 60); };
+  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') check(); });
+  try { inp.focus(); } catch(e){}
+}
+function pinSetupDialog(onDone, text){
+  var g = gateShell('🔑 رمز ولي الأمر', text || 'ضع رمزًا من 4 أرقام.');
+  var a = pinInput('pin-new', 'الرمز'), b = pinInput('pin-new2', 'أعده'); g.card.appendChild(a); g.card.appendChild(b);
+  var msg = document.createElement('div'); msg.id = 'pin-new-msg'; msg.style.cssText = 'min-height:1.6em;color:#b3261e;font-size:.9rem;margin:6px 0'; g.card.appendChild(msg);
+  var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
+  var ok = document.createElement('button'); ok.type = 'button'; ok.id = 'pin-new-ok'; ok.className = 'btn success'; ok.textContent = 'حفظ الرمز';
+  var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn ghost'; cancel.textContent = 'إلغاء';
+  row.appendChild(ok); row.appendChild(cancel); g.card.appendChild(row);
+  ok.onclick = async function(){
+    var e = guardianPinProblem(a.value, b.value); if (e){ msg.textContent = e; return; }
+    ok.disabled = true;
+    try { await setGuardianPin(a.value); } catch(x){ ok.disabled = false; msg.textContent = 'تعذّر حفظ الرمز.'; return; }
+    g.ov.remove(); toast('🔑 حُفظ رمز ولي الأمر.'); onDone();
+  };
+  cancel.onclick = function(){ g.ov.remove(); };
+  try { a.focus(); } catch(e){}
+}
+function openGuardianSettings(){ parentalGate(openGuardianSettingsInner); }
+function openGuardianSettingsInner(){
+  var c = STATE.student && STATE.student.consent;
+  var hasC = !!(c && c.v === CONSENT_VERSION);
+  var ov = document.createElement('div');
+  ov.id = 'guardian-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  if (!hasC){
+    var card0 = document.createElement('div');
+    card0.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8';
+    card0.innerHTML = '<h3 data-style="margin:0 0 8px">⚙️ إعدادات ولي الأمر</h3><p>لا توجد موافقة مسجّلة على هذا الجهاز بعد؛ تُطلب عند أول تسجيل صوتي.</p>' +
+      '<p data-style="font-size:.85rem"><b>التصفير:</b> يحذف تقدّم الطالب وبياناته من هذا الجهاز.</p>' +
+      '<button type="button" id="gs-delete" class="btn" data-style="background:#b3261e;color:#fff">🔄 تصفير: حذف بيانات الطالب من هذا الجهاز</button>' +
+      '<div data-style="display:flex;justify-content:flex-end;margin-top:10px"><button type="button" id="gs-close" class="btn">إغلاق</button></div>';
+    ov.appendChild(card0); document.body.appendChild(ov);
+    guardianExtras(card0, ov); // 9.39.13 (D12، D7)
+    $('gs-close').onclick = function(){ ov.remove(); };
+    $('gs-delete').onclick = function(){ ov.remove(); deleteChildDataOnDevice(); };
+    return;
+  }
+  var rows = Object.keys(STATE.studentAudios || {}).filter(function(k){ return STATE.studentAudios[k] && STATE.studentAudios[k].status !== undefined; }).map(function(k){
+    var ex = !!(c.excludedRecordings && c.excludedRecordings[k]);
+    return '<label data-style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" class="gs-rec" data-id="'+k+'" '+(ex?'':'checked')+'> شارِك تسجيل: '+escapeHTML(itemLabelById(k))+'</label>';
+  }).join('') || '<p>لا توجد تسجيلات بعد.</p>';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
+  card.innerHTML = '<h3 data-style="margin:0 0 8px">⚙️ إعدادات ولي الأمر</h3>' +
+    '<label data-style="display:flex;gap:8px;align-items:center;margin:10px 0"><input id="gs-share" type="checkbox" '+(c.permissions && c.permissions.shareWithPeers ? 'checked' : '')+'> <b>السماح بمشاركة التسجيلات المعتمدة مع زملاء</b></label>' +
+    '<p data-style="margin:6px 0">يمكنك استبعاد أي تسجيل بعينه:</p>' + rows +
+    '<p data-style="font-size:.85rem;color:#555">تطبيق الإعدادات على الحزم المصدَّرة من الآن. الملفات التي نُسخت سابقًا لا تُسترجع.</p>' +
+    '<hr><p data-style="font-size:.85rem"><b>حذف البيانات:</b> يحذف تسجيلات الطفل وتقدمه وموافقته من هذا الجهاز. لا يحذف ملف الحزمة المحفوظ ولا ما أُرسل إلى المعلم أو الزملاء.</p>' +
+    '<button type="button" id="gs-summary" class="btn">📄 ملخص لولي الأمر</button> ' +
+    '<button type="button" id="gs-report" class="btn">🖨️ تقرير للطباعة</button> ' +
+    '<button type="button" id="gs-archive" class="btn">💾 تصدير ذكرى العائلة</button> ' +
+    '<button type="button" id="gs-delete" class="btn" data-style="background:#b3261e;color:#fff">🔄 تصفير: حذف بيانات الطالب من هذا الجهاز</button>' +
+    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="gs-close" class="btn">إغلاق</button><button type="button" id="gs-save" class="btn success">حفظ</button></div>';
+  ov.appendChild(card); document.body.appendChild(ov);
+  guardianExtras(card, ov); // 9.39.13 (D12، D7)
+  $('gs-close').onclick = function(){ ov.remove(); };
+  $('gs-delete').onclick = function(){ deleteChildDataOnDevice(); };
+  $('gs-summary').onclick = function(){ showParentSummary(); };
+  $('gs-archive').onclick = function(){ exportFamilyArchive(); };
+  $('gs-report').onclick = function(){ showPrintableReport(); };
+  $('gs-save').onclick = function(){
+    var ex = {};
+    Array.prototype.forEach.call(document.querySelectorAll('.gs-rec'), function(cb){ if (!cb.checked) ex[cb.getAttribute('data-id')] = true; });
+    c.permissions = c.permissions || {record: true, review: true};
+    c.permissions.shareWithPeers = !!$('gs-share').checked;
+    c.excludedRecordings = ex;
+    save(); ov.remove(); alert('تم حفظ الإعدادات.');
+  };
+}
+function hasConsent(){
+  var c = STATE.student && STATE.student.consent;
+  return !!(c && c.v === CONSENT_VERSION && c.guardian && c.permissions && c.permissions.record === true && c.permissions.review === true);
+}
+function consentForExport(){
+  var c = STATE.student && STATE.student.consent;
+  if (!c || c.v !== CONSENT_VERSION) return null;
+  var perm = c.permissions || {};
+  return {v: CONSENT_VERSION, guardian: String(c.guardian || '').slice(0, 60), at: String(c.at || '').slice(0, 40),
+    permissions: {record: perm.record === true, review: perm.review === true, shareWithPeers: perm.shareWithPeers === true},
+    excludedRecordings: Object.keys(c.excludedRecordings || {}).slice(0, 200).reduce(function(o,k){ o[String(k).slice(0,64)] = true; return o; }, {})};
+}
+function sharesWithPeers(){
+  var c = STATE.student && STATE.student.consent;
+  return !!(c && c.v === CONSENT_VERSION && c.permissions && c.permissions.shareWithPeers === true);
+}
+/* القرار DECISION-001: ثلاثة أذونات مستقلة، والمشاركة غير مفعّلة افتراضيًا */
+function ensureConsent(onAccept){
+  if (hasConsent()){ onAccept(); return; }
+  var ov = document.createElement('div');
+  ov.id = 'consent-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
+  card.innerHTML = '<h3 data-style="margin:0 0 8px">🛡️ موافقة ولي الأمر</h3>' +
+    '<label data-style="display:block;margin:8px 0 4px">اسم ولي الأمر:</label>' +
+    '<input id="consent-name" type="text" maxlength="60" data-style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit">' +
+    (guardianPinSet() ? '' : '<label data-style="display:block;margin:10px 0 4px">رمز ولي الأمر (4 أرقام) — يُطلب قبل الإعدادات والتصفير، فلا {تخبر|تخبري} به الطفل:</label>' +
+      '<div data-style="display:flex;gap:8px"><input id="consent-pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="الرمز" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr">' +
+      '<input id="consent-pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="أعده" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr"></div>') +
+    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-record" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على تسجيل صوت الطفل وحفظه على هذا الجهاز للتعلم.</span></label>' +
+    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-review" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على إرسال التسجيلات إلى المعلم للمراجعة التعليمية فقط.</span></label>' +
+    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;background:#f5f5f5;border-radius:10px;padding:8px"><input id="consent-share" type="checkbox" data-style="margin-top:6px"> <span><b>اختياري:</b> أوافق على أن تُضمَّن التسجيلات المعتمدة في حزم تصل إلى أطفال آخرين. يمكنني استبعاد أي تسجيل، وسحب هذه الموافقة في أي وقت (لا يسترجع ذلك ما سبق نسخه).</span></label>' +
+    '<p id="consent-err" data-style="color:#b3261e;margin:4px 0;min-height:1.2em"></p>' +
+    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="consent-no" class="btn">إلغاء</button><button type="button" id="consent-ok" class="btn success">حفظ وابدأ</button></div>';
+  ov.appendChild(card); document.body.appendChild(ov);
+  $('consent-no').onclick = function(){ ov.remove(); };
+  $('consent-ok').onclick = async function(){
+    var name = ($('consent-name').value || '').trim().slice(0, 60);
+    if (name.length < 3){ $('consent-err').textContent = 'اكتب اسم ولي الأمر (٣ أحرف على الأقل).'; return; }
+    var pinErr = $('consent-pin') ? guardianPinProblem($('consent-pin').value, $('consent-pin2').value) : ''; // 9.39.13 (D7)
+    if (pinErr){ $('consent-err').textContent = pinErr; return; }
+    if (!$('consent-record').checked || !$('consent-review').checked){ $('consent-err').textContent = 'الموافقتان الأولى والثانية مطلوبتان للتسجيل.'; return; }
+    if ($('consent-pin')){ try { await setGuardianPin($('consent-pin').value); } catch(e){ $('consent-err').textContent = 'تعذّر حفظ الرمز على هذا الجهاز.'; return; } }
+    STATE.student = STATE.student || {};
+    STATE.student.consent = {v: CONSENT_VERSION, guardian: name, at: new Date().toISOString(),
+      permissions: {record: true, review: true, shareWithPeers: !!$('consent-share').checked},
+      excludedRecordings: {}};
+    save(); ov.remove(); onAccept();
+  };
+}
+/* ===== 9.35: موافقة ولي الأمر تُطلب عند حفظ بيانات الطالب، لا عند أول تسجيل (وقت الولي هنا) ===== */
+function askConsentAfterSetup(){
+  setTimeout(function(){ if (STATE.student && STATE.student.name && !hasConsent()) ensureConsent(function(){}); }, 300);
+}
+var CONSENT_VERSION = 2;
 /* ===== 9.18: توقيع الاعتماد الرقمي (ECDSA P-256) ===== */
 var SIG_KEY_ID = '__teacher_sign_key__';
 /* مفتاح المعلم يجب أن يكون واحدًا لكل المتصفح، لا لكل طفل: لذلك يُحفظ في قاعدة مستقلة عن قاعدة كل حزمة */
@@ -2407,11 +3086,6 @@ async function showTeacherPublicKey(){
   showModal('🔑 مفتاح توقيع المعلم', 'أرسل هذا النص إلى المشرف ليضعه في إعداد الاستوديو (مفاتيح المعلمين الموثوقة). لا يحتوي على أي سر.\n\n' + JSON.stringify(k.publicJwk), [{label: 'إغلاق', class: 'primary', action: closeModal}]);
 }
 
-/* ===== 9.18: موافقة ولي الأمر قبل أي تسجيل صوتي لطفل ===== */
-/* صيغة {مذكر|مؤنث} تُختار حسب جنس الطفل المسجَّل */
-/* 9.39: تمييز العدد العربي للعدادات */
-function arCount(n, one, two, few){ n = Number(n) || 0; if (n === 1) return one + ' واحد'; if (n === 2) return two; if (n >= 3 && n <= 10) return n + ' ' + few; return n + ' ' + one + (one.slice(-1) === 'ة' ? '' : 'ًا'); }
-function GT(t){ if (t === null || t === undefined) return t; var fem = !!(STATE.student && STATE.student.gender === 'girl'); return String(t).replace(/\{([^{}|]*)\|([^{}]*)\}/g, function(_, m, f){ return fem ? f : m; }); }
 /* ===== 9.19: بوابات الخاصيات قبل أي إدراج في HTML =====
    أي قيمة تُدرج في src يجب أن تطابق صيغة data: صحيحة، وإلا تُستبدل بسلسلة فارغة.
    هذا يحمي حتى لو فشل التعقيم العام. */
@@ -2612,62 +3286,6 @@ function assessSummary(state, sections){
 }
 
 
-var CONSENT_VERSION = 2;
-var REC_MAX_MS = 180000;
-var REC_MIN_MS = 1500;      // أقل مدة مقبولة لتسجيل: ثانية ونصف      // حد أقصى ثلاث دقائق للتسجيل الواحد
-var REC_SILENCE_MS = 6000;    // بعد هذه المدة بلا صوت يُنبَّه الطفل
-var REC_SILENCE_LEVEL = 0.012;
-function hasConsent(){
-  var c = STATE.student && STATE.student.consent;
-  return !!(c && c.v === CONSENT_VERSION && c.guardian && c.permissions && c.permissions.record === true && c.permissions.review === true);
-}
-function consentForExport(){
-  var c = STATE.student && STATE.student.consent;
-  if (!c || c.v !== CONSENT_VERSION) return null;
-  var perm = c.permissions || {};
-  return {v: CONSENT_VERSION, guardian: String(c.guardian || '').slice(0, 60), at: String(c.at || '').slice(0, 40),
-    permissions: {record: perm.record === true, review: perm.review === true, shareWithPeers: perm.shareWithPeers === true},
-    excludedRecordings: Object.keys(c.excludedRecordings || {}).slice(0, 200).reduce(function(o,k){ o[String(k).slice(0,64)] = true; return o; }, {})};
-}
-function sharesWithPeers(){
-  var c = STATE.student && STATE.student.consent;
-  return !!(c && c.v === CONSENT_VERSION && c.permissions && c.permissions.shareWithPeers === true);
-}
-/* القرار DECISION-001: ثلاثة أذونات مستقلة، والمشاركة غير مفعّلة افتراضيًا */
-function ensureConsent(onAccept){
-  if (hasConsent()){ onAccept(); return; }
-  var ov = document.createElement('div');
-  ov.id = 'consent-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  var card = document.createElement('div');
-  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
-  card.innerHTML = '<h3 data-style="margin:0 0 8px">🛡️ موافقة ولي الأمر</h3>' +
-    '<label data-style="display:block;margin:8px 0 4px">اسم ولي الأمر:</label>' +
-    '<input id="consent-name" type="text" maxlength="60" data-style="width:100%;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit">' +
-    (guardianPinSet() ? '' : '<label data-style="display:block;margin:10px 0 4px">رمز ولي الأمر (4 أرقام) — يُطلب قبل الإعدادات والتصفير، فلا {تخبر|تخبري} به الطفل:</label>' +
-      '<div data-style="display:flex;gap:8px"><input id="consent-pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="الرمز" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr">' +
-      '<input id="consent-pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="أعده" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr"></div>') +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-record" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على تسجيل صوت الطفل وحفظه على هذا الجهاز للتعلم.</span></label>' +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-review" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على إرسال التسجيلات إلى المعلم للمراجعة التعليمية فقط.</span></label>' +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;background:#f5f5f5;border-radius:10px;padding:8px"><input id="consent-share" type="checkbox" data-style="margin-top:6px"> <span><b>اختياري:</b> أوافق على أن تُضمَّن التسجيلات المعتمدة في حزم تصل إلى أطفال آخرين. يمكنني استبعاد أي تسجيل، وسحب هذه الموافقة في أي وقت (لا يسترجع ذلك ما سبق نسخه).</span></label>' +
-    '<p id="consent-err" data-style="color:#b3261e;margin:4px 0;min-height:1.2em"></p>' +
-    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="consent-no" class="btn">إلغاء</button><button type="button" id="consent-ok" class="btn success">حفظ وابدأ</button></div>';
-  ov.appendChild(card); document.body.appendChild(ov);
-  $('consent-no').onclick = function(){ ov.remove(); };
-  $('consent-ok').onclick = async function(){
-    var name = ($('consent-name').value || '').trim().slice(0, 60);
-    if (name.length < 3){ $('consent-err').textContent = 'اكتب اسم ولي الأمر (٣ أحرف على الأقل).'; return; }
-    var pinErr = $('consent-pin') ? guardianPinProblem($('consent-pin').value, $('consent-pin2').value) : ''; // 9.39.13 (D7)
-    if (pinErr){ $('consent-err').textContent = pinErr; return; }
-    if (!$('consent-record').checked || !$('consent-review').checked){ $('consent-err').textContent = 'الموافقتان الأولى والثانية مطلوبتان للتسجيل.'; return; }
-    if ($('consent-pin')){ try { await setGuardianPin($('consent-pin').value); } catch(e){ $('consent-err').textContent = 'تعذّر حفظ الرمز على هذا الجهاز.'; return; } }
-    STATE.student = STATE.student || {};
-    STATE.student.consent = {v: CONSENT_VERSION, guardian: name, at: new Date().toISOString(),
-      permissions: {record: true, review: true, shareWithPeers: !!$('consent-share').checked},
-      excludedRecordings: {}};
-    save(); ov.remove(); onAccept();
-  };
-}
 /* لوحة ولي الأمر: تغيير المشاركة وسحبها واستبعاد تسجيلات بعينها */
 /* DECISION-002 (الافتراضي المعتمد): حذف بيانات الطالب من هذا الجهاز فقط.
    يحذف: الحالة والموافقة والتقدّم، وكل قواعد الصوت الخاصة بهذه الحزمة.
@@ -3088,7 +3706,6 @@ function resumeExam(kind, session){
   return true;
 }
 function targetWords(q){ var m = String((q && q.type === 'extraction' && q.text) || '').match(/<b>([\s\S]*?)<\/b>/g); return m ? m.map(function(x){ return plainText(x); }).join('، ') : ''; }
-function plainText(h){ var d = document.createElement('div'); d.innerHTML = String(h === undefined || h === null ? '' : h); return d.textContent.replace(/\s+/g, ' ').trim(); }
 function correctAnswerText(q){
   if (q.type === 'true_false') return q.answer ? 'صحيح' : 'خطأ';
   if (Array.isArray(q.options) && typeof q.answer === 'number' && q.options[q.answer] !== undefined) return plainText(q.options[q.answer]);
@@ -3198,10 +3815,6 @@ function updateRetestButtons(){
   }
   var rv = document.getElementById('btn-review-session'); if (rv) rv.classList.toggle('hidden', !(st && st.concepts && assessDueReviews(st, new Date().toISOString()).length));
 }
-/* ===== 9.35: موافقة ولي الأمر تُطلب عند حفظ بيانات الطالب، لا عند أول تسجيل (وقت الولي هنا) ===== */
-function askConsentAfterSetup(){
-  setTimeout(function(){ if (STATE.student && STATE.student.name && !hasConsent()) ensureConsent(function(){}); }, 300);
-}
 /* ===== 9.36: تلاوة الشيخ لكل سؤال قرآني (إن سجّلها الشيخ في الاستوديو) ===== */
 function addSheikhAudioToQuestion(){
   var q = CURRENT.section && CURRENT.section.questions && CURRENT.section.questions[CURRENT.qIdx];
@@ -3218,683 +3831,19 @@ function addSheikhAudioToQuestion(){
 
 /* 9.39.11 (ق5-أ): بوابة ولي الأمر — مسألة ضرب (عدد من رقمين × رقم واحد) قبل الإعدادات أو الحذف.
    لا تُحفظ نتيجة البوابة: كل فتح جديد يحتاج مسألة جديدة. ثلاث محاولات خاطئة توقف البوابة 30 ثانية. */
-function toLatinDigits(s){ return String(s || '').replace(/[٠-٩]/g, function(d){ return String(d.charCodeAt(0) - 0x0660); }).replace(/[۰-۹]/g, function(d){ return String(d.charCodeAt(0) - 0x06F0); }).replace(/\s+/g, ''); }
 /* 9.39.13 (D7): البوابة تسأل عن رمز ولي الأمر إن وُضع. المسألة الحسابية تبقى لجهاز بلا رمز (قبل الموافقة)،
    ولاستعادة رمز منسي بعد انتظار 60 ثانية، ثم يُطلب رمز جديد. والجهاز الموافَق عليه قبل 9.39.13 يضع رمزه بعد أول بوابة. */
-function parentalGate(onPass, purpose){
-  if (guardianPinSet()){ pinGate(onPass, purpose); return; }
-  arithmeticGate(function(){ if (hasConsent()) pinSetupDialog(onPass, 'ضع رمزًا من 4 أرقام لولي الأمر. سيُطلب بدل المسألة الحسابية من الآن.'); else onPass(); }, purpose);
-}
-function arithmeticGate(onPass, purpose, waitSec){
-  var old = document.getElementById('parent-gate'); if (old) old.remove();
-  var ov = document.createElement('div'); ov.id = 'parent-gate';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  var card = document.createElement('div');
-  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:380px;width:100%;padding:18px;text-align:center;line-height:1.8';
-  var h = document.createElement('h3'); h.style.cssText = 'margin:0 0 6px'; h.textContent = '🔒 لولي الأمر فقط';
-  var p = document.createElement('p'); p.style.cssText = 'margin:0 0 8px'; p.textContent = (purpose || 'هذه الإعدادات لولي الأمر.') + ' اكتب ناتج الضرب للمتابعة:';
-  var q = document.createElement('div'); q.id = 'parent-gate-q'; q.style.cssText = 'font-size:1.7rem;font-weight:800;direction:ltr;margin:6px 0';
-  var inp = document.createElement('input'); inp.id = 'parent-gate-answer'; inp.type = 'text'; inp.setAttribute('inputmode', 'numeric'); inp.setAttribute('autocomplete', 'off'); inp.maxLength = 4;
-  inp.style.cssText = 'width:120px;font-size:1.3rem;text-align:center;padding:8px;border:2px solid #cfd8dc;border-radius:12px;direction:ltr';
-  var msg = document.createElement('div'); msg.id = 'parent-gate-msg'; msg.style.cssText = 'min-height:1.6em;color:#b3261e;font-size:.9rem;margin:6px 0';
-  var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
-  var ok = document.createElement('button'); ok.type = 'button'; ok.id = 'parent-gate-ok'; ok.className = 'btn primary'; ok.textContent = 'متابعة';
-  var cancel = document.createElement('button'); cancel.type = 'button'; cancel.id = 'parent-gate-cancel'; cancel.className = 'btn ghost'; cancel.textContent = 'إلغاء';
-  row.appendChild(ok); row.appendChild(cancel);
-  [h, p, q, inp, msg, row].forEach(function(e){ card.appendChild(e); });
-  ov.appendChild(card); document.body.appendChild(ov);
-  var a = 0, b = 0, tries = 0;
-  function newQ(){ do { a = 12 + Math.floor(Math.random() * 88); } while (a % 10 === 0 || a % 11 === 0); b = 3 + Math.floor(Math.random() * 7); q.textContent = a + ' × ' + b + ' = ?'; inp.value = ''; }
-  newQ();
-  if (waitSec > 0){ // 9.39.13 (D7): استعادة الرمز المنسي حاجز صبر لا يحتمله طفل
-    ok.disabled = true; inp.disabled = true; var left = waitSec;
-    var tick = function(){ if (!document.body.contains(ov)) return; if (left <= 0){ ok.disabled = false; inp.disabled = false; msg.textContent = ''; try { inp.focus(); } catch(e){} return; } msg.textContent = '⏳ انتظر ' + left + ' ثانية ثم اكتب الناتج.'; left--; setTimeout(tick, 1000); };
-    tick();
-  }
-  function check(){
-    if (ok.disabled) return;
-    if (toLatinDigits(inp.value) === String(a * b)){ ov.remove(); onPass(); return; }
-    tries++;
-    if (tries >= 3){
-      ok.disabled = true; inp.disabled = true; msg.textContent = 'محاولات كثيرة. انتظر 30 ثانية.';
-      setTimeout(function(){ if (!document.body.contains(ov)) return; ok.disabled = false; inp.disabled = false; tries = 0; msg.textContent = ''; newQ(); }, 30000);
-      return;
-    }
-    msg.textContent = 'الإجابة غير صحيحة. هذه مسألة أخرى.'; newQ();
-  }
-  ok.onclick = check;
-  cancel.onclick = function(){ ov.remove(); };
-  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') check(); });
-  try { inp.focus(); } catch(e){}
-}
-function guardianPinSet(){ var p = STATE.student && STATE.student.guardianPin; return !!(p && typeof p.h === 'string' && typeof p.s === 'string'); }
-function guardianPinProblem(a, b){
-  a = toLatinDigits(a); b = toLatinDigits(b);
-  if (!/^[0-9]{4}$/.test(a)) return 'رمز ولي الأمر أربعة أرقام.';
-  if (a !== b) return 'الرمزان غير متطابقين.';
-  if (/^(\d)\1{3}$/.test(a) || '0123456789'.indexOf(a) >= 0 || '9876543210'.indexOf(a) >= 0) return 'اختر رمزًا لا يسهل تخمينه (لا 1111 ولا 1234).';
-  return '';
-}
-async function guardianPinHash(pin, salt){ return sha256b64('rifaq-guardian-pin|' + salt + '|' + toLatinDigits(pin)); }
-async function setGuardianPin(pin){
-  var u = new Uint8Array(16); crypto.getRandomValues(u); var salt = b64FromBytes(u);
-  STATE.student = STATE.student || {};
-  STATE.student.guardianPin = {s: salt, h: await guardianPinHash(pin, salt), at: new Date().toISOString()};
-  save();
-}
-function gateShell(title, text){
-  var old = document.getElementById('parent-gate'); if (old) old.remove();
-  var ov = document.createElement('div'); ov.id = 'parent-gate';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  var card = document.createElement('div');
-  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:380px;width:100%;padding:18px;text-align:center;line-height:1.8';
-  var h = document.createElement('h3'); h.style.cssText = 'margin:0 0 6px'; h.textContent = title;
-  var p = document.createElement('p'); p.style.cssText = 'margin:0 0 8px'; p.textContent = text;
-  card.appendChild(h); card.appendChild(p); ov.appendChild(card); document.body.appendChild(ov);
-  return {ov: ov, card: card};
-}
-function pinInput(id, ph){
-  var i = document.createElement('input'); i.id = id; i.type = 'password'; i.setAttribute('inputmode', 'numeric'); i.setAttribute('autocomplete', 'off'); i.maxLength = 4; i.placeholder = ph || '••••';
-  i.style.cssText = 'width:130px;font-size:1.4rem;letter-spacing:.4em;text-align:center;padding:8px;border:2px solid #cfd8dc;border-radius:12px;direction:ltr;margin:4px';
-  return i;
-}
-function pinGate(onPass, purpose){
-  var g = gateShell('🔒 لولي الأمر فقط', (purpose || 'هذه الإعدادات لولي الأمر.') + ' اكتب رمز ولي الأمر:');
-  var inp = pinInput('parent-gate-pin'); g.card.appendChild(inp);
-  var msg = document.createElement('div'); msg.id = 'parent-gate-msg'; msg.style.cssText = 'min-height:1.6em;color:#b3261e;font-size:.9rem;margin:6px 0'; g.card.appendChild(msg);
-  var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
-  var ok = document.createElement('button'); ok.type = 'button'; ok.id = 'parent-gate-ok'; ok.className = 'btn primary'; ok.textContent = 'متابعة';
-  var cancel = document.createElement('button'); cancel.type = 'button'; cancel.id = 'parent-gate-cancel'; cancel.className = 'btn ghost'; cancel.textContent = 'إلغاء';
-  row.appendChild(ok); row.appendChild(cancel); g.card.appendChild(row);
-  var forgot = document.createElement('button'); forgot.type = 'button'; forgot.id = 'parent-gate-forgot'; forgot.className = 'btn ghost'; forgot.textContent = 'نسيت الرمز؟';
-  forgot.style.cssText = 'margin-top:8px;font-size:.85rem'; g.card.appendChild(forgot);
-  var tries = 0;
-  async function check(){
-    if (ok.disabled) return;
-    var p = STATE.student.guardianPin, v = toLatinDigits(inp.value);
-    if (/^[0-9]{4}$/.test(v) && await guardianPinHash(v, p.s) === p.h){ g.ov.remove(); onPass(); return; }
-    tries++; inp.value = '';
-    if (tries >= 3){
-      ok.disabled = true; inp.disabled = true; msg.textContent = 'محاولات كثيرة. انتظر 30 ثانية.';
-      setTimeout(function(){ if (!document.body.contains(g.ov)) return; ok.disabled = false; inp.disabled = false; tries = 0; msg.textContent = ''; }, 30000);
-      return;
-    }
-    msg.textContent = 'الرمز غير صحيح.';
-  }
-  ok.onclick = check;
-  cancel.onclick = function(){ g.ov.remove(); };
-  forgot.onclick = function(){ g.ov.remove(); arithmeticGate(function(){ pinSetupDialog(onPass, 'ضع رمزًا جديدًا لولي الأمر (4 أرقام).'); }, 'استعادة رمز ولي الأمر.', 60); };
-  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') check(); });
-  try { inp.focus(); } catch(e){}
-}
-function pinSetupDialog(onDone, text){
-  var g = gateShell('🔑 رمز ولي الأمر', text || 'ضع رمزًا من 4 أرقام.');
-  var a = pinInput('pin-new', 'الرمز'), b = pinInput('pin-new2', 'أعده'); g.card.appendChild(a); g.card.appendChild(b);
-  var msg = document.createElement('div'); msg.id = 'pin-new-msg'; msg.style.cssText = 'min-height:1.6em;color:#b3261e;font-size:.9rem;margin:6px 0'; g.card.appendChild(msg);
-  var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
-  var ok = document.createElement('button'); ok.type = 'button'; ok.id = 'pin-new-ok'; ok.className = 'btn success'; ok.textContent = 'حفظ الرمز';
-  var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn ghost'; cancel.textContent = 'إلغاء';
-  row.appendChild(ok); row.appendChild(cancel); g.card.appendChild(row);
-  ok.onclick = async function(){
-    var e = guardianPinProblem(a.value, b.value); if (e){ msg.textContent = e; return; }
-    ok.disabled = true;
-    try { await setGuardianPin(a.value); } catch(x){ ok.disabled = false; msg.textContent = 'تعذّر حفظ الرمز.'; return; }
-    g.ov.remove(); toast('🔑 حُفظ رمز ولي الأمر.'); onDone();
-  };
-  cancel.onclick = function(){ g.ov.remove(); };
-  try { a.focus(); } catch(e){}
-}
-function openGuardianSettings(){ parentalGate(openGuardianSettingsInner); }
-function openGuardianSettingsInner(){
-  var c = STATE.student && STATE.student.consent;
-  var hasC = !!(c && c.v === CONSENT_VERSION);
-  var ov = document.createElement('div');
-  ov.id = 'guardian-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  if (!hasC){
-    var card0 = document.createElement('div');
-    card0.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8';
-    card0.innerHTML = '<h3 data-style="margin:0 0 8px">⚙️ إعدادات ولي الأمر</h3><p>لا توجد موافقة مسجّلة على هذا الجهاز بعد؛ تُطلب عند أول تسجيل صوتي.</p>' +
-      '<p data-style="font-size:.85rem"><b>التصفير:</b> يحذف تقدّم الطالب وبياناته من هذا الجهاز.</p>' +
-      '<button type="button" id="gs-delete" class="btn" data-style="background:#b3261e;color:#fff">🔄 تصفير: حذف بيانات الطالب من هذا الجهاز</button>' +
-      '<div data-style="display:flex;justify-content:flex-end;margin-top:10px"><button type="button" id="gs-close" class="btn">إغلاق</button></div>';
-    ov.appendChild(card0); document.body.appendChild(ov);
-    guardianExtras(card0, ov); // 9.39.13 (D12، D7)
-    $('gs-close').onclick = function(){ ov.remove(); };
-    $('gs-delete').onclick = function(){ ov.remove(); deleteChildDataOnDevice(); };
-    return;
-  }
-  var rows = Object.keys(STATE.studentAudios || {}).filter(function(k){ return STATE.studentAudios[k] && STATE.studentAudios[k].status !== undefined; }).map(function(k){
-    var ex = !!(c.excludedRecordings && c.excludedRecordings[k]);
-    return '<label data-style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" class="gs-rec" data-id="'+k+'" '+(ex?'':'checked')+'> شارِك تسجيل: '+escapeHTML(itemLabelById(k))+'</label>';
-  }).join('') || '<p>لا توجد تسجيلات بعد.</p>';
-  var card = document.createElement('div');
-  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
-  card.innerHTML = '<h3 data-style="margin:0 0 8px">⚙️ إعدادات ولي الأمر</h3>' +
-    '<label data-style="display:flex;gap:8px;align-items:center;margin:10px 0"><input id="gs-share" type="checkbox" '+(c.permissions && c.permissions.shareWithPeers ? 'checked' : '')+'> <b>السماح بمشاركة التسجيلات المعتمدة مع زملاء</b></label>' +
-    '<p data-style="margin:6px 0">يمكنك استبعاد أي تسجيل بعينه:</p>' + rows +
-    '<p data-style="font-size:.85rem;color:#555">تطبيق الإعدادات على الحزم المصدَّرة من الآن. الملفات التي نُسخت سابقًا لا تُسترجع.</p>' +
-    '<hr><p data-style="font-size:.85rem"><b>حذف البيانات:</b> يحذف تسجيلات الطفل وتقدمه وموافقته من هذا الجهاز. لا يحذف ملف الحزمة المحفوظ ولا ما أُرسل إلى المعلم أو الزملاء.</p>' +
-    '<button type="button" id="gs-summary" class="btn">📄 ملخص لولي الأمر</button> ' +
-    '<button type="button" id="gs-report" class="btn">🖨️ تقرير للطباعة</button> ' +
-    '<button type="button" id="gs-archive" class="btn">💾 تصدير ذكرى العائلة</button> ' +
-    '<button type="button" id="gs-delete" class="btn" data-style="background:#b3261e;color:#fff">🔄 تصفير: حذف بيانات الطالب من هذا الجهاز</button>' +
-    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="gs-close" class="btn">إغلاق</button><button type="button" id="gs-save" class="btn success">حفظ</button></div>';
-  ov.appendChild(card); document.body.appendChild(ov);
-  guardianExtras(card, ov); // 9.39.13 (D12، D7)
-  $('gs-close').onclick = function(){ ov.remove(); };
-  $('gs-delete').onclick = function(){ deleteChildDataOnDevice(); };
-  $('gs-summary').onclick = function(){ showParentSummary(); };
-  $('gs-archive').onclick = function(){ exportFamilyArchive(); };
-  $('gs-report').onclick = function(){ showPrintableReport(); };
-  $('gs-save').onclick = function(){
-    var ex = {};
-    Array.prototype.forEach.call(document.querySelectorAll('.gs-rec'), function(cb){ if (!cb.checked) ex[cb.getAttribute('data-id')] = true; });
-    c.permissions = c.permissions || {record: true, review: true};
-    c.permissions.shareWithPeers = !!$('gs-share').checked;
-    c.excludedRecordings = ex;
-    save(); ov.remove(); alert('تم حفظ الإعدادات.');
-  };
-}
-/* مؤشر مستوى الصوت + تنبيه الصمت */
-function startLevelMeter(stream, onSilence){
-  var box = document.createElement('div');
-  box.id = 'rec-meter';
-  box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:9998;background:#263238;color:#fff;border-radius:14px;padding:10px 12px;font-size:.95rem';
-  box.innerHTML = '<div id="rec-meter-msg">🎙️ يتم التسجيل…</div><div data-style="height:10px;background:#455a64;border-radius:6px;margin-top:6px;overflow:hidden"><div id="rec-meter-bar" data-style="height:100%;width:0;background:#66bb6a;transition:width .08s"></div></div>';
-  document.body.appendChild(box);
-  var ctx = null, raf = 0, quietSince = Date.now(), warned = false;
-  try {
-    var AC = window.AudioContext || window.webkitAudioContext; ctx = new AC();
-    var src = ctx.createMediaStreamSource(stream); var an = ctx.createAnalyser(); an.fftSize = 512; src.connect(an);
-    var buf = new Uint8Array(an.fftSize);
-    (function tick(){
-      an.getByteTimeDomainData(buf); var sum = 0;
-      for (var i = 0; i < buf.length; i++){ var v = (buf[i] - 128) / 128; sum += v * v; }
-      var rms = Math.sqrt(sum / buf.length);
-      var bar = $('rec-meter-bar'); if (bar) bar.style.width = Math.min(100, Math.round(rms * 300)) + '%';
-      if (rms > REC_SILENCE_LEVEL){ quietSince = Date.now(); warned = false; $('rec-meter-msg').textContent = '🎙️ يتم التسجيل…'; }
-      else if (!warned && Date.now() - quietSince > REC_SILENCE_MS){ warned = true; $('rec-meter-msg').textContent = '🔇 لا أسمع صوتك! اقترب من الميكروفون واقرأ بصوت واضح.'; if (onSilence) onSilence(); }
-      raf = setTimeout(tick, 100);
-    })();
-  } catch(e){ $('rec-meter-msg').textContent = '🎙️ يتم التسجيل…'; }
-  return function stop(){ clearTimeout(raf); try { if (ctx) ctx.close(); } catch(e){} var b = $('rec-meter'); if (b) b.remove(); };
-}
 
-async function startRec(itemId){
-  var packRec = PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId];
-  var isGiftPackage = PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true;
-  var ownRec = STATE.studentAudios && STATE.studentAudios[itemId];
-  if (!isGiftPackage && packRec && packRec.status === 'approved' && (!ownRec || ownRec.status === 'approved')){ alert('هذا التسجيل معتمد ولا يمكن تغييره.'); return; }
-  if (activeRec){
-    if (activeId === itemId && activeRec.state === 'recording'){ activeRec.stop(); return; }
-    alert('يوجد تسجيل نشط.'); return;
-  }
-  if (!hasConsent()){ ensureConsent(function(){ startRec(itemId); }); return; }
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window.MediaRecorder === 'undefined'){ alert('لا يتاح تسجيل الميكروفون في هذا المتصفح أو السياق. افتح الملف عبر HTTPS/localhost، أو استخدم خيار رفع تسجيل جاهز.'); return; }
-  try {
-    updateRecordingUI(itemId, 'starting');
-    var stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1, echoCancellation: true, noiseSuppression: true}});
-    var stopMeter = null, maxTimer = null, interrupted = null;
-    var mimeCandidates = ['audio/webm;codecs=opus','audio/webm','audio/mp4'];
-    var chosenMime = mimeCandidates.find(function(m){ return typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(m); });
-    var rec;
-    try {
-      rec = chosenMime ? new MediaRecorder(stream,{mimeType:chosenMime,audioBitsPerSecond:24000}) : new MediaRecorder(stream,{audioBitsPerSecond:24000});
-    } catch(_e) {
-      rec = chosenMime ? new MediaRecorder(stream,{mimeType:chosenMime}) : new MediaRecorder(stream);
-    }
-    activeRec = rec; activeId = itemId; chunks = [];
-    rec.ondataavailable = function(e){ if (e.data.size > 0) chunks.push(e.data); };
-    rec.onerror = function(){ interrupted = 'تعطّل التسجيل فجأة، وحُفظ ما سُجّل حتى الآن.'; try { rec.stop(); } catch(e){} };
-    try { var at = stream.getAudioTracks()[0]; if (at) at.onended = function(){ interrupted = 'انقطع الميكروفون، وحُفظ ما سُجّل حتى الآن.'; try { rec.stop(); } catch(e){} }; } catch(e){}
-    var onVis = function(){ if (document.hidden && rec.state === 'recording'){ interrupted = 'خرجت من التطبيق أثناء التسجيل، فحُفظ ما سُجّل حتى الآن.'; try { rec.stop(); } catch(e){} } };
-    document.addEventListener('visibilitychange', onVis);
-    rec.onstop = async function(){
-      updateRecordingUI(itemId, 'saving');
-      clearTimeout(maxTimer); document.removeEventListener('visibilitychange', onVis);
-      if (stopMeter) stopMeter();
-      try { stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){}
-      if (interrupted) alert(interrupted);
-      var blob = new Blob(chunks, {type: rec.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm'});
-      try {
-if (Date.now() - recStartedAt < REC_MIN_MS && !interrupted){ toast(GT('⏱️ التسجيل قصير جدًا، هل {قرأت|قرأتِ} الآية كاملة؟ {أعد|أعيدي} التسجيل.')); activeRec = null; activeId = null; chunks = []; updateRecordingUI(itemId, false); return; }
-        await dbPut(itemId, blob);
-                STATE.studentAudios[itemId] = {status: 'pending', updatedAt: new Date().toISOString(), rid: newRecId(), partial: !!interrupted};
-        if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId] && PACK_DATA.studentAudios[itemId].status === 'rejected') {
-          // Keep the teacher's original feedback and the master/reference audio available to the student.
-          // A new student recording must never erase the teacher's correction.
-          if (PACK_DATA.studentAudios[itemId]) PACK_DATA.studentAudios[itemId].feedback = PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[itemId] ? PACK_DATA.teacherFeedbacks[itemId] : PACK_DATA.studentAudios[itemId].feedback;
-        }
-        save();
-      } catch(e){ alert('فشل الحفظ: ' + e.message); }
-      activeRec = null; activeId = null; chunks = [];
-      updateRecordingUI(itemId, false);
-      // if we are in TF view, re-render it
-      if (!$('view-tf').classList.contains('hidden')) renderTFView();
-      else renderLesson();
-    };
-    rec.start();
-    var recStartedAt = Date.now();
-    updateRecordingUI(itemId, true);
-    stopMeter = startLevelMeter(stream, null);
-    maxTimer = setTimeout(function(){
-      if (rec.state === 'recording'){ alert('وصل التسجيل إلى الحد الأقصى (' + Math.round(REC_MAX_MS / 60000 * 10) / 10 + ' دقيقة) وتوقّف تلقائيًا.'); try { rec.stop(); } catch(e){} }
-    }, REC_MAX_MS);
-  } catch(e){
-    updateRecordingUI(itemId, false);
-    showModal('🎙️ الميكروفون لا يعمل الآن', GT('{اطلب|اطلبي} من أحد الكبار أن يسمح للتطبيق باستخدام الميكروفون، ثم {جرّب|جرّبي} مرة أخرى.') +
-      '\n\nللكبار: الإذن مرفوض أو لا يوجد ميكروفون (' + String(e && e.name || 'خطأ') + '). افتح إعدادات المتصفح أو الجهاز واسمح بالميكروفون. إن فتحت الملف مباشرة من مجلد على الجهاز فافتحه من تطبيق «رفاق التحفة» أو موقعه.',
-      [{label: 'حسنًا', class: 'primary', action: closeModal}]);
-    activeRec = null; activeId = null;
-  }
-}
 
-async function maybeCompressAudio(file){
-  if (!file || !file.size || file.size <= 3*1024*1024) return file;
-  var AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC || typeof MediaRecorder === 'undefined') return file;
-  var ctx = null;
-  try {
-    var buf = await file.arrayBuffer();
-    ctx = new AC();
-    var audioBuffer = await ctx.decodeAudioData(buf.slice(0));
-    if (!audioBuffer || !audioBuffer.duration) throw new Error('تعذر فك ترميز الصوت');
-    var dest = ctx.createMediaStreamDestination();
-    var mimes = ['audio/webm;codecs=opus','audio/webm','audio/mp4'];
-    var mime = mimes.find(function(m){ return typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(m); });
-    var recorder;
-    try { recorder = mime ? new MediaRecorder(dest.stream,{mimeType:mime,audioBitsPerSecond:24000}) : new MediaRecorder(dest.stream,{audioBitsPerSecond:24000}); }
-    catch(_e){ recorder = mime ? new MediaRecorder(dest.stream,{mimeType:mime}) : new MediaRecorder(dest.stream); }
-    var chunks=[];
-    recorder.ondataavailable=function(e){ if(e.data && e.data.size) chunks.push(e.data); };
-    var out = await new Promise(function(resolve,reject){
-      recorder.onerror=function(){ reject(new Error('فشل ضغط الصوت')); };
-      recorder.onstop=function(){
-        var blob=new Blob(chunks,{type:recorder.mimeType || (chunks[0]&&chunks[0].type) || 'audio/webm'});
-        resolve(blob);
-      };
-      var source=ctx.createBufferSource(); source.buffer=audioBuffer; source.connect(dest);
-      source.onended=function(){ if(recorder.state==='recording') recorder.stop(); };
-      try { recorder.start(250); source.start(0); } catch(e){ reject(e); }
-    });
-    if (out && out.size && out.size < file.size) return out;
-  } catch(e){ console.warn('audio compression skipped',e); }
-  finally { if(ctx) try{ await ctx.close(); }catch(_e){} }
-  return file;
-}
 
-function isAudioFile(file){
-  if (!file) return false;
-  if (file.type && /^audio\//i.test(file.type)) return true;
-  return /\.(mp3|m4a|aac|wav|ogg|oga|webm|mp4|opus)$/i.test(file.name || '');
-}
 
-async function uploadReplacementAudio(event, itemId){
-  var file = event.target.files && event.target.files[0];
-  event.target.value = '';
-  if (!file) return;
-  /* 9.39.3 (R11): مسار رفع الملف يخضع لبوابة الموافقة نفسها التي يخضع لها الميكروفون */
-  if (!hasConsent()){ ensureConsent(function(){ alert('تم حفظ الموافقة. اختر الملف الصوتي مرة أخرى.'); }); return; }
-  if (!isAudioFile(file)){ alert('اختر ملفًا صوتيًا صالحًا.'); return; }
-  if (file.size > 12 * 1024 * 1024){ alert('حجم التسجيل كبير جدًا (أكثر من 12 ميجابايت). اختر تسجيلًا أقصر أو ملفًا مضغوطًا.'); return; }
-  try {
-    toast('⏳ جاري تجهيز وضغط التسجيل إذا لزم...');
-    var prepared = await maybeCompressAudio(file);
-    await dbPut(itemId, prepared);
-    STATE.studentAudios[itemId] = {status:'pending', updatedAt:new Date().toISOString(), rid: newRecId(), source: prepared !== file ? 'uploaded-compressed' : 'uploaded-replacement'};
-    // Preserve the teacher correction while the student prepares the new recording.
-    if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId] && PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[itemId]) { PACK_DATA.studentAudios[itemId].feedback = PACK_DATA.teacherFeedbacks[itemId]; }
-    save();
-    renderTFView();
-    toast('✅ حُفظ التسجيل البديل، وأصبح بانتظار مراجعة المعلم.');
-  } catch(err){ alert('تعذر حفظ التسجيل البديل: ' + (err && err.message ? err.message : err)); }
-}
 
-async function playStudentRec(itemId){
-  // In TF view use the pack audio; in lesson use IndexedDB
-  var blob = await dbGet(itemId);
-  if (!blob){
-    var inPack = PACK_DATA.studentAudios && PACK_DATA.studentAudios[itemId];
-    if (inPack && inPack.audio){
-      document.querySelectorAll('audio').forEach(function(a){ try{ a.pause(); }catch(e){} });
-      var au = new Audio(inPack.audio);
-      au.play().catch(function(){});
-      return;
-    }
-    alert('التسجيل مفقود'); return;
-  }
-  document.querySelectorAll('audio').forEach(function(a){ try{ a.pause(); }catch(e){} });
-  var url = URL.createObjectURL(blob);
-  var audio = new Audio(url);
-  audio.onended = function(){ URL.revokeObjectURL(url); };
-  audio.play().catch(function(){});
-}
-async function deleteStudentRec(itemId){
-  if (!confirm('حذف هذا التسجيل؟')) return;
-  await dbDel(itemId);
-  delete STATE.studentAudios[itemId];
-  save();
-  renderLesson();
-}
 
-function startQuiz(){
-  var sec = CURRENT.section;
-  if (sec && sec._full) sec = CURRENT.section = sec._full; // «إعادة الاختبار» تسحب من الدرس كاملًا
-  if (sec && !sec._synthetic && (sec.questions || []).length > LESSON_QUIZ_MAX) CURRENT.section = lessonQuizAttempt(sec); // 9.39.13 (ق3-ب)
-  CURRENT.wrongIds = []; CURRENT.examWrong = [];
-  CURRENT.qIdx = 0; CURRENT.score = 0; CURRENT.correct = 0; CURRENT.wrong = 0;
-  renderQuestion();
-  show('view-quiz');
-  ensureQuizNav(); // 9.32
-}
-function renderQuestion(){
-  renderQuestionContent();
-  try { addSheikhAudioToQuestion(); } catch(e){} // 9.36
-}
-function renderQuestionContent(){
-  var sec = CURRENT.section;
-  var q = sec.questions[CURRENT.qIdx];
-  var total = sec.questions.length, cur = CURRENT.qIdx + 1;
-  $('quiz-counter').textContent = cur + ' / ' + total;
-  $('quiz-points').textContent = '+' + CURRENT.score;
-  $('quiz-progress').style.width = ((cur - 1) / total * 100) + '%';
-  $('feedback-box').innerHTML = '';
-  var qHtml = '';
-  if (QX.has(q.type)){
-    $('question-text').innerHTML = '<span class="question-badge badge-mc">' + QX.types[q.type].label + '</span><div data-style="margin-top:8px">' + GT(q.text) + '</div>' + (q.hint ? '<div class="verse-hint">💡 ' + GT(q.hint) + '</div>' : '');
-    renderQX(q); return;
-  }
-  if (q.type === 'extraction'){
-    var t = detectTextType(q);
-    var T = termsForType(t);
-    var bCls = t === 'quran' ? 'badge-extract-quran' : 'badge-extract-poem';
-    qHtml = '<span class="question-badge ' + bCls + '">' + T.badge + '</span>';
-    qHtml += '<div class="verse-box' + (t === 'quran' ? ' quran' : '') + '">';
-    qHtml += '<span class="verse-text"' + (t === 'poem' ? ' data-style="font-size:1.35rem"' : '') + '>' + (t === 'quran' ? quranHTML(q.text, q) : q.text) + '</span>';
-    if (q.hint) qHtml += '<span class="verse-hint">💡 ' + GT(q.hint) + '</span>';
-    if (q.source) qHtml += '<span class="verse-source">' + q.source + '</span>';
-    qHtml += '</div><div class="extract-points">❓ ' + GT(q.question) + '</div>';
-  } else if (q.type === 'true_false'){
-    qHtml = '<span class="question-badge badge-tf">✅ صواب أو خطأ</span><div data-style="margin-top:8px">🤔 ' + GT(q.text) + '</div>';
-  } else {
-    qHtml = '<span class="question-badge badge-mc">🔤 اختيار متعدد</span><div data-style="margin-top:8px">' + GT(q.text) + '</div>';
-  }
-  $('question-text').innerHTML = qHtml;
-  var opts = $('options');
-  if (q.type === 'true_false'){
-    opts.innerHTML = '<button class="option-btn" data-idx="true" data-call="[&quot;answer&quot;, true]"><span class="opt-letter">✓</span> صحيح</button>' +
-                     '<button class="option-btn" data-idx="false" data-call="[&quot;answer&quot;, false]"><span class="opt-letter">✗</span> خطأ</button>';
-  } else {
-/* 9.39: الحروف حتى ستة خيارات (كان الخامس يظهر undefined)، والخيارات تُخلط عند كل عرض مع إبقاء المؤشر الأصلي للتصحيح */
-    var L = ['أ','ب','ج','د','هـ','و'];
-    var order = q.options.map(function(_, i){ return i; });
-    for (var oi = order.length - 1; oi > 0; oi--){ var oj = Math.floor(Math.random() * (oi + 1)); var ot = order[oi]; order[oi] = order[oj]; order[oj] = ot; }
-    opts.innerHTML = order.map(function(i, pos){ return '<button class="option-btn" data-idx="' + i + '" ' + ACT('answer', i) + '><span class="opt-letter">' + (L[pos] || (pos + 1)) + '</span> ' + q.options[i] + '</button>'; }).join('');
-  }
-}
-function answer(choice){
-  if (inExamMode()){ // 9.39.11 (ق2-ب): وضع القياس — لا يُكشف الصحيح أثناء الجلسة
-    var qe = CURRENT.section.questions[CURRENT.qIdx];
-    document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; if (String(b.dataset.idx) === String(choice)) b.classList.add('chosen'); });
-    finishAnswer(choice === qe.answer, qe); return;
-  }
-  var q = CURRENT.section.questions[CURRENT.qIdx];
-  var correct = (choice === q.answer);
-  document.querySelectorAll('#options .option-btn').forEach(function(b){ b.disabled = true; });
-  var chB = null, corB = null;
-  document.querySelectorAll('#options .option-btn').forEach(function(b){
-    var idx = b.dataset.idx;
-    if (String(idx) === String(choice)) chB = b;
-    if (String(idx) === String(q.answer)) corB = b;
-  });
-  if (correct){ if (chB) chB.classList.add('correct'); }
-  else { if (chB) chB.classList.add('wrong'); if (corB) corB.classList.add('correct'); }
-  finishAnswer(correct, q);
-}
-function finishAnswer(correct, q){
-  if (inExamMode()){ finishAnswerExam(correct, q); return; } // 9.39.11 (ق2-ب)
-  try { if (CURRENT.section && !CURRENT.section._synthetic) logResponse(q, correct); } catch(e){} // 9.39.12 (A4)
-  if (!correct && CURRENT.section && !CURRENT.section._synthetic){ CURRENT.wrongIds = CURRENT.wrongIds || []; if (CURRENT.wrongIds.indexOf(q.id) < 0) CURRENT.wrongIds.push(q.id); } // 9.33: «راجع ما أخطأت فيه»
-  if (CURRENT.section && CURRENT.section._synthetic) { CURRENT.examResults = CURRENT.examResults || []; CURRENT.examResults.push({id: q.id, ok: !!correct}); }
-  if (correct){
-    CURRENT.score += q.points; CURRENT.correct++;
-    confetti(q.type === 'extraction' ? 30 : 20);
-    showFB(true, q.explanation);
-  } else {
-    CURRENT.wrong++;
-    showFB(false, q.explanation);
-  }
-  $('quiz-points').textContent = '+' + CURRENT.score;
-  var fb = $('feedback-box');
-  var btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn primary block';
-  btn.style.marginTop = '14px';
-  btn.textContent = (CURRENT.qIdx + 1 < CURRENT.section.questions.length) ? '➡️ السؤال التالي' : '🎉 شاهد النتيجة';
-  btn.onclick = function(){
-    CURRENT.qIdx++;
-    if (CURRENT.qIdx < CURRENT.section.questions.length) renderQuestion();
-    else finishQuiz();
-  };
-  fb.appendChild(btn);
-  /* 9.39.10: الشرح بعد الإجابة كان يقع تحت حافة الشاشة الصغيرة فلا يراه الطفل */
-  try { var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; fb.scrollIntoView({block: 'nearest', behavior: rm ? 'auto' : 'smooth'}); } catch(e){ try { fb.scrollIntoView(false); } catch(x){} }
-}
-function showFB(isCorrect, expl){
-  expl = GT(expl);
-  var t = isCorrect ? (Math.random() < 0.5 ? '✅ {أحسنت|أحسنتِ}!' : '🌟 ممتاز!') : '🤔 ليست هذه الإجابة. {انظر|انظري} السبب هنا 👇 ثم {انتقل|انتقلي} إلى السؤال التالي';
-  $('feedback-box').innerHTML = '<div class="feedback' + (isCorrect ? '' : ' wrong') + '"><div class="title">' + t + '</div><div class="explain">' + expl + '</div></div>';
-}
-function finishQuiz(){
-  var prevSnap = (CURRENT.section && !CURRENT.section._synthetic && STATE.progress[CURRENT.section.id]) ? Object.assign({}, STATE.progress[CURRENT.section.id]) : null;
-  var sec = CURRENT.section;
-  if (sec.id === 'final_exam' || sec.id === 'retest_session'){ assessApplyExam(); }
-  if (sec.id === 'review_session'){ assessApplyReview(); }
-  var totalP = sec.questions.reduce(function(a, q){ return a + q.points; }, 0);
-  var pct = totalP ? CURRENT.score / totalP : 0;
-  // مكافأة الجهد: إكمال الاختبار يمنح نجمة، والنتيجة الجيدة والممتازة تضيفان نجمتين
-  var stars = 1 + (pct >= 0.7 ? 1 : 0) + (pct >= 0.95 ? 1 : 0);
-  var prev = STATE.progress[sec.id] || {bestScore: 0, stars: 0, attempts: 0};
-  /* 9.39.11 (ق2-ب): نجوم الدرس من المحاولة الأولى (قياس)، وأفضل نتيجة ونجومها تُحفظ منفصلة (تدريب) */
-  if (!sec._synthetic) STATE.progress[sec.id] = {
-    bestScore: Math.max(prev.bestScore || 0, CURRENT.score),
-    stars: (prev.attempts > 0 && prev.stars > 0) ? prev.stars : stars,
-    bestStars: Math.max(prev.bestStars || prev.stars || 0, stars),
-    attempts: (prev.attempts || 0) + 1
-  };
-  recalcStats();
-  save();
-  showResults(stars, pct);
-  addResultsNav(); // 9.33
-  if (sec._exam && STATE.assess && STATE.assess.inProgress){ STATE.assess.inProgress = null; save(); } // 9.39.12 (A6): اكتملت الجلسة
-  renderExamReport();
-  firstAttemptNote(sec, prevSnap);
-  try { if (!sec._synthetic) maybeBackupReminder(); } catch(e){} // 9.39.13 (D12)
-}
-function realSections(){ return CURRICULUM.filter(function(s){ return !s._synthetic; }); }
-function recalcStats(){
-  var tP = 0, comp = 0, perf = 0, att = 0;
-  realSections().forEach(function(s){ /* 9.39.10: الاختبار والمراجعة ليسا أقسامًا من المنهج */
-    var pr = STATE.progress[s.id];
-    if (pr){
-      tP += pr.bestScore || 0;
-      if (pr.stars > 0) comp++;
-      if (pr.stars === 3) perf++;
-      att += pr.attempts || 0;
-    }
-  });
-  STATE.stats = {totalPoints: tP, completedSections: comp, perfectSections: perf, totalAttempts: att};
-}
-function showResults(stars, pct){
-  var el = $('result-stars');
-  var h = '';
-  for (var i = 0; i < 3; i++) h += '<span class="star' + (i < stars ? ' earned' : '') + '">⭐</span>';
-  el.innerHTML = h;
-  var titles = ['', 'محاولة جيدة!', 'أداء رائع!', '{أنت بطل|أنتِ بطلة}! 🌟'];
-  var msgs = ['', '{استمر|استمري} في التدريب', '{اقتربت|اقتربتِ} من الكمال ✨', 'ممتاز، {استمر|استمري} 🎉'];
-  $('result-title').textContent = GT(titles[stars] || '{أحسنت|أحسنتِ}');
-  $('result-message').textContent = GT(msgs[stars] || '{استمر|استمري}');
-  $('result-score').textContent = CURRENT.score;
-  $('result-correct').textContent = '✅ ' + CURRENT.correct;
-  $('result-wrong').textContent = '❌ ' + CURRENT.wrong;
-  $('result-circle').style.setProperty('--deg', Math.round(pct * 360) + 'deg');
-  if (stars === 3) confetti(60);
-  show('view-results');
-  if (inExamMode()){ $('result-stars').innerHTML = ''; $('result-title').textContent = '📋 انتهت الجلسة'; $('result-message').textContent = GT('{اقرأ|اقرئي} الملخص أدناه'); } // القياس بالمفاهيم لا بالنجوم
-}
-function nextFromResults(){
-  var _r = realSections();
-  var idx = _r.findIndex(function(s){ return s.id === CURRENT.section.id; });
-  if (idx >= 0 && idx + 1 < _r.length) openSection(_r[idx + 1].id);
-  else goHome();
-}
 
-function showProfile(){
-  var s = STATE.student;
-  var av = $('profile-avatar');
-  if (s.photo) av.innerHTML = '<img data-media="' + mediaRef('img', s.photo) + '" alt="">';
-  else av.innerHTML = '<span class="emoji">' + (s.gender === 'girl' ? '🧚‍♀️' : '🦸‍♂️') + '</span>';
-  $('profile-name').textContent = s.name || '—';
-  $('profile-sub').textContent = s.gender === 'girl' ? '🌸 طالبة متميزة' : '⭐ طالب متميز';
-  $('profile-points').textContent = STATE.stats.totalPoints || 0;
-  $('profile-stats').textContent = 'أقسام: ' + (STATE.stats.completedSections || 0) + '/' + realSections().length + ' · مفاهيم متقنة: ' + certLevel().mastered + '/' + realSections().length;
-
-  var list = $('profile-recordings-list');
-  var keys = Object.keys(STATE.studentAudios);
-  if (!keys.length){
-    list.innerHTML = '<div class="notice info">لم تسجّل شيئاً بعد.</div>';
-  } else {
-    var h = '';
-    keys.forEach(function(id){
-      var status = STATE.studentAudios[id].status || 'pending';
-      var label = status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : (STATE.studentAudios[id].sentAt ? '⏳ بانتظار المعلم' : '💾 لم يُرسل بعد');
-      h += '<div data-style="padding:10px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;gap:8px">';
-      h += '<div data-style="font-weight:800;color:var(--primary);font-size:.88rem">' + escapeHTML(itemLabelById(id)) + '</div>';
-      h += '<span class="pill">' + label + '</span></div>';
-    });
-    list.innerHTML = h;
-  }
-  show('view-profile');
-  try { updateExamButtons(); updateRetestButtons(); } catch(e){}
-}
-function editProfile(){ buildSetup(); show('view-student-setup'); }
 /* 9.39.10: زرّا «إعادة المفاهيم المخفقة» و«جلسة المراجعة» يظهران فقط حين يوجد ما يُعاد أو يُراجَع (كانا ينتهيان بتنبيه «لا يوجد») */
 
-function handleReviewTeacherPhoto(event){
-  var file = event.target.files && event.target.files[0]; if (!file) return;
-  if (!imageFileLooksValid(file)){ alert('اختر ملف صورة صحيحًا.'); event.target.value=''; return; }
-  var reader = new FileReader();
-  reader.onerror=function(){ alert('تعذرت قراءة الصورة.'); event.target.value=''; };
-  reader.onload=function(ev){
-    var img=new Image(); img.onerror=function(){ alert('تعذر قراءة الصورة في هذا المتصفح.'); event.target.value=''; };
-    img.onload=function(){ try{ var out=compressCanvasImage(img,480,300*1024,.82); PACK_DATA.teacherPhoto=out; var im=$('review-teacher-photo-img'); var ph=$('review-teacher-photo-placeholder'); im.src=out; im.classList.remove('hidden'); ph.classList.add('hidden'); var av=document.querySelector('#review-people-strip .review-person-card:nth-child(2) .mini-avatar'); if(av) av.innerHTML='<img data-media="'+mediaRef('img', out)+'" alt="صورة المعلم">'; }catch(e){ alert('تعذر تجهيز الصورة.'); } };
-    img.src=ev.target.result;
-  };
-  reader.readAsDataURL(file);
-}
 
-function showTeacherReview(){
-  var previousScroll = window.scrollY || document.documentElement.scrollTop || 0;
-  var teacherInput = $('review-teacher-name');
-  if (teacherInput && !teacherInput.value) teacherInput.value = TEACHER_STATE.name || PACK_DATA.teacherName || '';
-  var teacherPhotoImg = $('review-teacher-photo-img'), teacherPhotoPh = $('review-teacher-photo-placeholder');
-  if (teacherPhotoImg && PACK_DATA.teacherPhoto){ teacherPhotoImg.src=PACK_DATA.teacherPhoto; teacherPhotoImg.classList.remove('hidden'); if(teacherPhotoPh) teacherPhotoPh.classList.add('hidden'); }
-  if (!PACK_DATA.studentName){ alert('لا يوجد ملف طالب.'); return; }
-  $('review-student-name').textContent = 'تسجيلات الطالب: ' + (PACK_DATA.studentName || '');
-  (function(){ // 9.39.11 (ق1-ب)
-    var rs = refStatusLine(), rb = document.getElementById('review-ref-line');
-    if (!rs){ if (rb) rb.remove(); return; }
-    if (!rb){ rb = document.createElement('div'); rb.id = 'review-ref-line'; rb.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem;line-height:1.8'; var rl0 = $('review-list'); if (rl0 && rl0.parentNode) rl0.parentNode.insertBefore(rb, rl0); }
-    rb.style.background = rs.ok ? '#e8f5e9' : '#ffebee'; rb.style.color = rs.ok ? '#1b5e20' : '#b71c1c'; rb.textContent = rs.text;
-  })();
-  teacherSigningStatus().then(function(st){
-    var sb = document.getElementById('review-sign-line');
-    if (!sb){ sb = document.createElement('div'); sb.id = 'review-sign-line'; sb.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem'; var rl2 = $('review-list'); if (rl2 && rl2.parentNode) rl2.parentNode.insertBefore(sb, rl2); }
-    sb.style.background = st.ok ? '#e8f5e9' : '#fff3e0'; sb.style.color = st.ok ? '#1b5e20' : '#e65100'; sb.textContent = st.text;
-  }).catch(function(){});
-  (function(){
-    var ab = document.getElementById('review-assess-line');
-    if (!ab){ ab = document.createElement('div'); ab.id = 'review-assess-line'; ab.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem;background:#eef4ff;color:#1a3a6b'; var rl3 = $('review-list'); if (rl3 && rl3.parentNode) rl3.parentNode.insertBefore(ab, rl3); }
-    var sa = PACK_DATA.studentAssessment;
-    var overdue = PACK_DATA.submittedAt && assessTeacherReplyOverdue(PACK_DATA.submittedAt, new Date().toISOString()) && !PACK_DATA.teacherRepliedAt;
-    var chSel = document.getElementById('review-reply-channel');
-    if (!chSel){ chSel = document.createElement('select'); chSel.id = 'review-reply-channel'; chSel.setAttribute('data-change', 'setReplyChannel'); chSel.style.cssText = 'width:100%;padding:8px;border-radius:10px;border:1px solid #cfd8dc;margin:6px 0'; var rl4 = $('review-list'); if (rl4 && rl4.parentNode) rl4.parentNode.insertBefore(chSel, rl4); }
-    chSel.innerHTML = Object.keys(REPLY_CHANNELS).map(function(k){ return '<option value="' + k + '"' + ((PACK_DATA.replyChannel || 'text') === k ? ' selected' : '') + '>قناة الرد: ' + REPLY_CHANNELS[k] + '</option>'; }).join('');
-    rosterSaveCurrent();
-    var rbtn = document.getElementById('btn-roster');
-    if (!rbtn){ rbtn = document.createElement('button'); rbtn.id = 'btn-roster'; rbtn.type = 'button'; rbtn.className = 'btn ghost block'; rbtn.textContent = '📋 لوحة المتابعة'; rbtn.setAttribute('data-call', '["openRoster"]'); var rl5 = $('review-list'); if (rl5 && rl5.parentNode) rl5.parentNode.insertBefore(rbtn, rl5); }
-    var pendingCount = Object.keys(PACK_DATA.studentAudios || {}).filter(function(k){ return (PACK_DATA.studentAudios[k] || {}).status === 'pending'; }).length;
-    var alertLine = (overdue ? ' ⏰ تجاوز الرد مهلة 48 ساعة.' : '') + (pendingCount > 10 ? ' ⚠️ التسجيلات المعلقة ' + pendingCount + ' (الحد الموصى به 10): راجع دفعة أولًا.' : '');
-    var _secT = function(id){ var s = CURRICULUM.find(function(x){ return x.id === id; }); return s ? s.title : id; };
-    var _le = sa && sa.lastExam, _leTxt = _le ? ' · آخر اختبار: ' + _le.correct + '/' + _le.total + (_le.wrong && _le.wrong.length ? ' (أخطاء في ' + _le.wrong.length + ' سؤالًا)' : '') : '';
-    if (sa && sa.restored) _leTxt += ' · ' + restoredNote(sa.restored); // 9.39.13 (D12)
-    ab.textContent = (sa ? ('📊 الاختبار النظري: متقن ' + sa.mastered.length + '، قيد التدريب ' + sa.pending.length + (sa.escalated.length ? '، محالة للمعلم: ' + sa.escalated.map(_secT).join('، ') : '') + _leTxt) : '📊 لا توجد نتائج اختبار نظري مرسلة بعد.') + alertLine;
-  })();
-  (function(){
-    var box = document.getElementById('review-consent-line');
-    if (!box){ box = document.createElement('div'); box.id = 'review-consent-line'; box.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem'; var rl = $('review-list'); if (rl && rl.parentNode) rl.parentNode.insertBefore(box, rl); }
-    var c = PACK_DATA.studentConsent;
-    if (c && (c.v === 1 || c.v === 2) && c.guardian){
-      var when = c.at ? new Date(c.at).toLocaleDateString('ar') : '';
-      box.style.background = '#e8f5e9'; box.style.color = '#1b5e20';
-      box.textContent = '🛡️ موافقة ولي الأمر: ' + c.guardian + (when ? ' (بتاريخ ' + when + ')' : '');
-    } else {
-      box.style.background = '#fff3e0'; box.style.color = '#e65100';
-      box.textContent = '⚠️ لا توجد موافقة ولي أمر مسجّلة لهذا الملف. لا تعتمد تسجيلات الطفل قبل التأكد منها.';
-    }
-  })();
-  var reviewHeader = document.getElementById('review-people-strip');
-  if (!reviewHeader){
-    reviewHeader = document.createElement('div'); reviewHeader.id='review-people-strip'; reviewHeader.className='review-person-strip';
-    var stats = document.querySelector('#view-teacher-review .review-stats');
-    stats.parentNode.insertBefore(reviewHeader, stats.nextSibling);
-  }
-  var studentAvatar = PACK_DATA.studentPhoto ? '<img data-media="'+mediaRef('img', PACK_DATA.studentPhoto)+'" alt="صورة الطالب">' : '<span>'+((PACK_DATA.studentGender==='girl')?'🧚‍♀️':'🦸‍♂️')+'</span>';
-  var teacherAvatar = PACK_DATA.teacherPhoto ? '<img data-media="'+mediaRef('img', PACK_DATA.teacherPhoto)+'" alt="صورة المعلم">' : '<span>'+((PACK_DATA.teacherGender==='girl')?'👩‍🏫':'👨‍🏫')+'</span>';
-  reviewHeader.innerHTML = '<div class="review-person-card"><div class="mini-avatar">'+studentAvatar+'</div><div><div class="mini-label">'+(PACK_DATA.studentGender==='girl' ? 'الطالبة صاحبة التسجيلات' : 'الطالب صاحب التسجيلات')+'</div><div class="mini-name">'+escapeHTML(PACK_DATA.studentName || '—')+'</div></div></div><div class="review-person-card"><div class="mini-avatar">'+teacherAvatar+'</div><div><div class="mini-label">المعلم المراجع</div><div class="mini-name">'+escapeHTML(PACK_DATA.teacherName || 'لم يُحدد بعد')+'</div></div></div>';
-
-  var items = [];
-  CURRICULUM.forEach(function(sec){
-    (sec.items || []).forEach(function(it){
-      if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id]) items.push({id: it.id, text: it.text, qpc: it.qpc, type: detectTextType({text: it.text})});
-    });
-    (sec.questions || []).forEach(function(q){
-      if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[q.id]) items.push({id: q.id, text: q.text, qpc: q.qpc, type: detectTextType(q)});
-    });
-  });
-
-  var approved = 0;
-  var h = '';
-  items.forEach(function(it){
-    var rec = PACK_DATA.studentAudios[it.id];
-    var status = rec.status || 'pending';
-    if (status === 'approved') approved++;
-    h += '<div class="review-item ' + (status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : '') + '">';
-    h += '<div class="head"><div class="dot"></div><div class="label">' + escapeHTML(itemLabelById(it.id)) + '</div>';
-    h += '<div class="status ' + status + '">' + (status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : '⏳ قيد المراجعة') + '</div></div>';
-    h += '<div class="text' + (it.type === 'quran' ? ' quran' : '') + '">' + (it.type === 'quran' ? quranHTML(it.text, it, it.id) : highlightPivot(it.text, it.id)) + '</div>'; // 9.39.15 (ق6-ب)، 9.39.17
-    h += audioPersonBlock(PACK_DATA.studentPhoto, PACK_DATA.studentGender || 'boy', PACK_DATA.studentName || '', '🎙️ تسجيل الطالب / الطالبة', rec.audio, 'review-student-audio');
-    if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id] && PACK_DATA.studentAudios[it.id].partial) h += '<div class="notice warn" data-style="font-size:.85rem">⚠️ هذا التسجيل ناقص: انقطع الميكروفون أو خرج الطفل من التطبيق أثناءه.</div>';
-    if (PACK_DATA.teacherNotes && PACK_DATA.teacherNotes[it.id]) h += '<div class="teacher-comment"><b>📝 ملاحظتك المكتوبة:</b><div>' + escapeHTML(String(PACK_DATA.teacherNotes[it.id])) + '</div></div>';
-    h += ratingBlockHTML(it); // 9.39.15 (ق6)
-    h += '<select class="note-bank" data-change="applyNoteCode" data-change-arg="' + it.id + '" data-style="width:100%;padding:8px;border-radius:10px;border:1px solid #cfd8dc;margin-bottom:6px"><option value="">— اختر ملاحظة جاهزة —</option>' + NOTE_BANK.map(function(n){ return '<option value="' + n + '">' + n + '</option>'; }).join('') + '</select>';
-    h += '<div class="review-actions">';
-    h += '<button class="btn success" ' + ACT('setReview', it.id, 'approved') + ' type="button">✅ اعتماد</button>';
-    h += '<button class="btn danger" ' + ACT('setReview', it.id, 'rejected') + ' type="button">❌ رفض</button>';
-    h += '</div></div>';
-  });
-  if (!items.length) h = '<div class="notice warn">لا توجد تسجيلات للمراجعة.</div>';
-  $('review-list').innerHTML = h;
-  $('review-approved-count').textContent = approved;
-  show('view-teacher-review');
-  requestAnimationFrame(function(){ window.scrollTo(0, previousScroll); });
-}
-var teacherFeedbackTarget = null, teacherFeedbackRecorder = null, teacherFeedbackStream = null, teacherFeedbackChunks = [], teacherFeedbackData = null;
-var RATING_STATES = {mastered: '✅ متقن', good: '👍 جيد', needs: '🔁 يحتاج تدريبًا'}; // 9.39.15 (ق6-أ)
-var RATING_UNUSABLE = '🔇 لا يصلح للتقييم'; // ليس درجة: ضجيج أو صمت أو انقطاع، ويُطلب إعادة التسجيل
-/* يُستدعى أثناء تعقيم الملف عند الإقلاع، قبل تعريف RATING_STATES، فلا يعتمد عليه */
-function normRating(v){ v = String(v || ''); if (v === 'notapplied') return 'needs'; return ({mastered: 1, good: 1, needs: 1, unusable: 1})[v] ? v : ''; }
+ // ليس درجة: ضجيج أو صمت أو انقطاع، ويُطلب إعادة التسجيل
 /* ===== 9.39.16 (ق4): المتن بيتًا بيتًا ===== */
 function matnVerses(item){ return String((item && item.text) || '').split(/<br\s*\/?>/i).map(function(v){ return v.trim(); }).filter(Boolean); }
 function verseKey(id, n){ return String(id) + '__v' + n; }
@@ -4082,64 +4031,118 @@ function studentRatingNote(id){
   if (o.length) h += '<div class="other-note" data-style="font-size:.85rem;color:#8a4b00;margin:2px 0">📌 {انتبه|انتبهي} أيضًا إلى: ' + o.map(function(k){ return escapeHTML(RATING_CRITERIA.other[k]); }).join('، ') + '</div>';
   return h ? GT(h) : '';
 }
-var NOTE_BANK = ['الغنة قصيرة', 'المد أقل من المطلوب', 'الإدغام غير واضح', 'الإظهار غير واضح', 'الإقلاب يحتاج تكرارًا', 'الإخفاء ثقيل، خفّف الغنة', 'المخرج غير دقيق', 'أحسنتِ، أعيدي الحكم بتركيز أكبر'];
 
-/* ===== 9.25: قناة الرد، ولوحة المتابعة للمعلم، وملخص ولي الأمر ===== */
-var REPLY_CHANNELS = {text: '📝 نص', audio: '🎙️ صوت', both: '📝🎙️ نص وصوت'};
-function setReplyChannel(ev){
-  var v = ev.target.value; if (!REPLY_CHANNELS[v]) return;
-  PACK_DATA.replyChannel = v; showTeacherReview();
+/* ===== مراجعة المعلم: التقييم والملاحظات وعرض الطفل لها ===== */
+function handleReviewTeacherPhoto(event){
+  var file = event.target.files && event.target.files[0]; if (!file) return;
+  if (!imageFileLooksValid(file)){ alert('اختر ملف صورة صحيحًا.'); event.target.value=''; return; }
+  var reader = new FileReader();
+  reader.onerror=function(){ alert('تعذرت قراءة الصورة.'); event.target.value=''; };
+  reader.onload=function(ev){
+    var img=new Image(); img.onerror=function(){ alert('تعذر قراءة الصورة في هذا المتصفح.'); event.target.value=''; };
+    img.onload=function(){ try{ var out=compressCanvasImage(img,480,300*1024,.82); PACK_DATA.teacherPhoto=out; var im=$('review-teacher-photo-img'); var ph=$('review-teacher-photo-placeholder'); im.src=out; im.classList.remove('hidden'); ph.classList.add('hidden'); var av=document.querySelector('#review-people-strip .review-person-card:nth-child(2) .mini-avatar'); if(av) av.innerHTML='<img data-media="'+mediaRef('img', out)+'" alt="صورة المعلم">'; }catch(e){ alert('تعذر تجهيز الصورة.'); } };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
 }
-async function rosterSaveCurrent(){
-  try {
-    var roster = (await keyDbGet('roster')) || {};
-    var sid = String(PACK_DATA.studentId || PACK_DATA.studentName || 'unknown').slice(0, 64);
-    var pend = Object.keys(PACK_DATA.studentAudios || {}).filter(function(k){ return (PACK_DATA.studentAudios[k] || {}).status === 'pending'; }).length;
-    var sa = PACK_DATA.studentAssessment || {};
-    var prev = roster[sid] || {};
-    roster[sid] = {name: String(PACK_DATA.studentName || '').slice(0, 60), at: new Date().toISOString(), receivedAt: prev.receivedAt || new Date().toISOString(), deletedAt: prev.deletedAt || null, submittedAt: PACK_DATA.submittedAt || null,
-      pending: pend, rated: Object.keys(PACK_DATA.teacherRatings || {}).length, mastered: (sa.mastered || []).length, pendingConcepts: (sa.pending || []).length, escalated: (sa.escalated || []).slice(0, 10)};
-    await keyDbPut('roster', roster);
-  } catch(e){ console.warn('roster', e); }
+function showTeacherReview(){
+  var previousScroll = window.scrollY || document.documentElement.scrollTop || 0;
+  var teacherInput = $('review-teacher-name');
+  if (teacherInput && !teacherInput.value) teacherInput.value = TEACHER_STATE.name || PACK_DATA.teacherName || '';
+  var teacherPhotoImg = $('review-teacher-photo-img'), teacherPhotoPh = $('review-teacher-photo-placeholder');
+  if (teacherPhotoImg && PACK_DATA.teacherPhoto){ teacherPhotoImg.src=PACK_DATA.teacherPhoto; teacherPhotoImg.classList.remove('hidden'); if(teacherPhotoPh) teacherPhotoPh.classList.add('hidden'); }
+  if (!PACK_DATA.studentName){ alert('لا يوجد ملف طالب.'); return; }
+  $('review-student-name').textContent = 'تسجيلات الطالب: ' + (PACK_DATA.studentName || '');
+  (function(){ // 9.39.11 (ق1-ب)
+    var rs = refStatusLine(), rb = document.getElementById('review-ref-line');
+    if (!rs){ if (rb) rb.remove(); return; }
+    if (!rb){ rb = document.createElement('div'); rb.id = 'review-ref-line'; rb.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem;line-height:1.8'; var rl0 = $('review-list'); if (rl0 && rl0.parentNode) rl0.parentNode.insertBefore(rb, rl0); }
+    rb.style.background = rs.ok ? '#e8f5e9' : '#ffebee'; rb.style.color = rs.ok ? '#1b5e20' : '#b71c1c'; rb.textContent = rs.text;
+  })();
+  teacherSigningStatus().then(function(st){
+    var sb = document.getElementById('review-sign-line');
+    if (!sb){ sb = document.createElement('div'); sb.id = 'review-sign-line'; sb.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem'; var rl2 = $('review-list'); if (rl2 && rl2.parentNode) rl2.parentNode.insertBefore(sb, rl2); }
+    sb.style.background = st.ok ? '#e8f5e9' : '#fff3e0'; sb.style.color = st.ok ? '#1b5e20' : '#e65100'; sb.textContent = st.text;
+  }).catch(function(){});
+  (function(){
+    var ab = document.getElementById('review-assess-line');
+    if (!ab){ ab = document.createElement('div'); ab.id = 'review-assess-line'; ab.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem;background:#eef4ff;color:#1a3a6b'; var rl3 = $('review-list'); if (rl3 && rl3.parentNode) rl3.parentNode.insertBefore(ab, rl3); }
+    var sa = PACK_DATA.studentAssessment;
+    var overdue = PACK_DATA.submittedAt && assessTeacherReplyOverdue(PACK_DATA.submittedAt, new Date().toISOString()) && !PACK_DATA.teacherRepliedAt;
+    var chSel = document.getElementById('review-reply-channel');
+    if (!chSel){ chSel = document.createElement('select'); chSel.id = 'review-reply-channel'; chSel.setAttribute('data-change', 'setReplyChannel'); chSel.style.cssText = 'width:100%;padding:8px;border-radius:10px;border:1px solid #cfd8dc;margin:6px 0'; var rl4 = $('review-list'); if (rl4 && rl4.parentNode) rl4.parentNode.insertBefore(chSel, rl4); }
+    chSel.innerHTML = Object.keys(REPLY_CHANNELS).map(function(k){ return '<option value="' + k + '"' + ((PACK_DATA.replyChannel || 'text') === k ? ' selected' : '') + '>قناة الرد: ' + REPLY_CHANNELS[k] + '</option>'; }).join('');
+    rosterSaveCurrent();
+    var rbtn = document.getElementById('btn-roster');
+    if (!rbtn){ rbtn = document.createElement('button'); rbtn.id = 'btn-roster'; rbtn.type = 'button'; rbtn.className = 'btn ghost block'; rbtn.textContent = '📋 لوحة المتابعة'; rbtn.setAttribute('data-call', '["openRoster"]'); var rl5 = $('review-list'); if (rl5 && rl5.parentNode) rl5.parentNode.insertBefore(rbtn, rl5); }
+    var pendingCount = Object.keys(PACK_DATA.studentAudios || {}).filter(function(k){ return (PACK_DATA.studentAudios[k] || {}).status === 'pending'; }).length;
+    var alertLine = (overdue ? ' ⏰ تجاوز الرد مهلة 48 ساعة.' : '') + (pendingCount > 10 ? ' ⚠️ التسجيلات المعلقة ' + pendingCount + ' (الحد الموصى به 10): راجع دفعة أولًا.' : '');
+    var _secT = function(id){ var s = CURRICULUM.find(function(x){ return x.id === id; }); return s ? s.title : id; };
+    var _le = sa && sa.lastExam, _leTxt = _le ? ' · آخر اختبار: ' + _le.correct + '/' + _le.total + (_le.wrong && _le.wrong.length ? ' (أخطاء في ' + _le.wrong.length + ' سؤالًا)' : '') : '';
+    if (sa && sa.restored) _leTxt += ' · ' + restoredNote(sa.restored); // 9.39.13 (D12)
+    ab.textContent = (sa ? ('📊 الاختبار النظري: متقن ' + sa.mastered.length + '، قيد التدريب ' + sa.pending.length + (sa.escalated.length ? '، محالة للمعلم: ' + sa.escalated.map(_secT).join('، ') : '') + _leTxt) : '📊 لا توجد نتائج اختبار نظري مرسلة بعد.') + alertLine;
+  })();
+  (function(){
+    var box = document.getElementById('review-consent-line');
+    if (!box){ box = document.createElement('div'); box.id = 'review-consent-line'; box.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:12px;font-size:.9rem'; var rl = $('review-list'); if (rl && rl.parentNode) rl.parentNode.insertBefore(box, rl); }
+    var c = PACK_DATA.studentConsent;
+    if (c && (c.v === 1 || c.v === 2) && c.guardian){
+      var when = c.at ? new Date(c.at).toLocaleDateString('ar') : '';
+      box.style.background = '#e8f5e9'; box.style.color = '#1b5e20';
+      box.textContent = '🛡️ موافقة ولي الأمر: ' + c.guardian + (when ? ' (بتاريخ ' + when + ')' : '');
+    } else {
+      box.style.background = '#fff3e0'; box.style.color = '#e65100';
+      box.textContent = '⚠️ لا توجد موافقة ولي أمر مسجّلة لهذا الملف. لا تعتمد تسجيلات الطفل قبل التأكد منها.';
+    }
+  })();
+  var reviewHeader = document.getElementById('review-people-strip');
+  if (!reviewHeader){
+    reviewHeader = document.createElement('div'); reviewHeader.id='review-people-strip'; reviewHeader.className='review-person-strip';
+    var stats = document.querySelector('#view-teacher-review .review-stats');
+    stats.parentNode.insertBefore(reviewHeader, stats.nextSibling);
+  }
+  var studentAvatar = PACK_DATA.studentPhoto ? '<img data-media="'+mediaRef('img', PACK_DATA.studentPhoto)+'" alt="صورة الطالب">' : '<span>'+((PACK_DATA.studentGender==='girl')?'🧚‍♀️':'🦸‍♂️')+'</span>';
+  var teacherAvatar = PACK_DATA.teacherPhoto ? '<img data-media="'+mediaRef('img', PACK_DATA.teacherPhoto)+'" alt="صورة المعلم">' : '<span>'+((PACK_DATA.teacherGender==='girl')?'👩‍🏫':'👨‍🏫')+'</span>';
+  reviewHeader.innerHTML = '<div class="review-person-card"><div class="mini-avatar">'+studentAvatar+'</div><div><div class="mini-label">'+(PACK_DATA.studentGender==='girl' ? 'الطالبة صاحبة التسجيلات' : 'الطالب صاحب التسجيلات')+'</div><div class="mini-name">'+escapeHTML(PACK_DATA.studentName || '—')+'</div></div></div><div class="review-person-card"><div class="mini-avatar">'+teacherAvatar+'</div><div><div class="mini-label">المعلم المراجع</div><div class="mini-name">'+escapeHTML(PACK_DATA.teacherName || 'لم يُحدد بعد')+'</div></div></div>';
+
+  var items = [];
+  CURRICULUM.forEach(function(sec){
+    (sec.items || []).forEach(function(it){
+      if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id]) items.push({id: it.id, text: it.text, qpc: it.qpc, type: detectTextType({text: it.text})});
+    });
+    (sec.questions || []).forEach(function(q){
+      if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[q.id]) items.push({id: q.id, text: q.text, qpc: q.qpc, type: detectTextType(q)});
+    });
+  });
+
+  var approved = 0;
+  var h = '';
+  items.forEach(function(it){
+    var rec = PACK_DATA.studentAudios[it.id];
+    var status = rec.status || 'pending';
+    if (status === 'approved') approved++;
+    h += '<div class="review-item ' + (status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : '') + '">';
+    h += '<div class="head"><div class="dot"></div><div class="label">' + escapeHTML(itemLabelById(it.id)) + '</div>';
+    h += '<div class="status ' + status + '">' + (status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : '⏳ قيد المراجعة') + '</div></div>';
+    h += '<div class="text' + (it.type === 'quran' ? ' quran' : '') + '">' + (it.type === 'quran' ? quranHTML(it.text, it, it.id) : highlightPivot(it.text, it.id)) + '</div>'; // 9.39.15 (ق6-ب)، 9.39.17
+    h += audioPersonBlock(PACK_DATA.studentPhoto, PACK_DATA.studentGender || 'boy', PACK_DATA.studentName || '', '🎙️ تسجيل الطالب / الطالبة', rec.audio, 'review-student-audio');
+    if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id] && PACK_DATA.studentAudios[it.id].partial) h += '<div class="notice warn" data-style="font-size:.85rem">⚠️ هذا التسجيل ناقص: انقطع الميكروفون أو خرج الطفل من التطبيق أثناءه.</div>';
+    if (PACK_DATA.teacherNotes && PACK_DATA.teacherNotes[it.id]) h += '<div class="teacher-comment"><b>📝 ملاحظتك المكتوبة:</b><div>' + escapeHTML(String(PACK_DATA.teacherNotes[it.id])) + '</div></div>';
+    h += ratingBlockHTML(it); // 9.39.15 (ق6)
+    h += '<select class="note-bank" data-change="applyNoteCode" data-change-arg="' + it.id + '" data-style="width:100%;padding:8px;border-radius:10px;border:1px solid #cfd8dc;margin-bottom:6px"><option value="">— اختر ملاحظة جاهزة —</option>' + NOTE_BANK.map(function(n){ return '<option value="' + n + '">' + n + '</option>'; }).join('') + '</select>';
+    h += '<div class="review-actions">';
+    h += '<button class="btn success" ' + ACT('setReview', it.id, 'approved') + ' type="button">✅ اعتماد</button>';
+    h += '<button class="btn danger" ' + ACT('setReview', it.id, 'rejected') + ' type="button">❌ رفض</button>';
+    h += '</div></div>';
+  });
+  if (!items.length) h = '<div class="notice warn">لا توجد تسجيلات للمراجعة.</div>';
+  $('review-list').innerHTML = h;
+  $('review-approved-count').textContent = approved;
+  show('view-teacher-review');
+  requestAnimationFrame(function(){ window.scrollTo(0, previousScroll); });
 }
-async function openRoster(){
-  var roster = (await keyDbGet('roster')) || {};
-  var ids = Object.keys(roster);
-  var ov = document.createElement('div');
-  ov.id = 'roster-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  var card = document.createElement('div');
-  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:520px;width:100%;padding:18px;max-height:90vh;overflow:auto';
-  var rows = ids.map(function(id){
-    var r = roster[id]; var overdue = r.submittedAt && assessTeacherReplyOverdue(r.submittedAt, new Date().toISOString());
-    return '<div data-style="border:1px solid #e3e8ef;border-radius:12px;padding:10px;margin:8px 0"><b>' + escapeHTML(r.name || id) + '</b>' +
-      '<div data-style="font-size:.85rem;color:#555">تسجيلات معلقة: ' + r.pending + ' · مُقيَّمة: ' + r.rated + ' · مفاهيم متقنة: ' + r.mastered + '/' + (r.mastered + r.pendingConcepts) +
-      (r.escalated && r.escalated.length ? ' · محالة: ' + escapeHTML(r.escalated.join('، ')) : '') + (overdue ? ' · <span data-style="color:#b3261e">⏰ تجاوز 48 ساعة</span>' : '') + '</div>' +
-      (retentionDue(r, new Date().toISOString()) ? '<div data-style="font-size:.85rem;color:#8a4b00;margin-top:6px">⏳ مرّ ' + TEACHER_RETENTION_DAYS + ' يومًا على استلام هذا الإرسال. احذف الملف الذي فتحته من جهازك، ثم اضغط: <button type="button" class="btn" data-call="' + escAttrSafe(JSON.stringify(['markRosterDeleted', id])) + '">تم الحذف</button></div>' : (r.deletedAt ? '<div data-style="font-size:.8rem;color:#2e7d32">✔ حُذف من الجهاز بتاريخ ' + escAttrSafe(new Date(r.deletedAt).toLocaleDateString('ar')) + '</div>' : '')) + '</div>';
-  }).join('') || '<p>لا توجد إرسالات محفوظة بعد. تُضاف الإرسالات عند فتحها في شاشة المراجعة.</p>';
-  card.innerHTML = '<h3 data-style="margin:0 0 8px">📋 لوحة المتابعة</h3>' + rows + '<div data-style="text-align:left"><button type="button" id="roster-close" class="btn">إغلاق</button></div>';
-  ov.appendChild(card); document.body.appendChild(ov);
-  document.getElementById('roster-close').onclick = function(){ ov.remove(); };
-}
-function buildParentSummary(){
-  var st = STATE.assess || {}; var mastered = [], pending = [];
-  var secs = (CURRICULUM || []).filter(function(s){ return !s._synthetic; });
-  secs.forEach(function(s){ var c = (st.concepts || {})[s.id]; if (c && c.mastered) mastered.push(s.title); else pending.push(s.title); });
-  var rc = {mastered: 0, good: 0, needs: 0, unusable: 0};
-  Object.keys(PACK_DATA.teacherRatings || {}).forEach(function(k){ var v = normRating(PACK_DATA.teacherRatings[k]); if (rc[v] !== undefined) rc[v]++; });
-  var lines = ['ملخص الأسبوع — ' + (STATE.student && STATE.student.name || ''), '', 'أحكام أتقنها: ' + (mastered.length ? mastered.join('، ') : 'لا يوجد بعد'), 'أحكام قيد التدريب: ' + (pending.length ? pending.join('، ') : 'لا يوجد'), '',
-    'تقييم المعلم للتلاوة: متقن ' + rc.mastered + ' · جيد ' + rc.good + ' · يحتاج تدريبًا ' + rc.needs + (rc.unusable ? ' · لا يصلح للتقييم ' + rc.unusable : ''), '', 'ملاحظة: هذا الملخص لا يتضمن أي تسجيل صوتي.'];
-  return lines.join('\n');
-}
-function showParentSummary(){
-  var txt = buildParentSummary();
-  var ov = document.createElement('div');
-  ov.id = 'parent-summary';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
-  ov.innerHTML = '<div data-style="background:#fff;color:#222;border-radius:18px;max-width:480px;width:100%;padding:18px"><h3 data-style="margin:0 0 8px">📄 ملخص لولي الأمر</h3><textarea rows="12" readonly data-style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cfd8dc;border-radius:12px;font:inherit">' + escapeHTML(txt) + '</textarea><div data-style="text-align:left;margin-top:8px"><button type="button" id="ps-close" class="btn">إغلاق</button></div></div>';
-  document.body.appendChild(ov);
-  document.getElementById('ps-close').onclick = function(){ ov.remove(); };
-}
+/* يُستدعى أثناء تعقيم الملف عند الإقلاع، قبل تعريف RATING_STATES، فلا يعتمد عليه */
+function normRating(v){ v = String(v || ''); if (v === 'notapplied') return 'needs'; return ({mastered: 1, good: 1, needs: 1, unusable: 1})[v] ? v : ''; }
 function setRating(id, state){
   if ((!RATING_STATES[state] && state !== 'unusable') || !PACK_DATA.studentAudios || !PACK_DATA.studentAudios[id]) return;
   PACK_DATA.teacherRatings = PACK_DATA.teacherRatings || {};
@@ -4217,7 +4220,170 @@ function cancelTeacherFeedback(){
   if (teacherFeedbackStream) teacherFeedbackStream.getTracks().forEach(function(t){t.stop();});
   $('teacher-feedback-modal').classList.add('hidden'); teacherFeedbackTarget = null; teacherFeedbackData = null;
 }
+function renderTFViewInner(){
+  var ids = Object.keys(STATE.studentAudios);
+  var rejectedCount = 0, approvedCount = 0;
+  var html = '';
+  CURRICULUM.forEach(function(sec){
+    (sec.items || []).forEach(function(it){
+      var rec = STATE.studentAudios[it.id];
+      var inPack = PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id];
+      if (!rec && !inPack) return;
+      var packStatus = inPack ? inPack.status : 'pending';
+      var localStatus = rec ? (rec.status || 'pending') : packStatus;
+      var effectiveStatus = packStatus === 'rejected' && localStatus === 'pending' ? 'pending' : packStatus;
+      // after re-record, local status becomes 'pending'
+      if (localStatus === 'pending' && packStatus === 'rejected') effectiveStatus = 'pending';
 
+      if (packStatus === 'approved'){ approvedCount++; }
+      if (packStatus === 'rejected' && localStatus !== 'pending') rejectedCount++;
+
+      html += tfItemHTML(it.id, it.text, detectTextType({text: it.text}), packStatus, localStatus);
+    });
+    (sec.questions || []).forEach(function(q){
+      var rec = STATE.studentAudios[q.id];
+      var inPack = PACK_DATA.studentAudios && PACK_DATA.studentAudios[q.id];
+      if (!rec && !inPack) return;
+      var packStatus = inPack ? inPack.status : 'pending';
+      var localStatus = rec ? (rec.status || 'pending') : packStatus;
+      if (packStatus === 'approved') approvedCount++;
+      if (packStatus === 'rejected' && localStatus !== 'pending') rejectedCount++;
+      html += tfItemHTML(q.id, q.text, detectTextType(q), packStatus, localStatus);
+    });
+  });
+  $('tf-list').innerHTML = html || '<div class="notice info">لا توجد تسجيلات بعد.</div>';
+  $('tf-summary').innerHTML = 'لديك ' + rejectedCount + ' تسجيل يحتاج إلى إعادة. أعد التسجيل ثم أرسل الملف الجديد إلى المعلم.';
+  $('tf-sub').textContent = (PACK_DATA.studentName || '') + ' — ' + rejectedCount + ' بحاجة لمراجعة';
+}
+function tfItemHTML(id, text, type, packStatus, localStatus){ var h = tfItemHTMLInner(id, text, type, packStatus, localStatus), x = studentRatingNote(id); return x ? h.replace(/<\/div>\s*$/, x + '</div>') : h; }
+ // 9.39.15 (ق6)
+function tfItemHTMLInner(id, text, type, packStatus, localStatus){
+  var isApproved = packStatus === 'approved';
+  var isRejected = packStatus === 'rejected';
+  var wasRerecorded = localStatus === 'pending' && isRejected;
+  var cls = isApproved ? 'approved' : '';
+  var badge = isApproved ? '<span class="badge approved">✅ معتمد من المعلم</span>'
+             : isRejected && wasRerecorded ? '<span class="badge pending">⏳ أعدت التسجيل — بانتظار المعلم</span>'
+             : isRejected ? '<span class="badge rejected">❌ بحاجة لإعادة التسجيل</span>'
+             : '<span class="badge pending">⏳ قيد المراجعة</span>';
+  var rawId = String(id);
+  var safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  var jsId = "'" + rawId.replace(/'/g, "\\'") + "'";
+  var pickerId = 'replace-audio-' + safeId;
+  var attrId = String(rawId).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  var uploadButton = '<button class="btn ghost block" ' + ACT('clickById', pickerId) + ' type="button">📁 \u0627\u062e\u062a\u064a\u0627\u0631 \u062a\u0633\u062c\u064a\u0644 \u0635\u0648\u062a\u064a \u0628\u062f\u064a\u0644</button>' +
+    '<input class="hidden" type="file" accept="audio/*" id="' + pickerId + '" data-change-arg="' + attrId + '" data-change="uploadReplacementAudio">';
+  var html = '<div class="tf-item ' + cls + '">';
+  html += '<div class="head"><span data-style="font-weight:900;color:var(--primary)">' + escapeHTML(itemLabelById(id)) + '</span>' + badge + '</div>';
+  html += '<div class="text' + (type === 'quran' ? ' quran' : '') + '">' + (type === 'quran' ? quranHTML(text, qpcHolder(rawId)) : text) + '</div>';
+  if (isRejected && !wasRerecorded){
+    var fb = PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[id];
+    var master = PACK_DATA.masterAudios && PACK_DATA.masterAudios[id];
+    if (master) { var mt = detectTextType({text:text}); var ml = mt === 'quran' ? '🎧 تلاوة الشيخ / قارئ القرآن' : (mt === 'poem' ? '🎧 إنشاد منشد الأبيات' : '🎧 التسجيل المرجعي'); var mp = mt === 'quran' ? PACK_DATA.sheikhPhoto : PACK_DATA.poemReciterPhoto; var mn = mt === 'quran' ? PACK_DATA.sheikhName : PACK_DATA.poemReciterName; html += audioPersonBlock(mp,'boy',mn,ml,master,'reference-audio'); html += '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى المرجع ثم طبّق التصحيح في تسجيلك الجديد.</div>'; }
+    html += '<div class="audio-section"><b>🎧 تسجيلك السابق:</b><audio controls data-media="' + mediaRef('aud', ((PACK_DATA.studentAudios[id] && PACK_DATA.studentAudios[id].audio) || '')) + '"></audio></div>';
+    html += (PACK_DATA.teacherNotes && PACK_DATA.teacherNotes[id] ? '<div class="teacher-comment"><b>📝 ملاحظة ' + genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة') + ':</b><div>' + escapeHTML(String(PACK_DATA.teacherNotes[id])) + '</div></div>' : '');
+    if (fb) html += '<div class="teacher-comment">' + audioPersonBlock(PACK_DATA.teacherPhoto, PACK_DATA.teacherGender || 'boy', PACK_DATA.teacherName || '', '📢 '+genderWord(PACK_DATA.teacherGender || 'boy','تسجيل المعلم للتصحيح','تسجيل المعلمة للتصحيح'), fb, 'teacher-person-audio') + '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى ملاحظة '+genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة')+' وطبّق التصحيح في تسجيلك الجديد.</div></div>';
+    html += '<div class="re-record-wrap"><div id="rec-status-' + safeId + '" class="rec-status">جاهز لإعادة التسجيل</div><button id="re-record-btn-' + safeId + '" class="btn gold block re-record-btn" ' + ACT('startRec', rawId) + ' type="button">🎙️ {أعد|أعيدي} التسجيل الآن</button></div>' + uploadButton;
+  } else if (isApproved){
+    html += '<div data-style="font-size:.88rem;color:var(--success);font-weight:800">تم الاعتماد 🎉</div>';
+    html += '<div class="audio-section"><audio controls data-media="' + mediaRef('aud', ((PACK_DATA.studentAudios[id] && PACK_DATA.studentAudios[id].audio) || '')) + '"></audio></div>';
+  } else if (wasRerecorded){
+    var master2 = PACK_DATA.masterAudios && PACK_DATA.masterAudios[id];
+    var fb2 = PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[id];
+    var previous2 = PACK_DATA.studentAudios && PACK_DATA.studentAudios[id] && PACK_DATA.studentAudios[id].audio;
+    if (master2) { var mt2 = detectTextType({text:text}); var ml2 = mt2 === 'quran' ? '🎧 تلاوة الشيخ / قارئ القرآن' : (mt2 === 'poem' ? '🎧 إنشاد منشد الأبيات' : '🎧 التسجيل المرجعي'); var mp2 = mt2 === 'quran' ? PACK_DATA.sheikhPhoto : PACK_DATA.poemReciterPhoto; var mn2 = mt2 === 'quran' ? PACK_DATA.sheikhName : PACK_DATA.poemReciterName; html += audioPersonBlock(mp2,'boy',mn2,ml2,master2,'reference-audio'); html += '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى التسجيل المرجعي وطبّق ملاحظة المعلم.</div>'; }
+    if (previous2) html += '<div class="audio-section"><b>🎧 تسجيلك السابق:</b><audio controls data-media="' + mediaRef('aud', previous2) + '"></audio></div>';
+    html += (PACK_DATA.teacherNotes && PACK_DATA.teacherNotes[id] ? '<div class="teacher-comment"><b>📝 ملاحظة ' + genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة') + ':</b><div>' + escapeHTML(String(PACK_DATA.teacherNotes[id])) + '</div></div>' : '');
+    if (fb2) html += '<div class="teacher-comment">' + audioPersonBlock(PACK_DATA.teacherPhoto, PACK_DATA.teacherGender || 'boy', PACK_DATA.teacherName || '', '📢 '+genderWord(PACK_DATA.teacherGender || 'boy','تسجيل المعلم للتصحيح','تسجيل المعلمة للتصحيح'), fb2, 'teacher-person-audio') + '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى تصحيح '+genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة')+' ثم قارن تسجيلك الجديد.</div></div>';
+    html += '<div class="audio-section"><b>🎧 تسجيلك الجديد:</b><div>حُفظ التسجيل الجديد على هذا الجهاز.</div><button class="btn ghost" ' + ACT('playStudentRec', rawId) + ' type="button">▶️ استمع إلى التسجيل الجديد</button></div>';
+    html += '<div class="re-record-btn"><div id="rec-status-' + safeId + '" class="rec-status">جاهز لإعادة التسجيل</div><button id="re-record-btn-' + safeId + '" class="btn ghost block" ' + ACT('startRec', rawId) + ' type="button">🔄 {أعد|أعيدي} التسجيل مرة أخرى</button>' + uploadButton + '</div>';
+  } else {
+    html += '<div data-style="font-size:.85rem;color:var(--muted)">لم يُراجع بعد.</div>';
+  }
+  html += '</div>';
+  return html;
+}
+var teacherFeedbackTarget = null, teacherFeedbackRecorder = null, teacherFeedbackStream = null, teacherFeedbackChunks = [], teacherFeedbackData = null;
+var RATING_STATES = {mastered: '✅ متقن', good: '👍 جيد', needs: '🔁 يحتاج تدريبًا'};
+ // 9.39.15 (ق6-أ)
+var RATING_UNUSABLE = '🔇 لا يصلح للتقييم';
+var NOTE_BANK = ['الغنة قصيرة', 'المد أقل من المطلوب', 'الإدغام غير واضح', 'الإظهار غير واضح', 'الإقلاب يحتاج تكرارًا', 'الإخفاء ثقيل، خفّف الغنة', 'المخرج غير دقيق', 'أحسنتِ، أعيدي الحكم بتركيز أكبر'];
+/* ===== 9.25: قناة الرد، ولوحة المتابعة للمعلم، وملخص ولي الأمر ===== */
+var REPLY_CHANNELS = {text: '📝 نص', audio: '🎙️ صوت', both: '📝🎙️ نص وصوت'};
+function setReplyChannel(ev){
+  var v = ev.target.value; if (!REPLY_CHANNELS[v]) return;
+  PACK_DATA.replyChannel = v; showTeacherReview();
+}
+async function rosterSaveCurrent(){
+  try {
+    var roster = (await keyDbGet('roster')) || {};
+    var sid = String(PACK_DATA.studentId || PACK_DATA.studentName || 'unknown').slice(0, 64);
+    var pend = Object.keys(PACK_DATA.studentAudios || {}).filter(function(k){ return (PACK_DATA.studentAudios[k] || {}).status === 'pending'; }).length;
+    var sa = PACK_DATA.studentAssessment || {};
+    var prev = roster[sid] || {};
+    roster[sid] = {name: String(PACK_DATA.studentName || '').slice(0, 60), at: new Date().toISOString(), receivedAt: prev.receivedAt || new Date().toISOString(), deletedAt: prev.deletedAt || null, submittedAt: PACK_DATA.submittedAt || null,
+      pending: pend, rated: Object.keys(PACK_DATA.teacherRatings || {}).length, mastered: (sa.mastered || []).length, pendingConcepts: (sa.pending || []).length, escalated: (sa.escalated || []).slice(0, 10)};
+    await keyDbPut('roster', roster);
+  } catch(e){ console.warn('roster', e); }
+}
+async function openRoster(){
+  var roster = (await keyDbGet('roster')) || {};
+  var ids = Object.keys(roster);
+  var ov = document.createElement('div');
+  ov.id = 'roster-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:520px;width:100%;padding:18px;max-height:90vh;overflow:auto';
+  var rows = ids.map(function(id){
+    var r = roster[id]; var overdue = r.submittedAt && assessTeacherReplyOverdue(r.submittedAt, new Date().toISOString());
+    return '<div data-style="border:1px solid #e3e8ef;border-radius:12px;padding:10px;margin:8px 0"><b>' + escapeHTML(r.name || id) + '</b>' +
+      '<div data-style="font-size:.85rem;color:#555">تسجيلات معلقة: ' + r.pending + ' · مُقيَّمة: ' + r.rated + ' · مفاهيم متقنة: ' + r.mastered + '/' + (r.mastered + r.pendingConcepts) +
+      (r.escalated && r.escalated.length ? ' · محالة: ' + escapeHTML(r.escalated.join('، ')) : '') + (overdue ? ' · <span data-style="color:#b3261e">⏰ تجاوز 48 ساعة</span>' : '') + '</div>' +
+      (retentionDue(r, new Date().toISOString()) ? '<div data-style="font-size:.85rem;color:#8a4b00;margin-top:6px">⏳ مرّ ' + TEACHER_RETENTION_DAYS + ' يومًا على استلام هذا الإرسال. احذف الملف الذي فتحته من جهازك، ثم اضغط: <button type="button" class="btn" data-call="' + escAttrSafe(JSON.stringify(['markRosterDeleted', id])) + '">تم الحذف</button></div>' : (r.deletedAt ? '<div data-style="font-size:.8rem;color:#2e7d32">✔ حُذف من الجهاز بتاريخ ' + escAttrSafe(new Date(r.deletedAt).toLocaleDateString('ar')) + '</div>' : '')) + '</div>';
+  }).join('') || '<p>لا توجد إرسالات محفوظة بعد. تُضاف الإرسالات عند فتحها في شاشة المراجعة.</p>';
+  card.innerHTML = '<h3 data-style="margin:0 0 8px">📋 لوحة المتابعة</h3>' + rows + '<div data-style="text-align:left"><button type="button" id="roster-close" class="btn">إغلاق</button></div>';
+  ov.appendChild(card); document.body.appendChild(ov);
+  document.getElementById('roster-close').onclick = function(){ ov.remove(); };
+}
+function buildParentSummary(){
+  var st = STATE.assess || {}; var mastered = [], pending = [];
+  var secs = (CURRICULUM || []).filter(function(s){ return !s._synthetic; });
+  secs.forEach(function(s){ var c = (st.concepts || {})[s.id]; if (c && c.mastered) mastered.push(s.title); else pending.push(s.title); });
+  var rc = {mastered: 0, good: 0, needs: 0, unusable: 0};
+  Object.keys(PACK_DATA.teacherRatings || {}).forEach(function(k){ var v = normRating(PACK_DATA.teacherRatings[k]); if (rc[v] !== undefined) rc[v]++; });
+  var lines = ['ملخص الأسبوع — ' + (STATE.student && STATE.student.name || ''), '', 'أحكام أتقنها: ' + (mastered.length ? mastered.join('، ') : 'لا يوجد بعد'), 'أحكام قيد التدريب: ' + (pending.length ? pending.join('، ') : 'لا يوجد'), '',
+    'تقييم المعلم للتلاوة: متقن ' + rc.mastered + ' · جيد ' + rc.good + ' · يحتاج تدريبًا ' + rc.needs + (rc.unusable ? ' · لا يصلح للتقييم ' + rc.unusable : ''), '', 'ملاحظة: هذا الملخص لا يتضمن أي تسجيل صوتي.'];
+  return lines.join('\n');
+}
+function showParentSummary(){
+  var txt = buildParentSummary();
+  var ov = document.createElement('div');
+  ov.id = 'parent-summary';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  ov.innerHTML = '<div data-style="background:#fff;color:#222;border-radius:18px;max-width:480px;width:100%;padding:18px"><h3 data-style="margin:0 0 8px">📄 ملخص لولي الأمر</h3><textarea rows="12" readonly data-style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cfd8dc;border-radius:12px;font:inherit">' + escapeHTML(txt) + '</textarea><div data-style="text-align:left;margin-top:8px"><button type="button" id="ps-close" class="btn">إغلاق</button></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('ps-close').onclick = function(){ ov.remove(); };
+}
+
+
+
+
+
+
+
+
+
+
+
+window.addEventListener('storage', function(e){
+  if (e.key !== PENDING_DEL_KEY || CHILD_DATA_DELETED || !tombFor(DB_NAME, STORAGE_KEY)) return;
+  CHILD_DATA_DELETED = true;
+  try { if (_dbConn) _dbConn.then(function(db){ try { db.close(); } catch(x){} }, function(){}); } catch(x){}
+  _dbConn = null; _dbConnName = null;
+  alert('حُذفت بيانات هذا الطالب من نافذة أخرى على هذا الجهاز. سيُعاد فتح التطبيق.');
+  location.reload();
+});
+/* ===== التصدير: ملف الطالب وملف الإعادة وحزمة الإهداء ===== */
 async function exportApprovedPack(){
   try {
     var st0 = await teacherSigningStatus();
@@ -4268,7 +4434,6 @@ async function exportApprovedPack(){
     successMessage: 'تم إنشاء إعداد المشرف المعتمد. شاركه مع الطالب المستفيد.'
   });
 }
-
 async function exportReturnedPack(){
   var rejectedCount = 0;
   Object.keys(PACK_DATA.studentAudios || {}).forEach(function(k){
@@ -4303,7 +4468,6 @@ async function exportReturnedPack(){
     successMessage: 'تم إنشاء ملف العودة للطالب وتنزيله على جهاز المعلم. أرسله للطالب عبر وسيلة مشاركة مناسبة.'
   });
 }
-
 async function buildAndDownload(opts){
   // The app is a self-contained HTML file; serialize the current document directly.
   
@@ -4394,91 +4558,6 @@ async function buildAndDownload(opts){
   showModal('🎉 تم تجهيز الملف وتنزيله', (opts.successMessage || 'حجم الملف: ' + Math.round(byteSize / 1024) + ' كيلوبايت.') + '\n\nتنبيه: لا يُرسل الملف تلقائيًا؛ شاركه يدويًا مع الشخص المقصود.',
     [{label: '👍', class: 'success', action: closeModal}]);
 }
-
-function renderTFViewInner(){
-  var ids = Object.keys(STATE.studentAudios);
-  var rejectedCount = 0, approvedCount = 0;
-  var html = '';
-  CURRICULUM.forEach(function(sec){
-    (sec.items || []).forEach(function(it){
-      var rec = STATE.studentAudios[it.id];
-      var inPack = PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id];
-      if (!rec && !inPack) return;
-      var packStatus = inPack ? inPack.status : 'pending';
-      var localStatus = rec ? (rec.status || 'pending') : packStatus;
-      var effectiveStatus = packStatus === 'rejected' && localStatus === 'pending' ? 'pending' : packStatus;
-      // after re-record, local status becomes 'pending'
-      if (localStatus === 'pending' && packStatus === 'rejected') effectiveStatus = 'pending';
-
-      if (packStatus === 'approved'){ approvedCount++; }
-      if (packStatus === 'rejected' && localStatus !== 'pending') rejectedCount++;
-
-      html += tfItemHTML(it.id, it.text, detectTextType({text: it.text}), packStatus, localStatus);
-    });
-    (sec.questions || []).forEach(function(q){
-      var rec = STATE.studentAudios[q.id];
-      var inPack = PACK_DATA.studentAudios && PACK_DATA.studentAudios[q.id];
-      if (!rec && !inPack) return;
-      var packStatus = inPack ? inPack.status : 'pending';
-      var localStatus = rec ? (rec.status || 'pending') : packStatus;
-      if (packStatus === 'approved') approvedCount++;
-      if (packStatus === 'rejected' && localStatus !== 'pending') rejectedCount++;
-      html += tfItemHTML(q.id, q.text, detectTextType(q), packStatus, localStatus);
-    });
-  });
-  $('tf-list').innerHTML = html || '<div class="notice info">لا توجد تسجيلات بعد.</div>';
-  $('tf-summary').innerHTML = 'لديك ' + rejectedCount + ' تسجيل يحتاج إلى إعادة. أعد التسجيل ثم أرسل الملف الجديد إلى المعلم.';
-  $('tf-sub').textContent = (PACK_DATA.studentName || '') + ' — ' + rejectedCount + ' بحاجة لمراجعة';
-}
-
-function tfItemHTML(id, text, type, packStatus, localStatus){ var h = tfItemHTMLInner(id, text, type, packStatus, localStatus), x = studentRatingNote(id); return x ? h.replace(/<\/div>\s*$/, x + '</div>') : h; } // 9.39.15 (ق6)
-function tfItemHTMLInner(id, text, type, packStatus, localStatus){
-  var isApproved = packStatus === 'approved';
-  var isRejected = packStatus === 'rejected';
-  var wasRerecorded = localStatus === 'pending' && isRejected;
-  var cls = isApproved ? 'approved' : '';
-  var badge = isApproved ? '<span class="badge approved">✅ معتمد من المعلم</span>'
-             : isRejected && wasRerecorded ? '<span class="badge pending">⏳ أعدت التسجيل — بانتظار المعلم</span>'
-             : isRejected ? '<span class="badge rejected">❌ بحاجة لإعادة التسجيل</span>'
-             : '<span class="badge pending">⏳ قيد المراجعة</span>';
-  var rawId = String(id);
-  var safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  var jsId = "'" + rawId.replace(/'/g, "\\'") + "'";
-  var pickerId = 'replace-audio-' + safeId;
-  var attrId = String(rawId).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  var uploadButton = '<button class="btn ghost block" ' + ACT('clickById', pickerId) + ' type="button">📁 \u0627\u062e\u062a\u064a\u0627\u0631 \u062a\u0633\u062c\u064a\u0644 \u0635\u0648\u062a\u064a \u0628\u062f\u064a\u0644</button>' +
-    '<input class="hidden" type="file" accept="audio/*" id="' + pickerId + '" data-change-arg="' + attrId + '" data-change="uploadReplacementAudio">';
-  var html = '<div class="tf-item ' + cls + '">';
-  html += '<div class="head"><span data-style="font-weight:900;color:var(--primary)">' + escapeHTML(itemLabelById(id)) + '</span>' + badge + '</div>';
-  html += '<div class="text' + (type === 'quran' ? ' quran' : '') + '">' + (type === 'quran' ? quranHTML(text, qpcHolder(rawId)) : text) + '</div>';
-  if (isRejected && !wasRerecorded){
-    var fb = PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[id];
-    var master = PACK_DATA.masterAudios && PACK_DATA.masterAudios[id];
-    if (master) { var mt = detectTextType({text:text}); var ml = mt === 'quran' ? '🎧 تلاوة الشيخ / قارئ القرآن' : (mt === 'poem' ? '🎧 إنشاد منشد الأبيات' : '🎧 التسجيل المرجعي'); var mp = mt === 'quran' ? PACK_DATA.sheikhPhoto : PACK_DATA.poemReciterPhoto; var mn = mt === 'quran' ? PACK_DATA.sheikhName : PACK_DATA.poemReciterName; html += audioPersonBlock(mp,'boy',mn,ml,master,'reference-audio'); html += '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى المرجع ثم طبّق التصحيح في تسجيلك الجديد.</div>'; }
-    html += '<div class="audio-section"><b>🎧 تسجيلك السابق:</b><audio controls data-media="' + mediaRef('aud', ((PACK_DATA.studentAudios[id] && PACK_DATA.studentAudios[id].audio) || '')) + '"></audio></div>';
-    html += (PACK_DATA.teacherNotes && PACK_DATA.teacherNotes[id] ? '<div class="teacher-comment"><b>📝 ملاحظة ' + genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة') + ':</b><div>' + escapeHTML(String(PACK_DATA.teacherNotes[id])) + '</div></div>' : '');
-    if (fb) html += '<div class="teacher-comment">' + audioPersonBlock(PACK_DATA.teacherPhoto, PACK_DATA.teacherGender || 'boy', PACK_DATA.teacherName || '', '📢 '+genderWord(PACK_DATA.teacherGender || 'boy','تسجيل المعلم للتصحيح','تسجيل المعلمة للتصحيح'), fb, 'teacher-person-audio') + '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى ملاحظة '+genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة')+' وطبّق التصحيح في تسجيلك الجديد.</div></div>';
-    html += '<div class="re-record-wrap"><div id="rec-status-' + safeId + '" class="rec-status">جاهز لإعادة التسجيل</div><button id="re-record-btn-' + safeId + '" class="btn gold block re-record-btn" ' + ACT('startRec', rawId) + ' type="button">🎙️ {أعد|أعيدي} التسجيل الآن</button></div>' + uploadButton;
-  } else if (isApproved){
-    html += '<div data-style="font-size:.88rem;color:var(--success);font-weight:800">تم الاعتماد 🎉</div>';
-    html += '<div class="audio-section"><audio controls data-media="' + mediaRef('aud', ((PACK_DATA.studentAudios[id] && PACK_DATA.studentAudios[id].audio) || '')) + '"></audio></div>';
-  } else if (wasRerecorded){
-    var master2 = PACK_DATA.masterAudios && PACK_DATA.masterAudios[id];
-    var fb2 = PACK_DATA.teacherFeedbacks && PACK_DATA.teacherFeedbacks[id];
-    var previous2 = PACK_DATA.studentAudios && PACK_DATA.studentAudios[id] && PACK_DATA.studentAudios[id].audio;
-    if (master2) { var mt2 = detectTextType({text:text}); var ml2 = mt2 === 'quran' ? '🎧 تلاوة الشيخ / قارئ القرآن' : (mt2 === 'poem' ? '🎧 إنشاد منشد الأبيات' : '🎧 التسجيل المرجعي'); var mp2 = mt2 === 'quran' ? PACK_DATA.sheikhPhoto : PACK_DATA.poemReciterPhoto; var mn2 = mt2 === 'quran' ? PACK_DATA.sheikhName : PACK_DATA.poemReciterName; html += audioPersonBlock(mp2,'boy',mn2,ml2,master2,'reference-audio'); html += '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى التسجيل المرجعي وطبّق ملاحظة المعلم.</div>'; }
-    if (previous2) html += '<div class="audio-section"><b>🎧 تسجيلك السابق:</b><audio controls data-media="' + mediaRef('aud', previous2) + '"></audio></div>';
-    html += (PACK_DATA.teacherNotes && PACK_DATA.teacherNotes[id] ? '<div class="teacher-comment"><b>📝 ملاحظة ' + genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة') + ':</b><div>' + escapeHTML(String(PACK_DATA.teacherNotes[id])) + '</div></div>' : '');
-    if (fb2) html += '<div class="teacher-comment">' + audioPersonBlock(PACK_DATA.teacherPhoto, PACK_DATA.teacherGender || 'boy', PACK_DATA.teacherName || '', '📢 '+genderWord(PACK_DATA.teacherGender || 'boy','تسجيل المعلم للتصحيح','تسجيل المعلمة للتصحيح'), fb2, 'teacher-person-audio') + '<div data-style="font-size:.78rem;color:var(--muted);margin-top:4px">استمع إلى تصحيح '+genderWord(PACK_DATA.teacherGender || 'boy','المعلم','المعلمة')+' ثم قارن تسجيلك الجديد.</div></div>';
-    html += '<div class="audio-section"><b>🎧 تسجيلك الجديد:</b><div>حُفظ التسجيل الجديد على هذا الجهاز.</div><button class="btn ghost" ' + ACT('playStudentRec', rawId) + ' type="button">▶️ استمع إلى التسجيل الجديد</button></div>';
-    html += '<div class="re-record-btn"><div id="rec-status-' + safeId + '" class="rec-status">جاهز لإعادة التسجيل</div><button id="re-record-btn-' + safeId + '" class="btn ghost block" ' + ACT('startRec', rawId) + ' type="button">🔄 {أعد|أعيدي} التسجيل مرة أخرى</button>' + uploadButton + '</div>';
-  } else {
-    html += '<div data-style="font-size:.85rem;color:var(--muted)">لم يُراجع بعد.</div>';
-  }
-  html += '</div>';
-  return html;
-}
-
 function showExportDialog(exportKind){
   exportKind = exportKind || 'submission';
   if (exportKind === 'gift'){ showModal('🎁 الإهداء', 'الإهداء يصدره المعلم بعد مراجعة التسجيلات والتحقق من إذن ولي الأمر بالمشاركة. أرسل تسجيلاتك للمعلم.', [{label: 'حسنًا', class: 'primary', action: closeModal}]); return; } // 9.39.12 (O3)
@@ -4493,7 +4572,6 @@ function showExportDialog(exportKind){
     {label: 'إلغاء', class: 'ghost', action: closeModal}
   ]);
 }
-
 /* 9.39: عنوان مقروء للعنصر في صفحة المعلم بدل المعرّف الخام */
 function itemLabelById(id){
   for (var i = 0; i < CURRICULUM.length; i++){
@@ -4516,7 +4594,6 @@ function arabicReviewOrdinal(n){
   if (n===11) return 'الحادية عشرة'; if (n===12) return 'الثانية عشرة';
   return 'رقم ' + n;
 }
-
 async function doExportStudent(exportKind){
   exportKind = exportKind || 'submission';
   /* 9.39.12 (O3): كان هذا المسار يصدّر تسجيلات الطفل واسمه وصورته في «إهداء» غير موقّع دون فحص إذن المشاركة */
@@ -4655,7 +4732,15 @@ async function doExportStudent(exportKind){
     if (btn){ btn.disabled = false; btn.textContent = orig; }
   }
 }
-
+function blobToBase64(blob){
+  return new Promise(function(res, rej){
+    var r = new FileReader();
+    r.onload = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error); };
+    r.readAsDataURL(blob);
+  });
+}
+/* ===== الشهادة ===== */
 /* الشهادة */
 function hashString(str){ var h = 0; for (var i = 0; i < str.length; i++){ h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; } return h; }
 function generateCertId(){
@@ -4741,7 +4826,6 @@ function printCertificate(){
   setTimeout(function(){ window.print(); }, 100);
   setTimeout(after, 4000);
 }
-var LAST_CERT_BLOB = null;
 function loadImage(src){
   return new Promise(function(resolve){
     if (!src){ resolve(null); return; }
@@ -4937,73 +5021,7 @@ async function downloadImageFallback(blob, name){
   toast('💾 تم تنزيل الشهادة');
 }
 function doDownloadPreview(){ closePreview(); downloadCertificate(); }
-
-function blobToBase64(blob){
-  return new Promise(function(res, rej){
-    var r = new FileReader();
-    r.onload = function(){ res(r.result); };
-    r.onerror = function(){ rej(r.error); };
-    r.readAsDataURL(blob);
-  });
-}
-function showModal(t, b, actions){
-  $('modal-title').textContent = t;
-  $('modal-body').textContent = b;
-  var a = $('modal-actions'); a.innerHTML = '';
-  actions.forEach(function(x){
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn ' + (x.class || 'primary');
-    btn.textContent = x.label; btn.style.margin = '4px';
-    btn.onclick = x.action;
-    a.appendChild(btn);
-  });
-  $('modal').classList.remove('hidden');
-}
-function closeModal(){ $('modal').classList.add('hidden'); }
-function showReset(){
-  /* 9.39.10: المسار المحمي نفسه لحذف بيانات الطفل (علامة دائمة، إبلاغ النوافذ، لا إعلان قبل الاكتمال، حذف النسخ في المضيفة)
-     9.39.11 (ق5-أ): لم يعد له زر في الرئيسية، ويمر ببوابة ولي الأمر أينما استُدعي */
-  parentalGate(function(){ deleteChildDataOnDevice(); }, 'التصفير يحذف بيانات الطالب من هذا الجهاز.');
-}
-function confetti(n){
-  var c = ['#FFC107','#E91E63','#2196F3','#4CAF50','#FF5722','#9C27B0','#00BCD4'];
-  for (var i = 0; i < (n || 30); i++){
-    var e = document.createElement('div');
-    e.className = 'confetti';
-    e.style.left = Math.random()*100 + '%';
-    e.style.background = c[Math.floor(Math.random()*c.length)];
-    e.style.animationDuration = (1.5 + Math.random()*1.5) + 's';
-    document.body.appendChild(e);
-    setTimeout(function(){ e.remove(); }, 3500);
-  }
-}
-function toast(m){
-  var e = document.createElement('div');
-  e.className = 'toast'; e.textContent = m;
-  document.body.appendChild(e);
-  setTimeout(function(){ e.remove(); }, 3000);
-}
-
-/* 9.39.4 (RT9393-01): استئناف كل حذف معلّق عند الإقلاع (لا عند فتح القاعدة فقط)، ومنع هذه النافذة من استعادة طفل محذوف */
-function resumePendingDeletions(){
-  var tombs = readTombs(); if (!tombs.length) return;
-  var mine = tombFor(DB_NAME, STORAGE_KEY);
-  if (mine) CHILD_DATA_DELETED = true;
-  tombs.forEach(function(t){
-    try { if (t.s) localStorage.removeItem(t.s); } catch(e){}
-    deleteDbFully(t.d, t.s).then(function(){ if (mine && (t.d === DB_NAME || t.s === STORAGE_KEY)){ alert('اكتمل حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.'); location.reload(); } }, function(e){ console.warn('pending delete failed', e); });
-  });
-  if (mine) setTimeout(function(){ if (tombFor(DB_NAME, STORAGE_KEY)) { try { showModal('⏳ حذف بيانات الطالب لم يكتمل', 'التطبيق مفتوح في نافذة أو تبويب آخر يمنع الحذف. أغلق النوافذ الأخرى؛ سيكتمل الحذف تلقائيًا. لن يُحفظ شيء لهذا الطالب حتى يكتمل.', [{label: 'حسنًا', class: 'primary', action: closeModal}]); } catch(e){} } }, 1200);
-}
-window.addEventListener('storage', function(e){
-  if (e.key !== PENDING_DEL_KEY || CHILD_DATA_DELETED || !tombFor(DB_NAME, STORAGE_KEY)) return;
-  CHILD_DATA_DELETED = true;
-  try { if (_dbConn) _dbConn.then(function(db){ try { db.close(); } catch(x){} }, function(){}); } catch(x){}
-  _dbConn = null; _dbConnName = null;
-  alert('حُذفت بيانات هذا الطالب من نافذة أخرى على هذا الجهاز. سيُعاد فتح التطبيق.');
-  location.reload();
-});
+var LAST_CERT_BLOB = null;
 /* ===== 9.39.13 (ق3-ب): اختبار الدرس 15 سؤالًا على الأكثر =====
    الدرس الطويل (حتى 30 سؤالًا) ثقيل على طفل في جلسة واحدة، ونجوم الدرس من المحاولة الأولى.
    كل محاولة تسحب 15 سؤالًا: كل نوع (اختيار، صواب وخطأ، استخراج عثماني لكل حكم، استخراج إملائي لكل حكم…) بنسبته في الدرس

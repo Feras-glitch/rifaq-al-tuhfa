@@ -22,7 +22,6 @@ function resumeExam(kind, session){
   return true;
 }
 function targetWords(q){ var m = String((q && q.type === 'extraction' && q.text) || '').match(/<b>([\s\S]*?)<\/b>/g); return m ? m.map(function(x){ return plainText(x); }).join('، ') : ''; }
-function plainText(h){ var d = document.createElement('div'); d.innerHTML = String(h === undefined || h === null ? '' : h); return d.textContent.replace(/\s+/g, ' ').trim(); }
 function correctAnswerText(q){
   if (q.type === 'true_false') return q.answer ? 'صحيح' : 'خطأ';
   if (Array.isArray(q.options) && typeof q.answer === 'number' && q.options[q.answer] !== undefined) return plainText(q.options[q.answer]);

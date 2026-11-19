@@ -133,5 +133,4 @@ function studentRatingNote(id){
   if (o.length) h += '<div class="other-note" data-style="font-size:.85rem;color:#8a4b00;margin:2px 0">📌 {انتبه|انتبهي} أيضًا إلى: ' + o.map(function(k){ return escapeHTML(RATING_CRITERIA.other[k]); }).join('، ') + '</div>';
   return h ? GT(h) : '';
 }
-var NOTE_BANK = ['الغنة قصيرة', 'المد أقل من المطلوب', 'الإدغام غير واضح', 'الإظهار غير واضح', 'الإقلاب يحتاج تكرارًا', 'الإخفاء ثقيل، خفّف الغنة', 'المخرج غير دقيق', 'أحسنتِ، أعيدي الحكم بتركيز أكبر'];
 
