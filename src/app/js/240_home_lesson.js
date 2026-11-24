@@ -135,7 +135,7 @@ function renderHome(){
   _real.forEach(function(sec){
     var pr = STATE.progress[sec.id];
     if (pr && pr.stars > 0) completed++;
-    totalStars += (pr && pr.stars) || 0;
+    totalStars += shownStars(pr);
   });
   var pct = maxStars ? Math.round(totalStars / maxStars * 100) : 0;
   $('total-progress').style.width = pct + '%';
@@ -144,9 +144,9 @@ function renderHome(){
 
   var html = '';
   CURRICULUM.forEach(function(sec){
-    var pr = STATE.progress[sec.id] || {stars: 0};
+    var pr = STATE.progress[sec.id] || {stars: 0}, ns = shownStars(pr);
     var sh = '';
-    for (var i = 1; i <= 3; i++) sh += '<span class="star' + (i <= pr.stars ? ' earned' : '') + '">⭐</span>';
+    for (var i = 1; i <= 3; i++) sh += '<span class="star' + (i <= ns ? ' earned' : '') + '">⭐</span>';
     html += '<div class="section-card" ' + ACT('openSection', sec.id) + '>';
     html += '<div class="sec-icon">' + sec.emoji + '</div>';
     html += '<div class="sec-info"><h3>' + sec.title + '</h3>';
@@ -162,3 +162,7 @@ function renderHome(){
   renderTrack();
 }
 function goHome(){ renderHome(); show('view-home'); }
+
+/* 9.41.2 (قرار صاحب المشروع): الخريطة تكافئ التحسّن فتعرض أفضل النجوم؛ ونجوم المحاولة الأولى (stars) تبقى قياسًا
+   في تقرير المعلم والأسرة، ولا يتغيّر بها فتح الاختبار النهائي ولا الشهادة (كلاهما من الإتقان) */
+function shownStars(pr){ return pr ? Math.max(Number(pr.bestStars) || 0, Number(pr.stars) || 0) : 0; }

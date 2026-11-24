@@ -25,22 +25,11 @@ async function getSupervisorSigningKey(){
   return rec;
 }
 function studioB64(buf){ var u8 = new Uint8Array(buf), s = ''; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
-/* مطابقة حرفيًا لـ canonJSON في التطبيق: مفاتيح مرتبة، والقيم غير المعرّفة تسقط */
-function studioCanonJSON(v){
-  function c(x){
-    if (x === null || typeof x !== 'object'){ var s = JSON.stringify(x); return s === undefined ? undefined : s; }
-    if (Array.isArray(x)) return '[' + x.map(function(e){ var s = c(e); return s === undefined ? 'null' : s; }).join(',') + ']';
-    var ks = Object.keys(x).sort(), out = [];
-    for (var i = 0; i < ks.length; i++){ var s = c(x[ks[i]]); if (s !== undefined) out.push(JSON.stringify(ks[i]) + ':' + s); }
-    return '{' + out.join(',') + '}';
-  }
-  return c(v);
-}
 async function studioSignRef(packData){
   var embedded = JSON.parse(JSON.stringify(packData)); // ما سيقرؤه التطبيق بالضبط
   var ref = {};
   STUDIO_REF_KEYS.forEach(function(k){ if (Object.prototype.hasOwnProperty.call(embedded, k) && embedded[k] !== undefined) ref[k] = embedded[k]; });
-  var d = studioB64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(studioCanonJSON(ref))));
+  var d = studioB64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonJSON(ref))));
   var k = await getSupervisorSigningKey();
   var sig = await crypto.subtle.sign({name: 'ECDSA', hash: 'SHA-256'}, k.privateKey, new TextEncoder().encode(JSON.stringify({v: 1, ref: d})));
   return {alg: 'ECDSA-P256-SHA256', v: 1, key: k.publicJwk, sig: studioB64(sig), signedAt: new Date().toISOString()};

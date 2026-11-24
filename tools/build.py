@@ -13,7 +13,8 @@
   curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json   المنهج (المصدر الوحيد)
   curriculum/qpc/qpc_fonts.json             خطوط المصحف المقتطعة
   curriculum/rating_criteria.json   معايير تقييم التلاوة (المصدر الوحيد؛ منها أيضًا docs/TEACHER_RUBRIC.md)
-ويرفض البناء أي دالة عُرّفت مرتين في المستوى الأعلى من سكربت واحد، فلا تعود «طبقات الاستبدال».
+ويرفض البناء أي دالة عُرّفت مرتين في المستوى الأعلى من سكربت واحد، فلا تعود «طبقات الاستبدال»،
+وأي دالة في المستوى الأعلى كُتبت تعبيرًا (var f = function / const f = () =>) لأنها لا تُرفع فيكسر كود التحميل.
 المخرجات: app/تطبيق_الطالب_والمعلم_v9.39.html، app/تجربة_المرحلة1_للهاتف_v9.39.html، studio/استوديو_المشرف_v9.39.html
 الاستعمال:  python3 -I tools/build.py          يبني ويكتب
             python3 -I tools/build.py --check  يتحقق أن الملفات المحفوظة مطابقة للمصادر (في CI)"""
@@ -54,6 +55,9 @@ def fill(text, **kv):
 TOP_FN = re.compile(r'^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(', re.M)
 
 
+TOP_FN_EXPR = re.compile(r'^(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:function\b|\([^)\n]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)', re.M)
+
+
 def no_duplicates(js, label):
     # تعريف واحد لكل دالة في المستوى الأعلى: التعريف الثاني يُخفي الأول بصمت
     seen, dup = set(), []
@@ -61,6 +65,10 @@ def no_duplicates(js, label):
         if name in seen: dup.append(name)
         seen.add(name)
     if dup: sys.exit('%s: functions defined more than once: %s' % (label, ', '.join(sorted(set(dup)))))
+    # 9.41.2: الدوال في المستوى الأعلى تعريفات (function name)، لا تعابير مسندة إلى متغير؛ فكود التحميل في وحدة مبكرة
+    # يستدعي دالة وحدة لاحقة لأن التعريفات تُرفع إلى أول السكربت، والتعبير لا يُرفع فيكسر الإقلاع.
+    expr = TOP_FN_EXPR.findall(js)
+    if expr: sys.exit('%s: top-level functions must be declarations, not expressions: %s' % (label, ', '.join(sorted(set(expr)))))
 
 
 def page(shell, style, script):

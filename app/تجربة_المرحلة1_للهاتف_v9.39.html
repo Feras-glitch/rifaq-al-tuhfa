@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#283593">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4eD2qdkwpRAeaT2bp7g9Bui8cLYmhrowNxeIggz4Xpc='; style-src 'sha256-NrGI1eRbMw7oooE4iSDhbfoKrEskUszUJtkRINjDgs0='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-vHOwS52JjrFn0R6TTi+k+yI7MuxMM0xtM8ilqwWBez8='; style-src 'sha256-NrGI1eRbMw7oooE4iSDhbfoKrEskUszUJtkRINjDgs0='; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
 <title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
 <style>
 :root{--primary:#283593;--primary-light:#5c6bc0;--accent:#FFC107;--bg:#f5f7ff;--card:#fff;--text:#1f2937;--muted:#64748b;--success:#16834a;--danger:#c62828;--radius:20px;--shadow:0 8px 24px #00000012;--shadow-sm:0 2px 8px #0000000d}
@@ -606,7 +606,7 @@ var TEMPLATE_HEAD = null, TEMPLATE_TAIL = null;
   } catch(e) { console.warn('template snapshot failed', e); }
 })();
 var MAX_HTML_WARN_BYTES = 25 * 1024 * 1024;
-var APP_VERSION = '9.41.1';
+var APP_VERSION = '9.41.2';
 var SCHEMA_VERSION = 2;
 var PACK_SOURCE_VERSION = '';
 var PACK_COMPATIBLE = true;
@@ -650,16 +650,6 @@ function trustedKeysFor(pack){
   return Array.isArray(pack && pack.trustedTeacherKeys) ? pack.trustedTeacherKeys : [];
 }
 /* 9.39.3 (RT9392-02): التوقيع v4 يغطي محتوى الحزمة كله (كل ما قد يُعرض)، محسوبًا على البيانات كما وصلت قبل أي تطبيع */
-function canonJSON(v, skipTopKey){
-  function c(x, top){
-    if (x === null || typeof x !== 'object'){ var s = JSON.stringify(x); return s === undefined ? undefined : s; }
-    if (Array.isArray(x)) return '[' + x.map(function(e){ var s = c(e, false); return s === undefined ? 'null' : s; }).join(',') + ']';
-    var ks = Object.keys(x).sort(), out = [];
-    for (var i = 0; i < ks.length; i++){ if (top && ks[i] === skipTopKey) continue; var s = c(x[ks[i]], false); if (s !== undefined) out.push(JSON.stringify(ks[i]) + ':' + s); }
-    return '{' + out.join(',') + '}';
-  }
-  return c(v, true);
-}
 var PACK_CANON_DIGEST = (function(){ try { return sha256b64(canonJSON(PACK_DATA, 'signature')).catch(function(){ return null; }); } catch(e){ return Promise.resolve(null); } })();
 /* 9.39.11 (ق1-ب، RT9399-01): المادة المرجعية = ما يعدّه المشرف في الاستوديو (المنهج، تلاوات الشيخ، أسماء المرجع وصوره، الترحيب).
    تُلتقط هنا كما وصلت قبل أي تطبيع، فتُحسب بصمتها وتُصدَّر كما هي، فلا تتغير البصمة عبر الطالب ← المعلم ← المهدى إليه،
@@ -710,6 +700,18 @@ if (typeof APP_VERSION === 'undefined') { throw new Error('APP_VERSION bootstrap
   }
 })();
 
+/* 9.41.2: JSON القانوني (مفاتيح مرتبة، والقيم غير المعرّفة تسقط) للتوقيع والبصمات، نسخة واحدة للتطبيق والاستوديو.
+   ونسخة web/host.js منفصلة لأنها سكربت الصفحة المضيفة؛ tests/test_units.js يتحقق أن نتيجتيهما متطابقتان. */
+function canonJSON(v, skipTopKey){
+  function c(x, top){
+    if (x === null || typeof x !== 'object'){ var s = JSON.stringify(x); return s === undefined ? undefined : s; }
+    if (Array.isArray(x)) return '[' + x.map(function(e){ var s = c(e, false); return s === undefined ? 'null' : s; }).join(',') + ']';
+    var ks = Object.keys(x).sort(), out = [];
+    for (var i = 0; i < ks.length; i++){ if (top && ks[i] === skipTopKey) continue; var s = c(x[ks[i]], false); if (s !== undefined) out.push(JSON.stringify(ks[i]) + ':' + s); }
+    return '{' + out.join(',') + '}';
+  }
+  return c(v, true);
+}
 /* ===== QX core: تطبيع وفحص أنواع الأسئلة التفاعلية (مصدر واحد للتطبيق والاستوديو وأداة الفحص) ===== */
 var QX = (function(){
   var types = {};
@@ -2186,7 +2188,7 @@ function renderHome(){
   _real.forEach(function(sec){
     var pr = STATE.progress[sec.id];
     if (pr && pr.stars > 0) completed++;
-    totalStars += (pr && pr.stars) || 0;
+    totalStars += shownStars(pr);
   });
   var pct = maxStars ? Math.round(totalStars / maxStars * 100) : 0;
   $('total-progress').style.width = pct + '%';
@@ -2195,9 +2197,9 @@ function renderHome(){
 
   var html = '';
   CURRICULUM.forEach(function(sec){
-    var pr = STATE.progress[sec.id] || {stars: 0};
+    var pr = STATE.progress[sec.id] || {stars: 0}, ns = shownStars(pr);
     var sh = '';
-    for (var i = 1; i <= 3; i++) sh += '<span class="star' + (i <= pr.stars ? ' earned' : '') + '">⭐</span>';
+    for (var i = 1; i <= 3; i++) sh += '<span class="star' + (i <= ns ? ' earned' : '') + '">⭐</span>';
     html += '<div class="section-card" ' + ACT('openSection', sec.id) + '>';
     html += '<div class="sec-icon">' + sec.emoji + '</div>';
     html += '<div class="sec-info"><h3>' + sec.title + '</h3>';
@@ -2213,6 +2215,10 @@ function renderHome(){
   renderTrack();
 }
 function goHome(){ renderHome(); show('view-home'); }
+
+/* 9.41.2 (قرار صاحب المشروع): الخريطة تكافئ التحسّن فتعرض أفضل النجوم؛ ونجوم المحاولة الأولى (stars) تبقى قياسًا
+   في تقرير المعلم والأسرة، ولا يتغيّر بها فتح الاختبار النهائي ولا الشهادة (كلاهما من الإتقان) */
+function shownStars(pr){ return pr ? Math.max(Number(pr.bestStars) || 0, Number(pr.stars) || 0) : 0; }
 /* ===== الإهداء وتسجيلات الزملاء ===== */
 function giftSourceTerms(giverGender, recipientGender, teacherGender){
   var giverFemale = giverGender === 'girl', recipientFemale = recipientGender === 'girl', teacherFemale = teacherGender === 'girl';
@@ -3875,23 +3881,23 @@ function showPrintableReport(){
   secs.forEach(function(s){
     var pr = (STATE.progress || {})[s.id] || {};
     var c = (st.concepts || {})[s.id] || {};
-    rows.push('<tr><td>' + escapeHTML(s.title) + '</td><td>' + (c.mastered ? 'متقن' : 'قيد التدريب') + '</td><td>' + (pr.stars || 0) + ' نجوم</td><td>' + (pr.attempts || 0) + '</td></tr>');
+    rows.push('<tr><td>' + escapeHTML(s.title) + '</td><td>' + (c.mastered ? 'متقن' : 'قيد التدريب') + '</td><td>' + (pr.stars || 0) + ' / ' + shownStars(pr) + '</td><td>' + (pr.attempts || 0) + '</td></tr>');
   });
   var name = escapeHTML((STATE.student && STATE.student.name) || '');
   var ov = document.createElement('div'); ov.id = 'print-report-wrap';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:12px;box-sizing:border-box;overflow:auto';
-  ov.innerHTML = '<div id="print-report" data-style="background:#fff;color:#222;border-radius:12px;max-width:640px;width:100%;padding:18px"><h2 data-style="margin:0 0 6px">تقرير تقدم: ' + name + '</h2><p data-style="margin:0 0 10px;font-size:.9rem">رفاق التحفة — المرحلة الأولى: أحكام تحفة الأطفال</p><table data-style="width:100%;border-collapse:collapse;font-size:.9rem"><tr><th data-style="text-align:right;border-bottom:1px solid #ccc">المفهوم</th><th data-style="border-bottom:1px solid #ccc">الإتقان</th><th data-style="border-bottom:1px solid #ccc">النجوم</th><th data-style="border-bottom:1px solid #ccc">المحاولات</th></tr>' + rows.join('') + '</table><p data-style="font-size:.8rem;color:#555">هذا التقرير لا يتضمن أي تسجيل صوتي.</p></div><div data-style="margin:10px 0;display:flex;gap:8px"><button type="button" id="pr-print" class="btn success">🖨️ طباعة</button><button type="button" id="pr-close" class="btn">إغلاق</button></div>';
+  ov.innerHTML = '<div id="print-report" data-style="background:#fff;color:#222;border-radius:12px;max-width:640px;width:100%;padding:18px"><h2 data-style="margin:0 0 6px">تقرير تقدم: ' + name + '</h2><p data-style="margin:0 0 10px;font-size:.9rem">رفاق التحفة — المرحلة الأولى: أحكام تحفة الأطفال</p><table data-style="width:100%;border-collapse:collapse;font-size:.9rem"><tr><th data-style="text-align:right;border-bottom:1px solid #ccc">المفهوم</th><th data-style="border-bottom:1px solid #ccc">الإتقان</th><th data-style="border-bottom:1px solid #ccc">النجوم (المحاولة الأولى / الأفضل)</th><th data-style="border-bottom:1px solid #ccc">المحاولات</th></tr>' + rows.join('') + '</table><p data-style="font-size:.8rem;color:#555">هذا التقرير لا يتضمن أي تسجيل صوتي.</p></div><div data-style="margin:10px 0;display:flex;gap:8px"><button type="button" id="pr-print" class="btn success">🖨️ طباعة</button><button type="button" id="pr-close" class="btn">إغلاق</button></div>';
   document.body.appendChild(ov);
   document.getElementById('pr-print').addEventListener('click', function(){ window.print(); });
   document.getElementById('pr-close').addEventListener('click', function(){ ov.remove(); });
 }
-/* نجوم الدرس من المحاولة الأولى؛ تنبيه بذلك عند الإعادة */
+/* عند الإعادة: الخريطة تعرض أفضل النجوم (9.41.2)، ونتيجة المحاولة الأولى تبقى في تقرير المعلم */
 function firstAttemptNote(sec, prev){
   var note = document.getElementById('first-attempt-note'); if (note) note.remove();
   if (!(prev && prev.attempts > 0 && prev.stars > 0)) return;
   note = document.createElement('div'); note.id = 'first-attempt-note'; note.className = 'notice info'; note.style.cssText = 'font-size:.85rem;margin-top:10px';
   var pr = STATE.progress[sec.id] || {};
-  note.textContent = 'نجوم الدرس محسوبة من المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + '). أفضل نتيجة لك: ' + (pr.bestScore || 0) + ' نقطة.';
+  note.textContent = 'على الخريطة نجوم أفضل محاولاتك (' + '⭐'.repeat(shownStars(pr)) + '). ونجوم المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + ') يراها المعلم في التقرير.';
   var nav2 = document.getElementById('results-nav'); var res2 = document.getElementById('view-results');
   if (res2){ if (nav2 && nav2.parentNode === res2) res2.insertBefore(note, nav2); else res2.appendChild(note); }
 }

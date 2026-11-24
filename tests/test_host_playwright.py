@@ -855,7 +855,11 @@ async def main():
                 # نجوم المحاولة الأولى
                 stars = await ev(fQ, """(() => { openSection('s2_idhhar'); startQuiz(); CURRENT.score = 0; finishQuiz(); var a = Object.assign({}, STATE.progress.s2_idhhar);
                   startQuiz(); CURRENT.score = CURRENT.section.questions.reduce(function(x, q){ return x + q.points; }, 0); finishQuiz();
-                  var b2 = STATE.progress.s2_idhhar; return [a.stars, b2.stars, b2.bestStars, b2.bestScore > 0, !!document.getElementById('first-attempt-note')]; })()""")
+                  var b2 = STATE.progress.s2_idhhar, note = (document.getElementById('first-attempt-note') || {}).textContent || '';
+                  /* 9.41.2: الخريطة تعرض أفضل النجوم، والمحاولة الأولى تبقى في القياس والتقرير */
+                  renderHome(); var card = Array.prototype.filter.call(document.querySelectorAll('.section-card'), function(c){ return (c.getAttribute('data-call') || '').indexOf('s2_idhhar') >= 0; })[0];
+                  var onMap = card ? card.querySelectorAll('.star.earned').length : -1;
+                  return [a.stars, b2.stars, b2.bestStars, b2.bestScore > 0, note.indexOf('أفضل محاولاتك') >= 0 && note.indexOf('المعلم') >= 0, onMap]; })()""")
                 await ev(fQ, "realSections().forEach(function(s){ STATE.progress[s.id] = STATE.progress[s.id] || {stars: 1, attempts: 1, bestScore: 0}; }); save(); recalcStats(); showProfile()")
                 unlocked = await ev(fQ, "[document.getElementById('btn-final-exam').classList.contains('hidden'), document.getElementById('final-exam-locked').classList.contains('hidden')]")
                 await ev(fQ, "startFinalExam(1)"); await fQ.wait_for_timeout(200)
@@ -892,9 +896,9 @@ async def main():
                   STATE.teacherRatings = {}; var a = buildCertData().role; STATE.teacherRatings = {r2_1: 'mastered'}; var b2 = buildCertData().role;
                   STATE.teacherRatings = {r2_1: 'mastered', r3_1: 'needs'}; var c = buildCertData(); return [a, b2, c.role, c.desc]; })()""")
                 await ctxQ.close()
-                rec('R36 final exam = measurement: unlocks after all lessons, reserved bank set A, no reveal, summary after, retest on set B, first-attempt stars, certificate from mastery + teacher rating',
+                rec('R36 final exam = measurement: unlocks after all lessons, reserved bank set A, no reveal, summary after, retest on set B, first-attempt stars kept (map shows best), certificate from mastery + teacher rating',
                     locked[0] is True and 'بعد إكمال الدروس' in locked[1] and not started_locked
-                    and stars[0] == 1 and stars[1] == 1 and stars[2] == 3 and stars[3] and stars[4]
+                    and stars[0] == 1 and stars[1] == 1 and stars[2] == 3 and stars[3] and stars[4] and stars[5] == 3
                     and unlocked == [False, True] and plan[0] and plan[2] and plan[3] and noreveal_ok
                     and s1[0] is True and s1[1] == 0 and s1[2] and s1[3] and s1[4] and s1[5] and blocked[0] and 'بعد' in blocked[1]
                     and fin[0] and fin[1] and fin[2] == fin[3] and rt[0] == 'retest_session' and 0 < rt[1] <= 21 and rt[2] and mast >= 1

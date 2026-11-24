@@ -35,16 +35,6 @@ function trustedKeysFor(pack){
   return Array.isArray(pack && pack.trustedTeacherKeys) ? pack.trustedTeacherKeys : [];
 }
 /* 9.39.3 (RT9392-02): التوقيع v4 يغطي محتوى الحزمة كله (كل ما قد يُعرض)، محسوبًا على البيانات كما وصلت قبل أي تطبيع */
-function canonJSON(v, skipTopKey){
-  function c(x, top){
-    if (x === null || typeof x !== 'object'){ var s = JSON.stringify(x); return s === undefined ? undefined : s; }
-    if (Array.isArray(x)) return '[' + x.map(function(e){ var s = c(e, false); return s === undefined ? 'null' : s; }).join(',') + ']';
-    var ks = Object.keys(x).sort(), out = [];
-    for (var i = 0; i < ks.length; i++){ if (top && ks[i] === skipTopKey) continue; var s = c(x[ks[i]], false); if (s !== undefined) out.push(JSON.stringify(ks[i]) + ':' + s); }
-    return '{' + out.join(',') + '}';
-  }
-  return c(v, true);
-}
 var PACK_CANON_DIGEST = (function(){ try { return sha256b64(canonJSON(PACK_DATA, 'signature')).catch(function(){ return null; }); } catch(e){ return Promise.resolve(null); } })();
 /* 9.39.11 (ق1-ب، RT9399-01): المادة المرجعية = ما يعدّه المشرف في الاستوديو (المنهج، تلاوات الشيخ، أسماء المرجع وصوره، الترحيب).
    تُلتقط هنا كما وصلت قبل أي تطبيع، فتُحسب بصمتها وتُصدَّر كما هي، فلا تتغير البصمة عبر الطالب ← المعلم ← المهدى إليه،

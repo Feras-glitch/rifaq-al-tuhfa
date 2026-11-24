@@ -105,6 +105,25 @@ function only(file, names, stubs, ctxIn){
 }
 
 // ---------------- 9.41.1: إصلاحات مراجعة جيميناي المتحقَّق منها
+{ // 9.41.2: نسخ يجب أن تبقى متطابقة بين اللغات والملفات
+  // canonJSON: المصدر المشترك (التطبيق والاستوديو) ونسخة الصفحة المضيفة web/host.js
+  const shared = only('src/shared/050_canon_json.js', ['canonJSON']).canonJSON;
+  const host = rd('web/host.js'), i = host.indexOf('  function canonJSON(v) {'), j = host.indexOf('\n  }\n', i);
+  const hctx = {}; vm.createContext(hctx); vm.runInContext(host.slice(i, j + 4), hctx);
+  const samples = [{b: 2, a: [1, {d: undefined, c: 'ن'}], z: null}, [3, undefined, 'x'], 'نص', 7, {k: {y: 1, x: [true, false]}}, {}];
+  ok(samples.every(v => shared(v) === hctx.canonJSON(v)) && shared({b: 1, a: 2}) === '{"a":2,"b":1}' && shared({a: 1, signature: 'x'}, 'signature') === '{"a":1}',
+     'parity: canonJSON identical in src/shared and web/host.js');
+  // هيكل الكلمة: الحروف التي يحذفها التطبيق (qpcSkel) هي التي تحذفها أداتا بناء خط المصحف وفحصه في بايثون
+  const js = only('src/app/js/530_qpc.js', ['qpcSkel']).qpcSkel;
+  const py1 = rd('tools/build_qpc.py').match(/MARKS = re\.compile\('(.*?)'\)/)[1], re1 = new RegExp(py1, 'g');
+  const hv = rd('tools/verify_qpc.py').match(/HARAKAT = set\(chr\(c\) for c in (.*)\)\n/)[1];
+  const set2 = new Set(); hv.replace(/range\((0x[0-9A-Fa-f]+), (0x[0-9A-Fa-f]+)\)/g, (_, a, b) => { for (let c = +a; c < +b; c++) set2.add(c); return ''; }).replace(/\[(0x[0-9A-Fa-f]+)\]/g, (_, a) => { set2.add(+a); return ''; });
+  const diff = [];
+  for (let c = 0x0600; c <= 0x06FF; c++){ const ch = String.fromCharCode(c); const a = js('ب' + ch) === 'ب', b = ('ب' + ch).replace(re1, '') === 'ب', d = set2.has(c);
+    if (c === 0x0671) continue;                                    // ٱ تصير ا في الثلاثة
+    if (a !== b || a !== d) diff.push(c.toString(16)); }
+  ok(set2.size > 50 && !diff.length && js('ٱلْحَمْدُ') === 'الحمد', 'parity: word skeleton marks identical in app, build_qpc.py and verify_qpc.py', diff.slice(0, 8));
+}
 { // src/app/js/520_matn_verses.js: الأبيات المتتابعة بعنصر صوت واحد (آيفون يرفض عنصرًا جديدًا بعد مؤقت)
   let made = 0; const plays = [];
   class FakeAudio { constructor(){ made++; this.src = ''; } play(){ plays.push(this.src); return Promise.resolve(); } pause(){} }

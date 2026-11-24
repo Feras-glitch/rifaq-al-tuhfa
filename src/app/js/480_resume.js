@@ -101,23 +101,23 @@ function showPrintableReport(){
   secs.forEach(function(s){
     var pr = (STATE.progress || {})[s.id] || {};
     var c = (st.concepts || {})[s.id] || {};
-    rows.push('<tr><td>' + escapeHTML(s.title) + '</td><td>' + (c.mastered ? 'متقن' : 'قيد التدريب') + '</td><td>' + (pr.stars || 0) + ' نجوم</td><td>' + (pr.attempts || 0) + '</td></tr>');
+    rows.push('<tr><td>' + escapeHTML(s.title) + '</td><td>' + (c.mastered ? 'متقن' : 'قيد التدريب') + '</td><td>' + (pr.stars || 0) + ' / ' + shownStars(pr) + '</td><td>' + (pr.attempts || 0) + '</td></tr>');
   });
   var name = escapeHTML((STATE.student && STATE.student.name) || '');
   var ov = document.createElement('div'); ov.id = 'print-report-wrap';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:12px;box-sizing:border-box;overflow:auto';
-  ov.innerHTML = '<div id="print-report" data-style="background:#fff;color:#222;border-radius:12px;max-width:640px;width:100%;padding:18px"><h2 data-style="margin:0 0 6px">تقرير تقدم: ' + name + '</h2><p data-style="margin:0 0 10px;font-size:.9rem">رفاق التحفة — المرحلة الأولى: أحكام تحفة الأطفال</p><table data-style="width:100%;border-collapse:collapse;font-size:.9rem"><tr><th data-style="text-align:right;border-bottom:1px solid #ccc">المفهوم</th><th data-style="border-bottom:1px solid #ccc">الإتقان</th><th data-style="border-bottom:1px solid #ccc">النجوم</th><th data-style="border-bottom:1px solid #ccc">المحاولات</th></tr>' + rows.join('') + '</table><p data-style="font-size:.8rem;color:#555">هذا التقرير لا يتضمن أي تسجيل صوتي.</p></div><div data-style="margin:10px 0;display:flex;gap:8px"><button type="button" id="pr-print" class="btn success">🖨️ طباعة</button><button type="button" id="pr-close" class="btn">إغلاق</button></div>';
+  ov.innerHTML = '<div id="print-report" data-style="background:#fff;color:#222;border-radius:12px;max-width:640px;width:100%;padding:18px"><h2 data-style="margin:0 0 6px">تقرير تقدم: ' + name + '</h2><p data-style="margin:0 0 10px;font-size:.9rem">رفاق التحفة — المرحلة الأولى: أحكام تحفة الأطفال</p><table data-style="width:100%;border-collapse:collapse;font-size:.9rem"><tr><th data-style="text-align:right;border-bottom:1px solid #ccc">المفهوم</th><th data-style="border-bottom:1px solid #ccc">الإتقان</th><th data-style="border-bottom:1px solid #ccc">النجوم (المحاولة الأولى / الأفضل)</th><th data-style="border-bottom:1px solid #ccc">المحاولات</th></tr>' + rows.join('') + '</table><p data-style="font-size:.8rem;color:#555">هذا التقرير لا يتضمن أي تسجيل صوتي.</p></div><div data-style="margin:10px 0;display:flex;gap:8px"><button type="button" id="pr-print" class="btn success">🖨️ طباعة</button><button type="button" id="pr-close" class="btn">إغلاق</button></div>';
   document.body.appendChild(ov);
   document.getElementById('pr-print').addEventListener('click', function(){ window.print(); });
   document.getElementById('pr-close').addEventListener('click', function(){ ov.remove(); });
 }
-/* نجوم الدرس من المحاولة الأولى؛ تنبيه بذلك عند الإعادة */
+/* عند الإعادة: الخريطة تعرض أفضل النجوم (9.41.2)، ونتيجة المحاولة الأولى تبقى في تقرير المعلم */
 function firstAttemptNote(sec, prev){
   var note = document.getElementById('first-attempt-note'); if (note) note.remove();
   if (!(prev && prev.attempts > 0 && prev.stars > 0)) return;
   note = document.createElement('div'); note.id = 'first-attempt-note'; note.className = 'notice info'; note.style.cssText = 'font-size:.85rem;margin-top:10px';
   var pr = STATE.progress[sec.id] || {};
-  note.textContent = 'نجوم الدرس محسوبة من المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + '). أفضل نتيجة لك: ' + (pr.bestScore || 0) + ' نقطة.';
+  note.textContent = 'على الخريطة نجوم أفضل محاولاتك (' + '⭐'.repeat(shownStars(pr)) + '). ونجوم المحاولة الأولى (' + '⭐'.repeat(pr.stars || 0) + ') يراها المعلم في التقرير.';
   var nav2 = document.getElementById('results-nav'); var res2 = document.getElementById('view-results');
   if (res2){ if (nav2 && nav2.parentNode === res2) res2.insertBefore(note, nav2); else res2.appendChild(note); }
 }
