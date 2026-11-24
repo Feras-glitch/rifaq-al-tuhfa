@@ -22,6 +22,12 @@ function forgetProfileId(id){ try { var m = idMap(); if (id && m[id]) { delete m
 function readStateAt(k){ try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch(e){ return null; } }
 function resolveInitialProfile(){
   var guest = {s: STORAGE_BASE + '_guest', d: DB_BASE + '_guest', id: null};
+  /* 9.41.3: ملف إرسال يفتحه المعلم (أو ولي الأمر على جهاز الطفل) يُراجَع في مساحة خاصة بصاحبه، لا تُسجَّل في قائمة
+     ملفات الأطفال ولا تصير الملف النشط: فلا يُكتب فوق ملف طفل على الجهاز، ولا يفتح تطبيقه بعدها على ملف غيره */
+  if (PACK_DATA.packageType === 'student_submission' || PACK_DATA.packageType === 'teacher_review'){
+    var rh = simpleHash('review|' + String(PACK_DATA.studentId || PACK_DATA.studentName || ''));
+    return {s: STORAGE_BASE + '_review_' + rh, d: DB_BASE + '_review_' + rh, id: null};
+  }
   try {
     var packId = PACK_DATA.studentId ? String(PACK_DATA.studentId) : '';
     if (packId){
@@ -137,11 +143,22 @@ function syncPackStatuses(){
   if (needCheck) setTimeout(function(){ reconcileLegacyDecisions(); }, 0);
 }
 /* 9.39.5 (R12): إذا وُجد على الجهاز طالب بالاسم نفسه يُسأل المستخدم: هل هو نفسه؟ وإلا يُنشأ ملف مستقل بمعرّف جديد */
-function chooseProfileForName(name){
+function profilesNamed(name){
   var n = String(name || '').trim().toLowerCase(), m = idMap();
   var cands = Object.keys(m).filter(function(id){ return String(m[id].name || '').trim().toLowerCase() === n; });
   var L = legacyKeysForName(name), lst = readStateAt(L.s), legacyId = null;
   if (lst && !Object.keys(m).some(function(id){ return m[id].s === L.s; })) legacyId = (lst.student && lst.student.id) || ('stu_legacy_' + simpleHash(L.s));
+  return {cands: cands, legacyId: legacyId, L: L};
+}
+/* 9.41.3: ملف قديم بلا معرّف يُنسب إلى ملف الطفل المسمّى فيه على هذا الجهاز إن وُجد، وإلا إلى ملف جديد له */
+function profileIdForPackName(name){
+  var f = profilesNamed(name);
+  if (f.cands.length) return f.cands[f.cands.length - 1];
+  if (f.legacyId){ registerProfile(f.legacyId, f.L, name); return f.legacyId; }
+  return newStudentId();
+}
+function chooseProfileForName(name){
+  var f = profilesNamed(name), cands = f.cands, L = f.L, legacyId = f.legacyId;
   if (!cands.length && !legacyId) return {id: newStudentId(), existing: false};
   if (confirm('يوجد على هذا الجهاز طالب مسجَّل باسم «' + String(name).trim() + '».\n\nإن كان هذا أنت وتريد متابعة تقدّمك فاضغط «موافق».\nإن كنت طالبًا آخر بالاسم نفسه فاضغط «إلغاء» ليُنشأ لك ملف مستقل لا يختلط بغيره.')){
     if (cands.length) return {id: cands[cands.length - 1], existing: true};

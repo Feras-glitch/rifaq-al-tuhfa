@@ -28,6 +28,7 @@ function buildCertData(){
   var now = new Date();
   var months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
   return {
+    title: lv.allMastered ? 'شهادة إتقان' : 'شهادة تقدّم', // 9.41.3: «إتقان» بعد إتقان المنهج في الاختبار النهائي
     name: s.name || '—',
     role: isPerfect ? (isF ? '🏆 بطلة المنهج بإتقان تام' : '🏆 بطل المنهج بإتقان تام') : lv.allMastered ? (isF ? '🏆 متقنة لأحكام المنهج' : '🏆 متقن لأحكام المنهج') : (isF ? '🏆 متقدمة في المنهج' : '🏆 متقدم في المنهج'),
     desc: desc, isF: isF,
@@ -45,7 +46,9 @@ function buildCertData(){
   };
 }
 function showCertificate(){
+  LAST_CERT_BLOB = null; // 9.41.3: الصورة تُرسم من بيانات اللحظة، لا من شهادة سابقة في الجلسة نفسها
   var d = buildCertData();
+  var tt = document.querySelector('#certificate-card .cert-title'); if (tt) tt.textContent = d.title;
   var ph = $('cert-photo');
   if (d.photo) ph.innerHTML = '<img data-media="' + mediaRef('img', d.photo) + '" alt="">';
   else ph.innerHTML = '<span class="emoji">' + (d.gender === 'girl' ? '🧚‍♀️' : '🦸‍♂️') + '</span>';
@@ -137,7 +140,7 @@ async function renderCertificateToBlob(){
   ctx.textAlign = 'left'; ctx.fillText('✦', 60, H-50);
   drawEmoji(ctx, '🏅', W/2, 130, 100);
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#8b6f00'; ctx.font = 'bold 78px Tahoma'; ctx.fillText('شهادة إتقان', W/2, 260);
+  ctx.fillStyle = '#8b6f00'; ctx.font = 'bold 78px Tahoma'; ctx.fillText(d.title, W/2, 260);
   ctx.fillStyle = '#6b7280'; ctx.font = 'bold 28px Tahoma'; ctx.fillText('منهج تحفة الأطفال', W/2, 305);
   var cy = 345;
   if (d.schoolName){
@@ -260,7 +263,7 @@ async function doSharePreview(){
   var d = buildCertData();
   var file = new File([blob], 'شهادة_' + d.name + '.png', {type: 'image/png'});
   if (navigator.canShare && navigator.canShare({files: [file]})){
-    try { await navigator.share({files: [file], title: 'شهادة إتقان'}); return; }
+    try { await navigator.share({files: [file], title: d.title}); return; }
     catch(e){ if (e.name === 'AbortError') return; }
   }
   await downloadImageFallback(blob, d.name);

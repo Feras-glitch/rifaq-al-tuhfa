@@ -2,7 +2,7 @@
  "packageId": "pack_s34",
  "packageType": "student_fresh",
  "schemaVersion": 2,
- "appVersion": "9.39",
+ "appVersion": "(يملؤه tools/build.py)",
  "sheikhName": "الشيخ",
  "teacherName": "المعلم",
  "teacherGender": "boy",

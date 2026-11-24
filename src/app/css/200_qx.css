@@ -39,9 +39,11 @@ input[type=checkbox]{width:22px;height:22px;flex:0 0 auto}
 .poem-verse{display:flex;flex-wrap:wrap;column-gap:.7em;align-items:baseline;line-height:2.2;margin:.35em 0}
 .poem-verse .v-a{white-space:nowrap}
 .poem-verse .v-b{white-space:nowrap;margin-inline-end:auto;padding-inline-start:1.4em}
+/* 9.41.3: على أضيق الهواتف (أقل من 360 بكسل) يصغر خط البيت قليلًا، ويلتف الشطر إن لم يتسع فلا يُقصّ */
+@media (max-width: 359px){.content-text .poem-verse{font-size:.9em}.poem-verse .v-a,.poem-verse .v-b{white-space:normal}.poem-verse .v-b{padding-inline-start:.8em}}
 
 /* 9.34: الطباعة: تقرير التقدم فقط */
-@media print{body *{visibility:hidden}#print-report,#print-report *{visibility:visible}#print-report{position:absolute;left:0;top:0;width:100%;box-shadow:none}#print-report-wrap{position:static;background:none}}
+@media print{body *{visibility:hidden}#print-report,#print-report *{visibility:visible}body.printing-cert #certificate-card,body.printing-cert #certificate-card *{visibility:visible}body.printing-cert #certificate-card{position:absolute;left:0;top:0;width:100%;box-shadow:none;margin:0}body.printing-cert .cert-overlay{position:static;background:none;padding:0}body.printing-cert .cert-actions{display:none}#print-report{position:absolute;left:0;top:0;width:100%;box-shadow:none}#print-report-wrap{position:static;background:none}}
 /* 9.40: اسمع وميّز */
 .qx-listen-word{font-family:'Traditional Arabic','Amiri',serif;font-size:2rem;text-align:center;color:var(--primary);margin:6px 0 12px}
 .qx-listen-row{display:flex;gap:10px;flex-wrap:wrap}

@@ -98,6 +98,7 @@ def build():
     out = {}
     for name, path in (('app', OUT_APP), ('trial', OUT_TRIAL)):
         pk = json.loads(rd('src/app/packs/%s.json' % name))
+        pk['appVersion'] = version          # 9.41.3: رقم الإصدار الذي بُني به الملف، لا رقم قديم ثابت في القالب
         pk['curriculum'] = sections
         script = fill(js, APP_VERSION=version, PACK_DATA=json.dumps(pk, ensure_ascii=False), QPC_PROBE=probe)
         out[path] = page(shell, style, script)

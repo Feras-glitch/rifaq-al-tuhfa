@@ -74,6 +74,8 @@ jobs:
         run: python3 -I tests/test_sheikh_review.py
       - name: التسجيل بفريق (الأدوار والجلسة المتتابعة والحزم والملفات المسمّاة)
         run: python3 -I tests/test_studio_team.py
+      - name: ملفات الأطفال على جهاز واحد والشهادة والأبيات (9.41.3)
+        run: python3 -I tests/test_profiles.py
       - name: مسارات التطبيق الكاملة (الطالب، المعلم، الاستوديو، الإهداء)
         env:
           RIFAQ_SITE: ${{ github.workspace }}/_site
@@ -103,7 +105,7 @@ jobs:
 
   web:
     name: الويب (GitHub Pages)
-    needs: [web-tests, android-emulator]  # 9.39.3: لا نشر للموقع قبل نجاح كل الاختبارات
+    needs: [web-tests, webkit, android-emulator]  # 9.39.3: لا نشر للموقع قبل نجاح كل الاختبارات (9.41.3: ومنها Safari)
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -153,10 +155,14 @@ jobs:
       - name: توليد مشروع أندرويد وترقيعه
         working-directory: native/android
         run: |
-          npm install --no-audit --no-fund
+          # 9.41.3: بملف القفل تُثبَّت الإصدارات نفسها في كل بناء؛ وإن غاب يُولَّد ويُرفع ليُضاف إلى المستودع
+          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
           npx cap add android
           node scripts/patch-android.mjs
           npx cap sync android
+      - name: ملف قفل الإصدارات (يُضاف إلى المستودع)
+        uses: actions/upload-artifact@v4
+        with: { name: android-package-lock, path: native/android/package-lock.json, if-no-files-found: warn }
       - name: مفتاح التوقيع (من الأسرار)
         id: key
         env:
@@ -233,7 +239,7 @@ jobs:
   release:
     name: إصدار GitHub
     if: (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.release) || startsWith(github.ref, 'refs/tags/')
-    needs: [web-tests, web, android, android-emulator]
+    needs: [web-tests, webkit, web, android, android-emulator]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -264,4 +270,4 @@ jobs:
             ${{ needs.android.outputs.signed != 'true' && '> ⚠️ **APK للاختبار فقط** (اسمه ينتهي بـ TEST-ONLY): موقَّع بمفتاح مؤقت. تحديثه إلى إصدار لاحق يتطلب إزالته، وهذا **يمسح تسجيلات الأطفال وتقدّمهم** على الجهاز. لا توزّعه على الأسر قبل إضافة مفتاح التوقيع الثابت.' || '' }}
 
             الإهداء يظهر «موثّقًا» فقط إن وقّعه معلم مسجَّل في `web/trusted-teachers.json` داخل هذا الإصدار.
-            سجل التغييرات: `docs/CHANGELOG_9.39.md`. المنهج لم يُعتمد علميًا بعد؛ الاستخدام الحالي للتجربة داخل الأسرة.
+            سجل التغييرات: `docs/README.md` (فهرس سجلات كل إصدار). المنهج لم يُعتمد علميًا بعد؛ الاستخدام الحالي للتجربة داخل الأسرة.

@@ -123,6 +123,7 @@ async function applyRestore(b){
     if (!have) delete st.studentAudios[k]; // تسجيل بلا صوت على هذا الجهاز لا يُعرض كأنه موجود
   }
   st.restored = cleanRestored({at: new Date().toISOString(), backupAt: b.at, app: b.app, nLog: st.respLog.length, lessons: lessons, mastered: mastered});
+  st.recipientOnboarded = true; // 9.41.3: طفل باسمه أكمل إعداده؛ فملف الإهداء لا يعامله بعد الاستعادة كمستلم جديد فيمسحه
   st.lastBackupAt = String(b.at || '').slice(0, 40); st.lessonsAtBackup = lessons; st.backupNagAt = lessons;
   STATE = st; recalcStats(); save();
   var done = function(){ alert('✅ اكتملت الاستعادة. الدروس المكتملة: ' + lessons + '، والتسجيلات: ' + put + '. سيُعاد فتح التطبيق.'); location.reload(); };
@@ -183,9 +184,16 @@ function maybeBackupReminder(){
   else if (PACK_DATA.packageType === 'student_returned') STATE.role = 'student';
   else if (PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true) STATE.role = 'friend';
   else if (PACK_DATA.packageType === 'student_fresh') STATE.role = 'student';
-  if (PACK_DATA.studentName && STATE.student.name && PACK_DATA.studentName !== STATE.student.name && detectMode() !== 'friend') {
-    STATE = {student:{name:'',gender:PACK_DATA.studentGender||'boy',photo:PACK_DATA.studentPhoto||null,supervisorName:'',supervisorGender:'boy'},progress:{},stats:{totalPoints:0,completedSections:0,perfectSections:0,totalAttempts:0},studentAudios:{},role:null,sawSplash:false,recipientOnboarded:false};
-    // Re-apply the package role after clearing stale local profile data.
+  var isReviewPack = PACK_DATA.packageType === 'student_submission' || PACK_DATA.packageType === 'teacher_review'; // مساحتها منفصلة من resolveInitialProfile
+  var samePackStudent = !!(PACK_DATA.studentId && ((STATE.student && STATE.student.id === String(PACK_DATA.studentId)) || CURRENT_PROFILE_ID === String(PACK_DATA.studentId)));
+  if (!isReviewPack && PACK_DATA.studentName && STATE.student.name && PACK_DATA.studentName !== STATE.student.name && detectMode() !== 'friend' && !samePackStudent) {
+    /* 9.41.3: الملف لطفل غير الطفل المحمَّل: لا يُمسح ملف المحمَّل، ويُفتح لصاحب الملف ملفه هو (بالمعرّف، أو باسمه
+       في الملفات القديمة)، أو ملف جديد إن لم يكن له ملف على الجهاز. ونفس الطفل الذي غيّر اسمه بعد الإرسال لا يدخل هنا */
+    var tid = PACK_DATA.studentId ? String(PACK_DATA.studentId) : profileIdForPackName(PACK_DATA.studentName);
+    var hadState = !!readStateAt(keysForId(tid).s);
+    switchStudentProfile(PACK_DATA.studentName, tid);
+    if (!hadState) STATE = {student:{name:'',gender:PACK_DATA.studentGender||'boy',photo:PACK_DATA.studentPhoto||null,supervisorName:'',supervisorGender:'boy'},progress:{},stats:{totalPoints:0,completedSections:0,perfectSections:0,totalAttempts:0},studentAudios:{},role:null,sawSplash:false,recipientOnboarded:false};
+    // Re-apply the package role (the profile now loaded is the file owner's own, or a fresh one).
     if (PACK_DATA.packageType === 'student_submission' || PACK_DATA.packageType === 'teacher_review') STATE.role = 'teacher';
     else if (PACK_DATA.packageType === 'student_returned') STATE.role = 'student';
     else if (PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true) STATE.role = 'friend';

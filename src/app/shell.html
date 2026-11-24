@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#283593">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src '@@SCRIPT_HASH@@'; style-src '@@STYLE_HASH@@'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">
-<title>تحفة الأطفال — تطبيق الطالب والمعلم v9.39</title>
+<title>تحفة الأطفال — تطبيق الطالب والمعلم</title>
 <style>
 @@STYLE@@</style>
 </head>
@@ -163,13 +163,12 @@
     <div class="app-header">
       <div class="avatar" data-style="background:linear-gradient(135deg,#7B1FA2,#AB47BC)"><span class="emoji">👨‍🏫</span></div>
       <div class="info"><h1>👨‍🏫 صفحة مراجعة المعلم</h1><div class="subtitle" id="review-student-name">—</div></div>
-      <button class="btn ghost sm" data-call="[&quot;goHome&quot;]" type="button">✕</button>
     </div>
     <div class="review-stats">
       <div class="num" id="review-approved-count">0</div>
       <div class="lbl">تسجيلات معتمدة</div>
     </div>
-    <div class="notice info">استمع لكل تسجيل. اعتمد أو ارفض. عند الرفض يجب إرفاق تعليق صوتي يوضح التصحيح.</div>
+    <div class="notice info">استمع لكل تسجيل. اعتمد أو ارفض. عند الرفض يجب إرفاق تعليق صوتي أو كتابي يوضح التصحيح.</div>
     <div class="card"><div class="form-group"><label>اسم المعلم المراجع</label><input id="review-teacher-name" type="text" maxlength="60" placeholder="اسم المعلم الذي راجع التسجيلات"></div><div class="form-group"><label>صورة المعلم / المعلمة</label><div class="photo-picker"><div class="photo-preview" data-style="width:76px;height:76px" data-call="[&quot;clickById&quot;,&quot;review-teacher-photo&quot;]"><span class="placeholder" id="review-teacher-photo-placeholder">👨‍🏫</span><img id="review-teacher-photo-img" class="hidden" alt=""></div><input type="file" id="review-teacher-photo" accept="image/*" class="hidden" data-change="handleReviewTeacherPhoto"></div></div></div>
     <div id="review-list"></div>
     <div class="card" data-style="margin-top:16px">
