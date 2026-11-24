@@ -155,14 +155,11 @@ jobs:
       - name: توليد مشروع أندرويد وترقيعه
         working-directory: native/android
         run: |
-          # 9.41.3: بملف القفل تُثبَّت الإصدارات نفسها في كل بناء؛ وإن غاب يُولَّد ويُرفع ليُضاف إلى المستودع
-          if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+          # 9.41.3: الإصدارات نفسها في كل بناء من ملف القفل في المستودع؛ وإن غاب الملف أو خالف package.json يتوقف البناء
+          npm ci --no-audit --no-fund
           npx cap add android
           node scripts/patch-android.mjs
           npx cap sync android
-      - name: ملف قفل الإصدارات (يُضاف إلى المستودع)
-        uses: actions/upload-artifact@v4
-        with: { name: android-package-lock, path: native/android/package-lock.json, if-no-files-found: warn }
       - name: مفتاح التوقيع (من الأسرار)
         id: key
         env:
