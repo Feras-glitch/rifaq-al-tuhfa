@@ -175,8 +175,8 @@ async def main():
         sw = open(os.path.join(SITE, 'sw.js'), encoding='utf-8').read()
         pre = json.loads(re.search(r'const PRECACHE = (\[.*?\]);', sw, re.S).group(1))
         size = sum(os.path.getsize(os.path.join(SITE, u[2:])) for u in pre)
-        rec('P1 precache holds one copy of the student app and no studio or trial (was 10.8 MB)',
-            './app/index.html' in pre and not [u for u in pre if 'studio' in u or 'trial' in u or 'template' in u or u.endswith('/app/')] and size < 2.2 * 1024 * 1024, (len(pre), round(size / 1048576, 2)))
+        rec('P1 precache holds the student app page and host template only, no studio or trial, no duplicate short paths (was 10.8 MB)',
+            './app/index.html' in pre and './app/template.txt' in pre and not [u for u in pre if 'studio' in u or 'trial' in u or u.endswith('/app/')] and size < 3.4 * 1024 * 1024, (len(pre), round(size / 1048576, 2)))
 
         # P2 + P3
         ctx = await b.new_context(locale='ar'); pg = await ctx.new_page(); await pg.goto(BASE + '/index.html')
@@ -189,14 +189,16 @@ async def main():
         off_app = await pg.evaluate("typeof STATE !== 'undefined' && document.querySelectorAll('[id^=view-]:not(.hidden)').length > 0")
         await pg.goto(BASE + '/index.html'); await pg.wait_for_timeout(300)
         tpl = await pg.evaluate("fetch('./app/template.txt').then(r => r.text()).then(t => [t.length > 1000000, t.indexOf('PACK_DATA_START') > 0], e => [String(e)])")
-        await pg.goto(BASE + '/studio/'); await pg.wait_for_timeout(500)
-        st_before = await pg.evaluate("document.title")
+        # الاستوديو: لا نسخة له في المخزن قبل أول فتح (وضع «دون إنترنت» في بعض إصدارات المتصفح لا يقطع طلبات عامل الخدمة، فنفحص المخزن نفسه)
+        HAS = "(async () => !!(await caches.match(new URL('./studio/', location.href).href)) || !!(await caches.match(new URL('./studio/index.html', location.href).href)))()"
+        st_before = await pg.evaluate(HAS)
         await ctx.set_offline(False); await pg.goto(BASE + '/studio/'); await pg.wait_for_timeout(1500)
-        await ctx.set_offline(True); await pg.goto(BASE + '/index.html'); await pg.goto(BASE + '/studio/'); await pg.wait_for_timeout(700)
+        await pg.goto(BASE + '/index.html'); await pg.wait_for_timeout(300); st_cached = await pg.evaluate(HAS)
+        await ctx.set_offline(True); await pg.goto(BASE + '/studio/'); await pg.wait_for_timeout(700)
         st_after = await pg.evaluate("document.title")
         await ctx.close()
-        rec('P2 offline: the student app opens from /app/ and the host template is served from the same cached copy', off_app and tpl == [True, True], (off_app, tpl))
-        rec('P3 offline: the studio falls back to the launcher until opened once online, then works', 'استوديو' not in st_before and 'استوديو' in st_after, (st_before, st_after))
+        rec('P2 offline: the student app opens from /app/ and the host template is served from the cache', off_app and tpl == [True, True], (off_app, tpl))
+        rec('P3 the studio is not downloaded up front; after one online visit it is cached and opens offline', st_before is False and st_cached is True and 'استوديو' in st_after, (st_before, st_cached, st_after))
         await b.close()
     finally:
         srv.terminate()

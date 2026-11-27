@@ -39,15 +39,15 @@ jobs:
         run: python3 -I tools/build.py --check
       - name: بناء الموقع (النسخة التجريبية، فالمحتوى كله ظاهر للاختبارات)
         run: python3 tools/build_web.py _site --channel beta
-      # 9.42: فاحص الكود على السكربت المبني. تقرير لا يوقف البناء في أول تشغيل؛ يصير بوابة بعد تنظيف ما يكشفه.
-      - name: فاحص الكود (ESLint، تقرير)
-        continue-on-error: true
+      # 9.42: فاحص الكود على السكربت المبني. أول تشغيل: 0 خطأ و8 تحذيرات، فصار بوابة: الخطأ (متغير غير معرّف مثلًا) يوقف البناء، والتحذير لا.
+      - name: فاحص الكود (ESLint)
         run: |
           L="$RUNNER_TEMP/lint"; mkdir -p "$L"; cp tools/lint/eslint.config.mjs "$L/"
           python3 -I tools/lint/extract_scripts.py "$L"
           cd "$L" && npm init -y >/dev/null && npm install --no-audit --no-fund eslint@9.14.0 globals@15.12.0 >/dev/null
-          npx eslint -f json -o report.json app.js studio.js host.js launcher.js sw.js || true
+          rc=0; npx eslint -f json -o report.json app.js studio.js host.js launcher.js sw.js || rc=$?
           python3 -I "$GITHUB_WORKSPACE/tools/lint/summarize.py" report.json
+          exit $rc
       - name: فحص المنهج ومحرك التقييم
         run: |
           node tools/qx_validate.js "curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json"

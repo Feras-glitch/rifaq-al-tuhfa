@@ -180,10 +180,10 @@ def main():
 
     with open(os.path.join(ROOT, "web", "sw.js"), encoding="utf-8") as fh:
         sw = fh.read()
-    # 9.42: يُخزَّن مسبقًا ما يحتاجه الطفل وفتح الملفات فقط، نسخة واحدة من كل ملف. الاستوديو والتجربة يُخزَّنان عند أول فتح،
-    # والمسارات المختصرة (/app/) وقالب المضيفة (app/template.txt) يخدمها عامل الخدمة من app/index.html (انظر web/sw.js).
+    # 9.42: يُخزَّن مسبقًا ما يحتاجه الطفل وفتح الملفات فقط. الاستوديو والتجربة يُخزَّنان عند أول فتح،
+    # والمسارات المختصرة (/app/) يخدمها عامل الخدمة من index.html نفسه بدل نسخة ثانية (انظر web/sw.js).
     LAZY = ("./studio/", "./trial/")
-    precache = sorted(u for u in set(copied) if not u.startswith(LAZY) and u != "./app/template.txt" and (not u.endswith("/") or u == "./"))
+    precache = sorted(u for u in set(copied) if not u.startswith(LAZY) and (not u.endswith("/") or u == "./"))
     sw = sw.replace("'__VERSION__'", json.dumps(version, ensure_ascii=False))
     sw = sw.replace("__PRECACHE__", json.dumps(precache, ensure_ascii=False, indent=2))
     sw = sw.replace("'__CACHE_PREFIX__'", json.dumps("rifaq-beta-" if channel == "beta" else "rifaq-"))

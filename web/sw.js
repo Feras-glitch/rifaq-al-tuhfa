@@ -39,20 +39,10 @@ self.addEventListener('fetch', (event) => {
   if (PREFIX === 'rifaq-' && url.pathname.startsWith(BETA_PATH)) return; // 9.39.14 (D8): للتجريبي عامله
 
   /* 9.42: التخزين المسبق كان 10.8 م.ب (تطبيق الطالب 3 نسخ، والاستوديو والتجربة نسختان لكل منهما). صار:
-     - تطبيق الطالب نسخة واحدة (app/index.html)؛ المسار المختصر (/app/) وقالب الصفحة المضيفة (app/template.txt) يُخدمان منها.
+     - تطبيق الطالب نسختان: الصفحة (app/index.html، ومنها يُخدم المسار المختصر /app/) وقالب الصفحة المضيفة (app/template.txt).
+       جُرّبت نسخة واحدة يُبنى منها ردّ القالب داخل عامل الخدمة، فعلّق طلب القالب في WebKit (اختبار الدخان W6)، فبقيت النسختان.
      - الاستوديو والتجربة لا يُنزَّلان مسبقًا؛ يُخزَّنان عند أول فتح لهما فيعملان بعدها دون إنترنت. */
   const cachedIndex = (path) => caches.match(new URL(path + 'index.html', url.origin).href);
-
-  if (url.pathname.endsWith('/app/template.txt')) {
-    event.respondWith((async () => {
-      const hit = await caches.match(req, { ignoreSearch: true });
-      if (hit) return hit;
-      const app = await caches.match(new URL('./app/index.html', self.registration.scope).href);
-      if (app) return new Response(await app.clone().blob(), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-      return fetch(req);
-    })());
-    return;
-  }
 
   /* التنقل: نخدم الصفحة من المخزن، فإن لم تكن فيه نجلبها ونخزّنها، وإن تعذّر نرجع لصفحة الإطلاق. */
   if (req.mode === 'navigate') {
