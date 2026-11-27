@@ -13,7 +13,7 @@ import asyncio, os, sys, tempfile
 from playwright.async_api import async_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = open(os.path.join(ROOT, 'app', 'تطبيق_الطالب_والمعلم_v9.39.html'), encoding='utf-8').read()
+SRC = open(os.path.join(ROOT, 'app', 'تطبيق_الطالب_والمعلم.html'), encoding='utf-8').read()
 TMP = tempfile.mkdtemp(prefix='rifaq_profiles_')
 R = []
 def rec(n, ok, d=''):

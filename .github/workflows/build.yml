@@ -39,6 +39,15 @@ jobs:
         run: python3 -I tools/build.py --check
       - name: بناء الموقع (النسخة التجريبية، فالمحتوى كله ظاهر للاختبارات)
         run: python3 tools/build_web.py _site --channel beta
+      # 9.42: فاحص الكود على السكربت المبني. تقرير لا يوقف البناء في أول تشغيل؛ يصير بوابة بعد تنظيف ما يكشفه.
+      - name: فاحص الكود (ESLint، تقرير)
+        continue-on-error: true
+        run: |
+          L="$RUNNER_TEMP/lint"; mkdir -p "$L"; cp tools/lint/eslint.config.mjs "$L/"
+          python3 -I tools/lint/extract_scripts.py "$L"
+          cd "$L" && npm init -y >/dev/null && npm install --no-audit --no-fund eslint@9.14.0 globals@15.12.0 >/dev/null
+          npx eslint -f json -o report.json app.js studio.js host.js launcher.js sw.js || true
+          python3 -I "$GITHUB_WORKSPACE/tools/lint/summarize.py" report.json
       - name: فحص المنهج ومحرك التقييم
         run: |
           node tools/qx_validate.js "curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json"
@@ -76,6 +85,10 @@ jobs:
         run: python3 -I tests/test_studio_team.py
       - name: ملفات الأطفال على جهاز واحد والشهادة والأبيات (9.41.3)
         run: python3 -I tests/test_profiles.py
+      - name: حماية تقدّم الطفل (نافذتان، لقطة احتياطية، حذف كامل)
+        run: python3 -I tests/test_data_safety.py
+      - name: واجهة الأسرة والمعلم والتخزين المسبق (الموافقة، الرمز، الخريطة، القائمة المطوية، العمل دون إنترنت)
+        run: python3 -I tests/test_family_ux.py
       - name: مسارات التطبيق الكاملة (الطالب، المعلم، الاستوديو، الإهداء)
         env:
           RIFAQ_SITE: ${{ github.workspace }}/_site
@@ -122,7 +135,7 @@ jobs:
           cp -r _beta _site/beta
       - name: نشر الموقع كاملًا على gh-pages
         if: inputs.publish_main || startsWith(github.ref, 'refs/tags/')
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4 (9.42: أدوات الطرف الثالث مثبّتة ببصمة الإيداع)
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_site
@@ -130,7 +143,7 @@ jobs:
           commit_message: 'نشر الموقع للجميع ${{ github.sha }}'
       - name: نشر النسخة التجريبية وحدها في /beta/
         if: ${{ !(inputs.publish_main || startsWith(github.ref, 'refs/tags/')) }}
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4 (9.42: أدوات الطرف الثالث مثبّتة ببصمة الإيداع)
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./_beta
@@ -218,7 +231,7 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
-      - uses: reactivecircus/android-emulator-runner@v2
+      - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 34
           arch: x86_64
@@ -248,7 +261,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: android-apk, path: dist }
       - run: ls -la dist
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.v.outputs.tag }}
           target_commitish: ${{ github.sha }}

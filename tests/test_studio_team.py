@@ -7,7 +7,7 @@ import asyncio, json, os, struct, sys, tempfile
 from playwright.async_api import async_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STUDIO = 'file://' + os.path.join(ROOT, 'studio', 'استوديو_المشرف_v9.39.html')
+STUDIO = 'file://' + os.path.join(ROOT, 'studio', 'استوديو_المشرف.html')
 ARGS = ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']
 R = []
 def rec(n, ok, d=''):

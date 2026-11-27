@@ -87,13 +87,13 @@ for qid in IDS:
 
 # النسخ الأخرى مطابقة للمصدر
 RX = re.compile(r'(var PACK_DATA = )(.*?)(;\n/\* ===PACK_DATA_END)', re.S)
-for f in ['app/تطبيق_الطالب_والمعلم_v9.39.html', 'app/تجربة_المرحلة1_للهاتف_v9.39.html']:
+for f in ['app/تطبيق_الطالب_والمعلم.html', 'app/تجربة_المرحلة1_للهاتف.html']:
     pk = json.loads(RX.search(open(f, encoding='utf-8').read()).group(2))
     s = [x for x in pk['curriculum'] if x['id'] == 's3_idgham'][0]
     for q in s['questions']:
         if q['id'] in IDS and json.dumps(q, ensure_ascii=False, sort_keys=True) != json.dumps(Q[q['id']], ensure_ascii=False, sort_keys=True):
             err(q['id'], 'نسخة %s تختلف عن المصدر' % os.path.basename(f))
-st = open('studio/استوديو_المشرف_v9.39.html', encoding='utf-8').read()
+st = open('studio/استوديو_المشرف.html', encoding='utf-8').read()
 cur = json.loads(re.search(r'^var CURRICULUM = (.*);$', st, re.M).group(1))
 for q in [x for x in cur if x['id'] == 's3_idgham'][0]['questions']:
     if q['id'] in IDS and json.dumps(q, ensure_ascii=False, sort_keys=True) != json.dumps(Q[q['id']], ensure_ascii=False, sort_keys=True):

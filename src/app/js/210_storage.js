@@ -110,10 +110,64 @@ function normalizeState(raw){
   if (raw.restored && typeof raw.restored === 'object') base.restored = cleanRestored(raw.restored);
   return base;
 }
+/* ===== 9.42: حماية تقدّم الطفل =====
+   (1) رقم تسلسلي مع كل حفظ: نافذة حمّلت حالة أقدم مما في التخزين لا تكتب فوقه، بل تعيد التحميل (كانت تمسح دروسًا أُكملت في نافذة أخرى).
+   (2) لقطة احتياطية يومية من آخر حالة محفوظة، وقبل أي استبدال للحالة؛ تُعرض استعادتها إن فُتح التطبيق بلا طفل أو بحالة تالفة.
+   المفاتيح المرافقة لمفتاح الحالة: _rev (الرقم)، _snap (اللقطة)، _corrupt (حالة تعذّرت قراءتها). تُحذف كلها مع حذف بيانات الطفل. */
+var LOADED_REV = 0, STALE_TAB = false, NEED_FRESH = false, LOAD_FAILED = false, SNAP_CHECKED = '';
+function revKey(k){ return k + '_rev'; }
+function snapKey(k){ return k + '_snap'; }
+function storedRev(){ try { return Number(localStorage.getItem(revKey(STORAGE_KEY))) || 0; } catch(e){ return 0; } }
+function removeStateKeys(k){ if (!k) return; [k, revKey(k), snapKey(k), k + '_corrupt'].forEach(function(x){ try { localStorage.removeItem(x); } catch(e){} }); }
+function stateWeight(st){ try { return Object.keys(st.progress || {}).length * 5 + Object.keys(st.studentAudios || {}).length * 5 + ((st.respLog || []).length); } catch(e){ return 0; } }
+function readSnapshot(k){
+  try { var s = JSON.parse(localStorage.getItem(snapKey(k || STORAGE_KEY)) || 'null'); return (s && typeof s.raw === 'string' && typeof s.day === 'string') ? s : null; } catch(e){ return null; }
+}
+function takeSnapshot(force){
+  try {
+    var day = new Date().toISOString().slice(0, 10), tag = STORAGE_KEY + '|' + day;
+    if (!force && SNAP_CHECKED === tag) return false;                                         // لقطة اليوم موجودة: لا قراءة مع كل حفظ
+    var old = readSnapshot();
+    if (!force && old && old.day === day){ SNAP_CHECKED = tag; return false; }
+    var raw = localStorage.getItem(STORAGE_KEY); if (!raw) return false;
+    var st = JSON.parse(raw); if (!st || !st.student || !st.student.name) return false;       // لا لقطة لحالة بلا طفل
+    if (old){ var os = null; try { os = JSON.parse(old.raw); } catch(e){}
+      if (os && stateWeight(os) > 0 && stateWeight(st) === 0) return false; }                // لقطة فيها تقدّم لا تُستبدل بحالة فارغة
+    localStorage.setItem(snapKey(STORAGE_KEY), JSON.stringify({day: day, at: new Date().toISOString(), name: String(st.student.name).slice(0, 80), raw: raw}));
+    SNAP_CHECKED = tag;
+    return true;
+  } catch(e){ return false; }
+}
+function restoreSnapshot(){
+  var s = readSnapshot(); if (!s) return false;
+  try { JSON.parse(s.raw); } catch(e){ return false; }
+  try {
+    localStorage.setItem(STORAGE_KEY, s.raw);
+    localStorage.setItem(revKey(STORAGE_KEY), String(storedRev() + 1));
+    sessionStorage.setItem('rifaq_note', '✅ استُعيدت النسخة المحفوظة بتاريخ ' + s.day + '.');
+  } catch(e){ return false; }
+  STALE_TAB = true; // لا حفظ من الذاكرة القديمة قبل إعادة التحميل
+  location.reload(); return true;
+}
+function staleTabReload(){
+  if (STALE_TAB) return; STALE_TAB = true;
+  try { sessionStorage.setItem('rifaq_note', '🔄 حُدّثت الصفحة لأن التطبيق مفتوح في نافذة أخرى. تقدّمك محفوظ.'); } catch(e){}
+  setTimeout(function(){ location.reload(); }, 60);
+}
+window.addEventListener('storage', function(e){
+  if (e.key !== revKey(STORAGE_KEY) || (Number(e.newValue) || 0) <= LOADED_REV) return;
+  if (document.visibilityState === 'hidden') NEED_FRESH = true; // نافذة في الخلفية تتحدّث حين يعود إليها الطفل
+});
+document.addEventListener('visibilitychange', function(){ if (NEED_FRESH && document.visibilityState === 'visible') staleTabReload(); });
 function save(){
   if (isCurrentChildDeleted()) return false; // 9.39.4: العلامة الدائمة تُفحص في كل نافذة، لا متغير هذه النافذة وحدها
+  if (STALE_TAB) return false;
   try {
+    var cur = storedRev();
+    if (cur > LOADED_REV){ staleTabReload(); return false; } // نافذة أخرى حفظت بعد أن حمّلت هذه النافذة حالتها
+    takeSnapshot(false);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+    LOADED_REV = cur + 1; localStorage.setItem(revKey(STORAGE_KEY), String(LOADED_REV));
     return true;
   } catch(e) {
     console.warn('localStorage save failed', e);
@@ -122,8 +176,25 @@ function save(){
   }
 }
 function load(){
+  LOADED_REV = storedRev(); LOAD_FAILED = false;
   try { var r = localStorage.getItem(STORAGE_KEY); if (r) STATE = normalizeState(JSON.parse(r)); else STATE = normalizeState(STATE); }
-  catch(e){ STATE = normalizeState(STATE); console.warn('state load failed', e); }
+  catch(e){
+    /* 9.42: حالة تعذّرت قراءتها تُحفظ جانبًا قبل أن يُكتب فوقها، وتُعرض استعادة اللقطة */
+    LOAD_FAILED = true;
+    try { var bad = localStorage.getItem(STORAGE_KEY); if (bad) localStorage.setItem(STORAGE_KEY + '_corrupt', bad.slice(0, 1500000)); } catch(_){}
+    STATE = normalizeState({}); console.warn('state load failed', e);
+  }
+}
+/* 9.42: بعد الإقلاع: رسالة من إعادة تحميل سابقة، وعرض استعادة اللقطة إن فُتح التطبيق بلا طفل وعلى الجهاز لقطة له */
+function afterBootChecks(){
+  try { var note = sessionStorage.getItem('rifaq_note'); if (note){ sessionStorage.removeItem('rifaq_note'); toast(note); } } catch(e){}
+  if (PACK_DATA.packageType === 'student_submission' || PACK_DATA.packageType === 'teacher_review' || isCurrentChildDeleted()) return;
+  var s = readSnapshot();
+  if (!s || (STATE.student && STATE.student.name)) return;
+  showModal('📦 وجدنا تقدّمًا محفوظًا', 'على هذا الجهاز نسخة محفوظة تلقائيًا لتقدّم «' + (s.name || 'طالب') + '» بتاريخ ' + s.day + (LOAD_FAILED ? '، وتعذّرت قراءة الحالة الحالية.' : '.') + ' هل تريد استعادتها؟', [
+    {label: '↩️ استعادة التقدّم', class: 'success', action: function(){ closeModal(); if (!restoreSnapshot()) alert('تعذّرت الاستعادة.'); }},
+    {label: 'لا، ابدأ من جديد', class: 'ghost', action: closeModal}
+  ]);
 }
 function syncPackStatuses(){
   // In an approved gift, inherited recordings are reference material only.
@@ -213,7 +284,7 @@ function deleteDbFully(name, stateKey){
   _dbDeleting[name] = new Promise(function(res, rej){
     var req = indexedDB.deleteDatabase(name);
     req.onsuccess = function(){
-      try { if (stateKey) localStorage.removeItem(stateKey); } catch(e){} // حالة ربما أعادت نافذة أخرى كتابتها قبل أن تعلم بالحذف
+      removeStateKeys(stateKey); // حالة ربما أعادت نافذة أخرى كتابتها قبل أن تعلم بالحذف (9.42: ومعها اللقطة والرقم)
       markPendingDbDelete(name, false); delete _dbDeleting[name]; res(true);
     };
     req.onerror = function(){ delete _dbDeleting[name]; rej(req.error || new Error('delete failed')); };
@@ -352,7 +423,7 @@ function resumePendingDeletions(){
   var mine = tombFor(DB_NAME, STORAGE_KEY);
   if (mine) CHILD_DATA_DELETED = true;
   tombs.forEach(function(t){
-    try { if (t.s) localStorage.removeItem(t.s); } catch(e){}
+    removeStateKeys(t.s);
     deleteDbFully(t.d, t.s).then(function(){ if (mine && (t.d === DB_NAME || t.s === STORAGE_KEY)){ alert('اكتمل حذف بيانات هذا الطالب من هذا الجهاز. سيُعاد فتح التطبيق.'); location.reload(); } }, function(e){ console.warn('pending delete failed', e); });
   });
   if (mine) setTimeout(function(){ if (tombFor(DB_NAME, STORAGE_KEY)) { try { showModal('⏳ حذف بيانات الطالب لم يكتمل', 'التطبيق مفتوح في نافذة أو تبويب آخر يمنع الحذف. أغلق النوافذ الأخرى؛ سيكتمل الحذف تلقائيًا. لن يُحفظ شيء لهذا الطالب حتى يكتمل.', [{label: 'حسنًا', class: 'primary', action: closeModal}]); } catch(e){} } }, 1200);

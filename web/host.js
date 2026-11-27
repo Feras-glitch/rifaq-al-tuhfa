@@ -288,7 +288,7 @@
   }
 
   /* ---------- الملفات الأخيرة (IndexedDB على هذا الجهاز) ---------- */
-  var DB = (BETA ? 'beta_' : '') + 'rifaq_host_v1', STORE = 'recent', MAX_RECENT = 12; // 9.39.14 (D8): «الأخيرة» منفصلة في التجريبي
+  var DB = (BETA ? 'beta_' : '') + 'rifaq_host_v1', STORE = 'recent', MAX_RECENT = 12, MAX_RECENT_BYTES = 150 * 1024 * 1024; // 9.39.14 (D8): «الأخيرة» منفصلة في التجريبي
   // DECISION-003: تسجيلات الطلاب لا تبقى على جهاز المعلم أكثر من 30 يومًا؛ نسخ «الملفات الأخيرة» تُحذف تلقائيًا بعدها
   var RECENT_TTL_MS = 30 * 24 * 3600 * 1000;
   function db() {
@@ -328,7 +328,9 @@
         return tx('readwrite', function (s) { s.put(rec); });
       }).then(function () {
         return listRecent().then(function (all) {
-          var extra = all.slice(MAX_RECENT);
+          /* 9.42: حد بالحجم الكلي أيضًا (كان 12 ملفًا مهما كبرت): الأقدم يُحذف حين يتجاوز المجموع 150 ميغابايت، ويبقى الأحدث دائمًا */
+          var extra = all.slice(MAX_RECENT), kept = all.slice(0, MAX_RECENT), sum = 0;
+          kept.forEach(function (r, i) { sum += (r.size || 0) * 2; if (i > 0 && sum > MAX_RECENT_BYTES) extra.push(r); });
           if (!extra.length) return;
           return tx('readwrite', function (s) { extra.forEach(function (r) { s.delete(r.id); }); });
         });

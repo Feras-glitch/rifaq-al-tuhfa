@@ -43,7 +43,7 @@ shutil.rmtree(tmp)
 # S6: الواجهة في الاستوديو المبني نفسه: فتح المراجعة دون إعداد، قرار، رفض «تعديل» بلا ملاحظة، تصدير ملف يقبله الدمج
 try:
     from playwright.sync_api import sync_playwright
-    studio = os.path.join(ROOT, 'studio', 'استوديو_المشرف_v9.39.html')
+    studio = os.path.join(ROOT, 'studio', 'استوديو_المشرف.html')
     with sync_playwright() as p:
         b = p.chromium.launch(); pg = b.new_page(accept_downloads=True); errs = []; dialogs = []
         pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: (dialogs.append(d.message), d.accept()))

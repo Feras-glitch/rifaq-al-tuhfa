@@ -40,7 +40,7 @@ async function makeBackup(withAudio){
   }
   var now = new Date().toISOString();
   var out = {type: BACKUP_TYPE, v: 1, app: APP_VERSION, at: now, packageId: String(PACK_DATA.packageId || PACKAGE_ID || ''), studentId: (STATE.student && STATE.student.id) || PACK_DATA.studentId || null,
-    student: String((STATE.student && STATE.student.name) || ''), state: st, audios: audios};
+    student: String((STATE.student && STATE.student.name) || ''), state: st, audios: audios, errlog: readErrLog()}; // 9.42: سجل الأعطال يسافر مع النسخة
   var nm = String((STATE.student && STATE.student.name) || 'طالب').replace(/[\\/:*?"<>|]/g, '_');
   downloadText('نسخة_احتياطية_' + nm + '_' + now.slice(0, 10) + '.json', JSON.stringify(out));
   STATE.lastBackupAt = now; STATE.lessonsAtBackup = lessonsDoneCount(); STATE.backupNagAt = STATE.lessonsAtBackup; save();
@@ -112,6 +112,7 @@ async function applyRestore(b){
     'إن كان لهذا الطالب تقدّم على هذا الجهاز فستحل النسخة محله. والمعلم سيرى أن التقدّم مستعاد من نسخة احتياطية.')) return null;
   var keepPin = STATE.student && STATE.student.guardianPin;
   switchStudentProfile(st.student.name, bid || CURRENT_PROFILE_ID || newStudentId());
+  takeSnapshot(true); // 9.42: التقدّم الذي ستحل النسخة محله يبقى في اللقطة
   st.student.id = CURRENT_PROFILE_ID;
   if (keepPin) st.student.guardianPin = keepPin;
   var put = 0, audios = (b.audios && typeof b.audios === 'object') ? b.audios : {};
@@ -133,26 +134,62 @@ async function applyRestore(b){
 /* أزرار في إعدادات ولي الأمر: النسخة الاحتياطية، والاستعادة، وتغيير الرمز */
 function guardianExtras(card, ov){
   var box = document.createElement('div'); box.id = 'gs-backup-box';
-  box.style.cssText = 'border-top:1px solid #e0e0e0;margin-top:10px;padding-top:8px';
+  box.style.cssText = 'border-top:1px solid #e0e0e0;margin-top:14px;padding-top:10px';
+  var hh = document.createElement('h4'); hh.style.cssText = 'margin:0 0 4px;color:#283593;font-size:.98rem'; hh.textContent = '📦 النسخ والاستعادة'; box.appendChild(hh);
   var h = document.createElement('p'); h.style.cssText = 'margin:4px 0;font-size:.9rem';
-  h.textContent = '📦 النسخة الاحتياطية: تحفظ تقدّم الطفل في ملف ليُستعاد إن مُسح التطبيق أو تغيّر الهاتف.' + (STATE.lastBackupAt ? ' آخر نسخة: ' + String(STATE.lastBackupAt).slice(0, 10) + '.' : ' لم تُحفظ نسخة بعد.');
+  h.textContent = 'النسخة الاحتياطية: تحفظ تقدّم الطفل في ملف ليُستعاد إن مُسح التطبيق أو تغيّر الهاتف.' + (STATE.lastBackupAt ? ' آخر نسخة: ' + String(STATE.lastBackupAt).slice(0, 10) + '.' : ' لم تُحفظ نسخة بعد.');
   box.appendChild(h);
-  var lab = document.createElement('label'); lab.style.cssText = 'display:flex;gap:8px;align-items:center;font-size:.85rem;margin:4px 0';
-  var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'gs-backup-audio'; lab.appendChild(cb); lab.appendChild(document.createTextNode('مع التسجيلات الصوتية (ملف أكبر)'));
+  var lab = document.createElement('label'); lab.style.cssText = 'display:flex;gap:10px;align-items:center;font-size:.85rem;margin:6px 0';
+  var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'gs-backup-audio'; cb.style.cssText = 'width:24px;height:24px;flex:none'; lab.appendChild(cb); lab.appendChild(document.createTextNode('مع التسجيلات الصوتية (ملف أكبر)'));
   box.appendChild(lab);
   var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
   var mk = function(id, t, fn){ var x = document.createElement('button'); x.type = 'button'; x.id = id; x.className = 'btn'; x.textContent = t; x.onclick = fn; row.appendChild(x); return x; };
   mk('gs-backup', '📦 حفظ نسخة احتياطية', function(){ makeBackup(cb.checked); });
   mk('gs-restore', '📥 استعادة من نسخة', function(){ ov.remove(); restoreBackupPick(); });
   if (guardianPinSet()) mk('gs-pin', '🔑 تغيير رمز ولي الأمر', function(){ ov.remove(); pinSetupDialog(function(){}, 'ضع الرمز الجديد (4 أرقام).'); });
+  /* 9.42: اللقطة التلقائية، ودليل الانتقال إلى جهاز آخر */
+  var snap = readSnapshot();
+  if (snap) mk('gs-snap', '↩️ استعادة اللقطة التلقائية (' + snap.day + ')', function(){
+    if (confirm('استعادة تقدّم «' + (snap.name || '') + '» كما كان في ' + snap.day + '؟ سيحل محل التقدّم الحالي على هذا الجهاز.')){ ov.remove(); if (!restoreSnapshot()) alert('تعذّرت الاستعادة.'); } });
+  mk('gs-move', '📲 الانتقال إلى جهاز آخر', function(){ showMoveDeviceGuide(); });
+  var errs = readErrLog();
+  if (errs.length) mk('gs-errlog', '🐞 سجل الأعطال (' + errs.length + ')', function(){
+    var txt = errs.slice(-8).map(function(x){ return x.t + ' · ' + x.m + (x.w ? ' @' + x.w : '') + (x.n > 1 ? ' ×' + x.n : '') + ' · ' + (x.v || ''); }).join('\n');
+    showModal('🐞 سجل الأعطال', 'آخر ما سُجّل على هذا الجهاز. انسخه وأرسله لمن يصون التطبيق:\n' + txt, [
+      {label: '📋 نسخ', class: 'primary', action: function(){ try { navigator.clipboard.writeText(JSON.stringify(errs)).then(function(){ toast('نُسخ السجل.'); }, function(){ toast('تعذّر النسخ.'); }); } catch(e){ toast('تعذّر النسخ.'); } }},
+      {label: '🗑️ مسح السجل', class: 'ghost', action: function(){ try { localStorage.removeItem(ERRLOG_KEY); } catch(e){} closeModal(); }},
+      {label: 'إغلاق', class: 'ghost', action: closeModal}]);
+  });
   box.appendChild(row);
-  var last = card.lastElementChild;
-  if (last) card.insertBefore(box, last); else card.appendChild(box);
+  var slot = card.querySelector('#gs-extras-slot'), last = card.lastElementChild;
+  if (slot) slot.appendChild(box); else if (last) card.insertBefore(box, last); else card.appendChild(box);
+}
+/* 9.42: أربع خطوات فوق النسخة الاحتياطية الموجودة، بدل أن يستنتجها ولي الأمر */
+function showMoveDeviceGuide(){
+  var old = document.getElementById('move-guide'); if (old) old.remove();
+  var ov = document.createElement('div'); ov.id = 'move-guide'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'الانتقال إلى جهاز آخر');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  var card = document.createElement('div'); card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:420px;width:100%;padding:18px;line-height:1.9;max-height:92vh;overflow:auto';
+  var h = document.createElement('h3'); h.style.cssText = 'margin:0 0 8px'; h.textContent = '📲 الانتقال إلى جهاز آخر'; card.appendChild(h);
+  var add = function(tag, text, css){ var e = document.createElement(tag); if (css) e.style.cssText = css; e.textContent = text; card.appendChild(e); return e; };
+  add('p', 'على هذا الجهاز:', 'margin:6px 0 2px;font-weight:800');
+  var l1 = document.createElement('ol'); l1.style.cssText = 'margin:0;padding-inline-start:1.4em';
+  ['اضغط الزر أدناه لحفظ نسخة فيها التقدّم والتسجيلات.', 'أرسل الملف إلى الجهاز الجديد (واتساب، بريد، أو أي وسيلة).'].forEach(function(t){ var li = document.createElement('li'); li.textContent = t; l1.appendChild(li); });
+  card.appendChild(l1);
+  add('p', 'على الجهاز الجديد:', 'margin:10px 0 2px;font-weight:800');
+  var l2 = document.createElement('ol'); l2.start = 3; l2.style.cssText = 'margin:0;padding-inline-start:1.4em';
+  ['افتح رفاق التحفة، وفي شاشة «قبل أن نبدأ» اضغط «عندي نسخة احتياطية».', 'اختر الملف. يعود التقدّم والتسجيلات، ثم تضع رمز ولي الأمر من جديد.'].forEach(function(t){ var li = document.createElement('li'); li.textContent = t; l2.appendChild(li); });
+  card.appendChild(l2);
+  add('p', 'بعد التأكد من الجهاز الجديد يمكنك حذف البيانات من هذا الجهاز من قسم «حذف البيانات».', 'margin:10px 0;font-size:.85rem;color:#555');
+  var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end';
+  var go = document.createElement('button'); go.type = 'button'; go.id = 'move-backup'; go.className = 'btn success'; go.textContent = '📦 احفظ النسخة الآن (مع التسجيلات)'; go.onclick = function(){ makeBackup(true); };
+  var cl = document.createElement('button'); cl.type = 'button'; cl.id = 'move-close'; cl.className = 'btn'; cl.textContent = 'إغلاق'; cl.onclick = function(){ ov.remove(); };
+  row.appendChild(go); row.appendChild(cl); card.appendChild(row); ov.appendChild(card); document.body.appendChild(ov);
 }
 /* تذكير لطيف بعد كل درسين جديدين منذ آخر نسخة */
 function maybeBackupReminder(){
   var n = lessonsDoneCount(), base = Math.max(Number(STATE.lessonsAtBackup) || 0, Number(STATE.backupNagAt) || 0);
-  if (n - base < 2) return;
+  if (n - base < (STORAGE_PERSISTED === false && isIosBrowserTab() ? 1 : 2)) return; // 9.42: التذكير أبكر حيث التخزين مهدَّد بالمحو
   STATE.backupNagAt = n; save();
   var res = document.getElementById('view-results'); if (!res) return;
   var old = document.getElementById('backup-reminder'); if (old) old.remove();
@@ -170,6 +207,8 @@ function maybeBackupReminder(){
   QPC_LOADING = new Promise(function(r){ setTimeout(r, 150); }).then(qpcInit); // 9.39.17
   QPC_LOADING.then(function(){ try { qpcRefreshVisible(); } catch(e){} }); // 9.41.1
   setTimeout(showDueReviewBanner, 1200);
+  setTimeout(afterBootChecks, 600); // 9.42
+  applyBigText();
   if (PACK_DATA.packageType === 'approved_gift' || PACK_DATA.approved === true){
     try { GIFT_TRUST = await verifyGiftPack(PACK_DATA); } catch(e){ GIFT_TRUST = 'invalid'; }
     try { refreshGiftContentsBox(); } catch(e){}
@@ -230,6 +269,7 @@ function maybeBackupReminder(){
   }
   if (mode === 'friend'){
     // An approved gift is a reusable educational package, not the giver's student file.
+    if (STATE.student && STATE.student.name) takeSnapshot(true); // 9.42: لا يُمسح ملف مسمّى بلا لقطة
     STATE.student = {name:'', gender:'boy', photo:null, supervisorName:'', supervisorGender:'boy'};
     STATE.progress = {};
     STATE.stats = {totalPoints:0,completedSections:0,perfectSections:0,totalAttempts:0};
@@ -247,6 +287,7 @@ function maybeBackupReminder(){
     applyTheme();
     show('view-home');
     renderHome();
+    maybeShowProfileChooser(); // 9.42
     return;
   }
   buildSplash();

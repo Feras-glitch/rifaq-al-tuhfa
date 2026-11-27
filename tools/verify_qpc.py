@@ -18,8 +18,8 @@ CURR = 'curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json'
 TANZIL = 'curriculum/نص_القرآن_تنزيل_العثماني.json'
 VERSES = 'curriculum/qpc/qpc_verses.json'
 FONTS = 'curriculum/qpc/qpc_fonts.json'
-APP = ['app/تطبيق_الطالب_والمعلم_v9.39.html', 'app/تجربة_المرحلة1_للهاتف_v9.39.html']
-STUDIO = 'studio/استوديو_المشرف_v9.39.html'
+APP = ['app/تطبيق_الطالب_والمعلم.html', 'app/تجربة_المرحلة1_للهاتف.html']
+STUDIO = 'studio/استوديو_المشرف.html'
 
 ERR = []
 def bad(msg): ERR.append(msg)

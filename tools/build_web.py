@@ -21,9 +21,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # المصدر الموثوق → المسار على الموقع
 PAGES = {
-    "app/تطبيق_الطالب_والمعلم_v9.39.html": "app/index.html",
-    "studio/استوديو_المشرف_v9.39.html": "studio/index.html",
-    "app/تجربة_المرحلة1_للهاتف_v9.39.html": "trial/index.html",
+    "app/تطبيق_الطالب_والمعلم.html": "app/index.html",
+    "studio/استوديو_المشرف.html": "studio/index.html",
+    "app/تجربة_المرحلة1_للهاتف.html": "trial/index.html",
 }
 
 STATIC = ["index.html", "launcher.css", "launcher.js", "manifest.webmanifest",
@@ -31,7 +31,7 @@ STATIC = ["index.html", "launcher.css", "launcher.js", "manifest.webmanifest",
 
 
 def app_version():
-    src = os.path.join(ROOT, "app", "تطبيق_الطالب_والمعلم_v9.39.html")
+    src = os.path.join(ROOT, "app", "تطبيق_الطالب_والمعلم.html")
     with open(src, encoding="utf-8") as fh:
         m = re.search(r"var APP_VERSION = '([^']+)'", fh.read())
     return m.group(1) if m else "0"
@@ -105,7 +105,7 @@ def main():
             pv = json.load(fh).get("version")
         if pv != ver:
             raise SystemExit("رقم الإصدار غير متسق: APP_VERSION=%s و%s=%s" % (ver, pj, pv))
-    with open(os.path.join(ROOT, "studio", "استوديو_المشرف_v9.39.html"), encoding="utf-8") as fh:
+    with open(os.path.join(ROOT, "studio", "استوديو_المشرف.html"), encoding="utf-8") as fh:
         sm = re.search(r"var APP_VERSION = '([^']+)'", fh.read())
     if not sm or sm.group(1) != ver:
         raise SystemExit("رقم إصدار الاستوديو غير متسق مع التطبيق")
@@ -159,7 +159,7 @@ def main():
         copied.append("./" + os.path.dirname(dst_rel) + "/")
 
     # 3ب) قالب التطبيق الموثوق للصفحة المضيفة (نص خام، فلا يحقن فيه غلاف أندرويد شيئًا)
-    tpl_src = os.path.join(ROOT, "app/تطبيق_الطالب_والمعلم_v9.39.html")
+    tpl_src = os.path.join(ROOT, "app/تطبيق_الطالب_والمعلم.html")
     shutil.copy2(tpl_src, os.path.join(out, "app", "template.txt"))
     set_channel(os.path.join(out, "app", "template.txt"), channel, html=True)
     check_csp(os.path.join(out, "app", "template.txt"))
@@ -180,7 +180,10 @@ def main():
 
     with open(os.path.join(ROOT, "web", "sw.js"), encoding="utf-8") as fh:
         sw = fh.read()
-    precache = sorted(set(copied))
+    # 9.42: يُخزَّن مسبقًا ما يحتاجه الطفل وفتح الملفات فقط، نسخة واحدة من كل ملف. الاستوديو والتجربة يُخزَّنان عند أول فتح،
+    # والمسارات المختصرة (/app/) وقالب المضيفة (app/template.txt) يخدمها عامل الخدمة من app/index.html (انظر web/sw.js).
+    LAZY = ("./studio/", "./trial/")
+    precache = sorted(u for u in set(copied) if not u.startswith(LAZY) and u != "./app/template.txt" and (not u.endswith("/") or u == "./"))
     sw = sw.replace("'__VERSION__'", json.dumps(version, ensure_ascii=False))
     sw = sw.replace("__PRECACHE__", json.dumps(precache, ensure_ascii=False, indent=2))
     sw = sw.replace("'__CACHE_PREFIX__'", json.dumps("rifaq-beta-" if channel == "beta" else "rifaq-"))

@@ -25,6 +25,18 @@ async def newpage(b, **kw):
     page.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
     return ctx, page, errs
 
+async def open_consent_form(fr):
+    """9.42: نموذج الموافقة خلف بطاقة الطفل ثم بوابة ولي الأمر (كان يظهر مباشرة بعد إدخال الاسم)"""
+    import re as _re
+    await fr.wait_for_selector('#consent-intro-yes', timeout=8000); await fr.click('#consent-intro-yes')
+    await fr.wait_for_selector('#parent-gate-q, #parent-gate-pin', timeout=5000)
+    if await fr.evaluate("!!document.getElementById('parent-gate-q')"):
+        q = await fr.inner_text('#parent-gate-q'); m = _re.findall(r'\d+', q)
+        await fr.fill('#parent-gate-answer', str(int(m[0]) * int(m[1])))
+    else:
+        await fr.fill('#parent-gate-pin', '2580')
+    await fr.click('#parent-gate-ok'); await fr.wait_for_selector('#consent-name', timeout=5000)
+
 async def setup_student(page, name='مريم أحمد', gender='girl', consent=True, share=True):
     await page.wait_for_timeout(500)
     await page.evaluate("continueFromSplash()")
@@ -32,6 +44,7 @@ async def setup_student(page, name='مريم أحمد', gender='girl', consent=T
     await page.click('#setup-' + ('girl' if gender == 'girl' else 'boy'))
     await page.evaluate("saveSetup()"); await page.wait_for_timeout(500)
     if consent:
+        await open_consent_form(page)
         await page.fill('#consent-name', 'أحمد محمود')
         if await page.evaluate("!!document.getElementById('consent-pin')"):  # 9.39.13 (D7)
             await page.fill('#consent-pin', '2580'); await page.fill('#consent-pin2', '2580')
@@ -42,7 +55,7 @@ async def setup_student(page, name='مريم أحمد', gender='girl', consent=T
             if not await c.is_checked(): await c.check()
         await page.get_by_text('حفظ وابدأ').click()
     else:
-        await page.evaluate("document.getElementById('consent-no') && document.getElementById('consent-no').click()")
+        await page.evaluate("['consent-no','consent-intro-no'].forEach(function(i){ var e = document.getElementById(i); if (e) e.click(); })")
     await page.wait_for_timeout(300)
 
 async def record(page, sec, item):
@@ -83,7 +96,7 @@ async def main():
         await page.click('#setup-girl'); ph1 = await page.get_attribute('#setup-name', 'placeholder')
         rec('T2 placeholder no template / feminine after girl', '{' not in ph0 and ph1 == 'اكتبي اسمك الكامل', (ph0, ph1))
         await page.fill('#setup-name', 'مريم أحمد'); await page.evaluate("saveSetup()"); await page.wait_for_timeout(400)
-        await page.evaluate("document.getElementById('consent-no') && document.getElementById('consent-no').click()")
+        await page.evaluate("['consent-no','consent-intro-no'].forEach(function(i){ var e = document.getElementById(i); if (e) e.click(); })")
         home = await page.inner_text('body')
         rec('T3 counters Arabic agreement', 'أسئلة' in home and ' سؤال\n' not in home and 'عنصر ·' not in home, re.findall(r'[^\n]*(?:سؤال|أسئلة|عنصر|عناصر)[^\n]*', home)[:3])
         # render all questions
@@ -255,15 +268,17 @@ async def main():
         await pD.evaluate("STATE.progress['s0_muqaddima']={done:true}; save()")
         await pD.evaluate("show('view-student-setup'); startNewStudent()"); await pD.wait_for_timeout(400)
         await pD.fill('#setup-name', 'طفل ثان'); await pD.evaluate("saveSetup()"); await pD.wait_for_timeout(400)
-        await pD.evaluate("document.getElementById('consent-no') && document.getElementById('consent-no').click()")
-        keys_before = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE) && !/_(idmap|active|active_id)$/.test(k))")  # 9.39.5: مفاتيح الحالة وحدها (لا خريطة المعرّفات)
+        await pD.evaluate("['consent-no','consent-intro-no'].forEach(function(i){ var e = document.getElementById(i); if (e) e.click(); })")
+        keys_before = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE) && !/_(idmap|active|active_id|rev|snap|corrupt|pin_fail|ios_hint|bigtext)$/.test(k))")  # 9.39.5: مفاتيح الحالة وحدها (لا خريطة المعرّفات)
         await pD.evaluate("deleteChildDataOnDevice()"); await pD.wait_for_timeout(2500)
-        keys_after = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE) && !/_(idmap|active|active_id)$/.test(k))")
+        keys_after = await pD.evaluate("Object.keys(localStorage).filter(k=>k.startsWith(STORAGE_BASE) && !/_(idmap|active|active_id|rev|snap|corrupt|pin_fail|ios_hint|bigtext)$/.test(k))")
         first_kept = False
         for k in keys_after:
             v = await pD.evaluate(f"localStorage.getItem('{k}')") or ''
             if 'طفل أول' in v: first_kept = True
-        rec('T17 R04 delete removes only current child', len(keys_before) >= 3 and len(keys_after) == len(keys_before) - 1 and first_kept, (keys_before, keys_after))
+        gone = [k for k in keys_before if k not in keys_after]   # 9.42: ومع الحالة رقمها ولقطتها الاحتياطية
+        companions = await pD.evaluate("k => [k + '_rev', k + '_snap', k + '_corrupt'].filter(x => localStorage.getItem(x) !== null)", gone[0]) if len(gone) == 1 else ['?']
+        rec('T17 R04 delete removes only current child', len(keys_before) >= 3 and len(keys_after) == len(keys_before) - 1 and first_kept and companions == [], (keys_before, keys_after, companions))
         await ctxD.close()
 
         # T18: lesson pagination preserved after recording

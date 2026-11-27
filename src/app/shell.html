@@ -61,6 +61,7 @@
     </div>
     <button class="btn primary block" data-call="[&quot;saveSetup&quot;]" type="button">🚀 لنبدأ الرحلة!</button>
     <button class="btn ghost block" id="btn-new-student" data-call="[&quot;startNewStudent&quot;]" type="button" data-style="margin-top:8px">👤 طالب جديد / تبديل الطالب</button>
+    <button class="btn ghost block hidden" id="btn-have-backup" data-call="[&quot;restoreBackupPick&quot;]" type="button" data-style="margin-top:8px;font-size:.88rem">📥 عندي نسخة احتياطية من جهاز آخر</button>
   </div>
 </div>
 
@@ -69,7 +70,9 @@
     <div class="app-header">
       <div class="avatar" id="home-avatar"></div>
       <div class="info"><h1 id="home-name">—</h1><div class="subtitle" id="home-sub">—</div></div>
+      <button class="btn ghost home-guardian" id="home-guardian-btn" data-call="[&quot;openGuardianSettings&quot;]" type="button">⚙️ ولي الأمر</button>
     </div>
+    <div id="home-extras"></div>
     <div class="card featured">
       <div data-style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <div data-style="font-weight:800;color:var(--primary)">📊 تقدمك</div>
@@ -107,7 +110,7 @@
     <div class="progress" data-style="margin-bottom:14px"><div id="quiz-progress" data-style="width:0%"></div></div>
     <div class="question-box" id="question-text">—</div>
     <div class="options" id="options"></div>
-    <div id="feedback-box"></div>
+    <div id="feedback-box" role="status" aria-live="polite"></div>
   </div>
 </div>
 
@@ -153,6 +156,7 @@
     <button class="btn block" data-style="margin-top:10px" data-call="[&quot;startFinalExam&quot;,2]" type="button" id="btn-final-exam-2">🎓 الاختبار النهائي — الجلسة الثانية</button>
     <button class="btn block" data-style="margin-top:10px" data-call="[&quot;startRetest&quot;]" type="button" id="btn-retest">🔁 إعادة المفاهيم المخفقة</button>
     <button class="btn block" data-style="margin-top:10px" data-call="[&quot;startReviewSession&quot;]" type="button" id="btn-review-session">🔄 جلسة المراجعة</button>
+    <button class="btn block" data-style="margin-top:10px" data-call="[&quot;toggleBigText&quot;]" type="button" id="btn-big-text" aria-pressed="false">🔎 تكبير الخط</button>
     <button class="btn block" data-style="margin-top:10px" data-call="[&quot;openGuardianSettings&quot;]" type="button" id="btn-guardian-settings">⚙️ إعدادات ولي الأمر</button><p data-style="font-size:.75rem;color:#777;text-align:center;margin:12px 0">نص القرآن: تنزيل — Tanzil Project (ترخيص CC BY 3.0) · tanzil.net</p>
     <button class="btn ghost block" data-style="margin-top:10px" data-call="[&quot;editProfile&quot;]" type="button">✏️ تعديل ملفي</button>
   </div>
@@ -256,7 +260,7 @@
   </div>
 </div>
 
-<div id="modal" class="modal-bg hidden">
+<div id="modal" class="modal-bg hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal">
     <h3 id="modal-title">—</h3>
     <p id="modal-body">—</p>

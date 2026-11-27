@@ -49,10 +49,23 @@ async def appframe(pg, tries=40, not_url=None):
         await pg.wait_for_timeout(150)
     raise RuntimeError('app frame not found')
 
+async def open_consent_form(fr):
+    """9.42: نموذج الموافقة خلف بطاقة الطفل ثم بوابة ولي الأمر (كان يظهر مباشرة بعد إدخال الاسم)"""
+    import re as _re
+    await fr.wait_for_selector('#consent-intro-yes', timeout=8000); await fr.click('#consent-intro-yes')
+    await fr.wait_for_selector('#parent-gate-q, #parent-gate-pin', timeout=5000)
+    if await fr.evaluate("!!document.getElementById('parent-gate-q')"):
+        q = await fr.inner_text('#parent-gate-q'); m = _re.findall(r'\d+', q)
+        await fr.fill('#parent-gate-answer', str(int(m[0]) * int(m[1])))
+    else:
+        await fr.fill('#parent-gate-pin', '2580')
+    await fr.click('#parent-gate-ok'); await fr.wait_for_selector('#consent-name', timeout=5000)
+
 async def setup_student(fr, name='مريم أحمد', share=True):
     await fr.evaluate("continueFromSplash()")
     await fr.fill('#setup-name', name); await fr.click('#setup-girl')
     await fr.evaluate("saveSetup()"); await fr.wait_for_timeout(400)
+    await open_consent_form(fr)
     await fr.fill('#consent-name', 'أحمد محمود')
     if await fr.evaluate("!!document.getElementById('consent-pin')"):  # 9.39.13 (D7)
         await fr.fill('#consent-pin', GUARDIAN_PIN); await fr.fill('#consent-pin2', GUARDIAN_PIN)
@@ -340,10 +353,10 @@ async def main():
                 await pC.goto(BASE + '/open.html?src=app'); frC = await appframe(pC)
                 await frC.evaluate("""STATE.student={name:'بلا موافقة',gender:'boy',id:'stu_x',consent:null};STATE.role='student';STATE.studentAudios={r2_1:{status:'pending',updatedAt:Date.now()}};save()""")
                 await frC.evaluate("doExportStudent('submission')"); await pC.wait_for_timeout(1500)
-                gate1 = await frC.evaluate("!!document.getElementById('consent-name')")
+                gate1 = await frC.evaluate("!!(document.getElementById('consent-name') || document.getElementById('consent-intro'))")
                 await frC.evaluate("closeModal()")
                 up = await frC.evaluate("""(async()=>{let f=new File([new Uint8Array(400)],'a.webm',{type:'audio/webm'});let put=0;let o=dbPut;dbPut=async function(){put++;return o.apply(this,arguments)};
-                    await uploadReplacementAudio({target:{files:[f],value:''}},'r3_1');dbPut=o;return [put,!!document.getElementById('consent-name')]})()""")
+                    await uploadReplacementAudio({target:{files:[f],value:''}},'r3_1');dbPut=o;return [put,!!(document.getElementById('consent-name') || document.getElementById('consent-intro'))]})()""")
                 await ctxC.close()
                 rec('R12 R11 consent gate enforced in export and file-upload functions', gate1 and not dls and up == [0, True], (gate1, len(dls), up))
             except Exception as e:
@@ -687,7 +700,7 @@ async def main():
                 ctxG, pG, _ = await ctx_page(b)
                 await pG.goto(BASE + '/open.html?src=app'); fG = await appframe(pG)
                 await ev(fG, "continueFromSplash()"); await fG.fill('#setup-name', 'هند'); await ev(fG, "saveSetup()"); await fG.wait_for_timeout(400)
-                await ev(fG, "document.getElementById('consent-no') && document.getElementById('consent-no').click()"); await fG.wait_for_timeout(300)
+                await ev(fG, "['consent-no','consent-intro-no'].forEach(function(i){ var e = document.getElementById(i); if (e) e.click(); })"); await fG.wait_for_timeout(300)
                 await ev(fG, "goHome()"); await fG.wait_for_timeout(300)
                 no_home_reset = await ev(fG, "document.querySelector('#view-home [data-call*=\"showReset\"]') === null && CALLABLE_ALLOW.indexOf('openGuardianSettingsInner') < 0")
                 await ev(fG, "openGuardianSettings()"); await fG.wait_for_timeout(200)
@@ -1027,6 +1040,7 @@ async def main():
                 ctxP, pP, errsP = await ctx_page(b)
                 await pP.goto(BASE + '/open.html?src=app'); fP = await appframe(pP)
                 await ev(fP, "continueFromSplash()"); await fP.fill('#setup-name', 'جنى'); await ev(fP, "saveSetup()"); await fP.wait_for_timeout(400)
+                await open_consent_form(fP)
                 await fP.fill('#consent-name', 'أبو جنى')
                 for c in [c for c in await fP.query_selector_all('input[type=checkbox]') if await c.is_visible()][:2]: await c.check()
                 errs_pin = []
@@ -1347,7 +1361,7 @@ async def main():
             ctxD, pD, errsD = await ctx_page(b)
             await pD.goto(BASE + '/open.html'); frD = await open_file(pD, gift)
             await frD.evaluate("continueFromSplash()"); await frD.fill('#setup-name', 'سارة'); await frD.evaluate("saveSetup()"); await pD.wait_for_timeout(400)
-            await frD.evaluate("document.getElementById('consent-no') && document.getElementById('consent-no').click()")
+            await frD.evaluate("['consent-no','consent-intro-no'].forEach(function(i){ var e = document.getElementById(i); if (e) e.click(); })")
             n_before = await pD.evaluate("new Promise(r=>{var q=indexedDB.open(RIFAQ_HOST.db);q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').count();t.onsuccess=()=>r(t.result)}})")
             await frD.evaluate("deleteChildDataOnDevice()"); await pD.wait_for_timeout(2500)
             n_after = await pD.evaluate("new Promise(r=>{var q=indexedDB.open(RIFAQ_HOST.db);q.onsuccess=()=>{var t=q.result.transaction('recent').objectStore('recent').count();t.onsuccess=()=>r(t.result)}})")

@@ -64,7 +64,7 @@ function show(id){
 }
 function toast(m){
   var e = document.createElement('div');
-  e.className = 'toast'; e.textContent = m;
+  e.className = 'toast'; e.textContent = m; e.setAttribute('role', 'status'); e.setAttribute('aria-live', 'polite'); // 9.42: يقرؤه قارئ الشاشة
   document.body.appendChild(e);
   setTimeout(function(){ e.remove(); }, 3000);
 }

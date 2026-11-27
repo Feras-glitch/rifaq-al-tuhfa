@@ -87,13 +87,25 @@ function showTeacherReview(){
 
   var approved = 0;
   var h = '';
+  /* 9.42: ملف فيه تسجيلات كثيرة يُعرض قائمة مطوية: سطر لكل تسجيل، وواحد مفتوح في كل مرة، وبعد القرار يُفتح التالي غير المراجَع.
+     (كان ملف 30 تسجيلًا 33 شاشة تمرير و480 زرًا، وكل مشغّلات الصوت تُنشأ عند الفتح.) المطوي لا يُرسم محتواه ولا صوته. */
+  var compact = items.length >= REVIEW_COMPACT_MIN, pendingIds = items.filter(function(x){ return (PACK_DATA.studentAudios[x.id].status || 'pending') === 'pending'; }).map(function(x){ return x.id; });
+  if (compact){
+    if (!REVIEW_OPEN || !items.some(function(x){ return x.id === REVIEW_OPEN; })) REVIEW_OPEN = pendingIds[0] || items[0].id;
+    h += '<div id="review-tools"><b id="review-progress">روجع ' + (items.length - pendingIds.length) + ' من ' + items.length + '</b>' +
+      '<button type="button" class="btn ghost' + (REVIEW_FILTER === 'all' ? ' on' : '') + '" ' + ACT('reviewFilter', 'all') + '>الكل</button>' +
+      '<button type="button" class="btn ghost' + (REVIEW_FILTER === 'pending' ? ' on' : '') + '" ' + ACT('reviewFilter', 'pending') + '>غير المراجَع (' + pendingIds.length + ')</button></div>';
+  }
   items.forEach(function(it){
     var rec = PACK_DATA.studentAudios[it.id];
     var status = rec.status || 'pending';
     if (status === 'approved') approved++;
-    h += '<div class="review-item ' + (status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : '') + '">';
-    h += '<div class="head"><div class="dot"></div><div class="label">' + escapeHTML(itemLabelById(it.id)) + '</div>';
+    var isOpen = !compact || it.id === REVIEW_OPEN;
+    if (compact && !isOpen && REVIEW_FILTER === 'pending' && status !== 'pending') return;
+    h += '<div class="review-item ' + (status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : '') + (isOpen ? '' : ' collapsed') + '" data-item="' + escapeHTML(it.id) + '">';
+    h += '<div class="head"' + (compact ? ACT('reviewOpen', it.id) + ' role="button" tabindex="0" aria-expanded="' + (isOpen ? 'true' : 'false') + '"' : '') + '><div class="dot"></div><div class="label">' + escapeHTML(itemLabelById(it.id)) + '</div>';
     h += '<div class="status ' + status + '">' + (status === 'approved' ? '✅ معتمد' : status === 'rejected' ? '❌ مرفوض' : '⏳ قيد المراجعة') + '</div></div>';
+    if (!isOpen){ h += '</div>'; return; }
     h += '<div class="text' + (it.type === 'quran' ? ' quran' : '') + '">' + (it.type === 'quran' ? quranHTML(it.text, it, it.id) : highlightPivot(it.text, it.id)) + '</div>'; // 9.39.15 (ق6-ب)، 9.39.17
     h += audioPersonBlock(PACK_DATA.studentPhoto, PACK_DATA.studentGender || 'boy', PACK_DATA.studentName || '', '🎙️ تسجيل الطالب / الطالبة', rec.audio, 'review-student-audio');
     if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[it.id] && PACK_DATA.studentAudios[it.id].partial) h += '<div class="notice warn" data-style="font-size:.85rem">⚠️ هذا التسجيل ناقص: انقطع الميكروفون أو خرج الطفل من التطبيق أثناءه.</div>';
@@ -109,7 +121,26 @@ function showTeacherReview(){
   $('review-list').innerHTML = h;
   $('review-approved-count').textContent = approved;
   show('view-teacher-review');
-  requestAnimationFrame(function(){ window.scrollTo(0, previousScroll); });
+  var goTo = REVIEW_SCROLL_TO; REVIEW_SCROLL_TO = null;
+  requestAnimationFrame(function(){
+    var el = goTo ? document.querySelector('#review-list .review-item[data-item="' + String(goTo).replace(/["\\]/g, '') + '"]') : null;
+    if (el && el.scrollIntoView){ el.scrollIntoView({block: 'start'}); window.scrollBy(0, -60); } else window.scrollTo(0, previousScroll);
+  });
+}
+var REVIEW_COMPACT_MIN = 7, REVIEW_OPEN = null, REVIEW_FILTER = 'all', REVIEW_SCROLL_TO = null;
+function reviewItemIds(){
+  var ids = [];
+  CURRICULUM.forEach(function(sec){ (sec.items || []).concat(sec.questions || []).forEach(function(x){ if (PACK_DATA.studentAudios && PACK_DATA.studentAudios[x.id]) ids.push(x.id); }); });
+  return ids;
+}
+function reviewOpen(id){ if (!PACK_DATA.studentAudios || !PACK_DATA.studentAudios[id]) return; REVIEW_OPEN = id; REVIEW_SCROLL_TO = id; showTeacherReview(); }
+function reviewFilter(f){ REVIEW_FILTER = f === 'pending' ? 'pending' : 'all'; showTeacherReview(); }
+/* بعد قرار على تسجيل: يُفتح التالي الذي لم يُراجَع (يدور إلى أول القائمة)، وإن رُوجع الكل يبقى الحالي مفتوحًا */
+function reviewAdvance(id){
+  var ids = reviewItemIds(); if (ids.length < REVIEW_COMPACT_MIN) return;
+  var i = ids.indexOf(id), order = ids.slice(i + 1).concat(ids.slice(0, i));
+  var next = order.filter(function(x){ return (PACK_DATA.studentAudios[x].status || 'pending') === 'pending'; })[0];
+  REVIEW_OPEN = next || id; REVIEW_SCROLL_TO = REVIEW_OPEN;
 }
 /* يُستدعى أثناء تعقيم الملف عند الإقلاع، قبل تعريف RATING_STATES، فلا يعتمد عليه */
 function normRating(v){ v = String(v || ''); if (v === 'notapplied') return 'needs'; return ({mastered: 1, good: 1, needs: 1, unusable: 1})[v] ? v : ''; }
@@ -149,6 +180,7 @@ function setReview(id, status){
   delete PACK_DATA.studentAudios[id].feedback;
   if (PACK_DATA.teacherNotes) delete PACK_DATA.teacherNotes[id];
   if (PACK_DATA.teacherFeedbacks) delete PACK_DATA.teacherFeedbacks[id];
+  reviewAdvance(id); var jumped = !!REVIEW_SCROLL_TO; // 9.42
   showTeacherReview();
-  requestAnimationFrame(function(){ window.scrollTo(0, reviewScroll); });
+  if (!jumped) requestAnimationFrame(function(){ window.scrollTo(0, reviewScroll); });
 }

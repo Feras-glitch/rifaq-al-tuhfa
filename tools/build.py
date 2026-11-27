@@ -15,7 +15,7 @@
   curriculum/rating_criteria.json   معايير تقييم التلاوة (المصدر الوحيد؛ منها أيضًا docs/TEACHER_RUBRIC.md)
 ويرفض البناء أي دالة عُرّفت مرتين في المستوى الأعلى من سكربت واحد، فلا تعود «طبقات الاستبدال»،
 وأي دالة في المستوى الأعلى كُتبت تعبيرًا (var f = function / const f = () =>) لأنها لا تُرفع فيكسر كود التحميل.
-المخرجات: app/تطبيق_الطالب_والمعلم_v9.39.html، app/تجربة_المرحلة1_للهاتف_v9.39.html، studio/استوديو_المشرف_v9.39.html
+المخرجات: app/تطبيق_الطالب_والمعلم.html، app/تجربة_المرحلة1_للهاتف.html، studio/استوديو_المشرف.html
 الاستعمال:  python3 -I tools/build.py          يبني ويكتب
             python3 -I tools/build.py --check  يتحقق أن الملفات المحفوظة مطابقة للمصادر (في CI)"""
 import base64, glob, hashlib, json, os, re, sys
@@ -24,9 +24,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUR = 'curriculum/منهج_المرحلة1_كامل_معتمد_v1.3.json'
 FONTS = 'curriculum/qpc/qpc_fonts.json'
 RATING = 'curriculum/rating_criteria.json'
-OUT_APP = 'app/تطبيق_الطالب_والمعلم_v9.39.html'
-OUT_TRIAL = 'app/تجربة_المرحلة1_للهاتف_v9.39.html'
-OUT_STUDIO = 'studio/استوديو_المشرف_v9.39.html'
+OUT_APP = 'app/تطبيق_الطالب_والمعلم.html'
+OUT_TRIAL = 'app/تجربة_المرحلة1_للهاتف.html'
+OUT_STUDIO = 'studio/استوديو_المشرف.html'
 
 
 def rd(p):

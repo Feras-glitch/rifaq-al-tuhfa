@@ -137,7 +137,7 @@ async function deleteChildDataOnDevice(){
   try { if (typeof _dbConn !== 'undefined' && _dbConn){ var db = await _dbConn; try { db.close(); } catch(e){} } } catch(e){}
   _dbConn = null; _dbConnName = null;
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    removeStateKeys(STORAGE_KEY); // 9.42: الحالة ولقطتها الاحتياطية معًا
     if (localStorage.getItem(ACTIVE_PROFILE_KEY) === INITIAL_PROFILE_NAME) localStorage.removeItem(ACTIVE_PROFILE_KEY);
   } catch(e){}
   await forgetInHost(PACK_DATA.packageId || PACKAGE_ID, PACK_DATA.studentId || (STATE.student && STATE.student.id) || null);

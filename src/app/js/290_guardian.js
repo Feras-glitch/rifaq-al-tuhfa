@@ -45,6 +45,15 @@ function arithmeticGate(onPass, purpose, waitSec){
   inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') check(); });
   try { inp.focus(); } catch(e){}
 }
+var PIN_FAIL_KEY = STORAGE_BASE + '_pin_fail';
+function pinFailState(){ try { var x = JSON.parse(localStorage.getItem(PIN_FAIL_KEY) || 'null'); return (x && typeof x === 'object') ? {n: Number(x.n) || 0, until: Number(x.until) || 0} : {n: 0, until: 0}; } catch(e){ return {n: 0, until: 0}; } }
+function pinFailClear(){ try { localStorage.removeItem(PIN_FAIL_KEY); } catch(e){} }
+function pinFailAdd(){
+  var s = pinFailState(); s.n++;
+  if (s.n % 3 === 0) s.until = Date.now() + (s.n <= 3 ? 30000 : s.n <= 6 ? 120000 : 600000);
+  try { localStorage.setItem(PIN_FAIL_KEY, JSON.stringify(s)); } catch(e){}
+  return s;
+}
 function guardianPinSet(){ var p = STATE.student && STATE.student.guardianPin; return !!(p && typeof p.h === 'string' && typeof p.s === 'string'); }
 function guardianPinProblem(a, b){
   a = toLatinDigits(a); b = toLatinDigits(b);
@@ -86,22 +95,28 @@ function pinGate(onPass, purpose){
   row.appendChild(ok); row.appendChild(cancel); g.card.appendChild(row);
   var forgot = document.createElement('button'); forgot.type = 'button'; forgot.id = 'parent-gate-forgot'; forgot.className = 'btn ghost'; forgot.textContent = 'نسيت الرمز؟';
   forgot.style.cssText = 'margin-top:8px;font-size:.85rem'; g.card.appendChild(forgot);
-  var tries = 0;
+  /* 9.42: عدّاد المحاولات محفوظ على الجهاز، فلا يصفّره «إلغاء» وإعادة الفتح (كان يسمح بمحاولات بلا حد)، والانتظار يطول: 30 ثانية ثم دقيقتان ثم 10 دقائق */
+  function lockTick(){
+    if (!document.body.contains(g.ov)) return;
+    var left = Math.ceil((pinFailState().until - Date.now()) / 1000);
+    if (left <= 0){ ok.disabled = false; inp.disabled = false; msg.textContent = ''; try { inp.focus(); } catch(e){} return; }
+    ok.disabled = true; inp.disabled = true;
+    msg.textContent = 'محاولات كثيرة. انتظر ' + (left >= 60 ? Math.ceil(left / 60) + ' دقيقة.' : left + ' ثانية.');
+    setTimeout(lockTick, 1000);
+  }
   async function check(){
     if (ok.disabled) return;
     var p = STATE.student.guardianPin, v = toLatinDigits(inp.value);
-    if (/^[0-9]{4}$/.test(v) && await guardianPinHash(v, p.s) === p.h){ g.ov.remove(); onPass(); return; }
-    tries++; inp.value = '';
-    if (tries >= 3){
-      ok.disabled = true; inp.disabled = true; msg.textContent = 'محاولات كثيرة. انتظر 30 ثانية.';
-      setTimeout(function(){ if (!document.body.contains(g.ov)) return; ok.disabled = false; inp.disabled = false; tries = 0; msg.textContent = ''; }, 30000);
-      return;
-    }
+    if (/^[0-9]{4}$/.test(v) && await guardianPinHash(v, p.s) === p.h){ pinFailClear(); g.ov.remove(); onPass(); return; }
+    inp.value = '';
+    if (pinFailAdd().until > Date.now()){ lockTick(); return; }
     msg.textContent = 'الرمز غير صحيح.';
   }
+  if (pinFailState().until > Date.now()) lockTick();
   ok.onclick = check;
   cancel.onclick = function(){ g.ov.remove(); };
-  forgot.onclick = function(){ g.ov.remove(); arithmeticGate(function(){ pinSetupDialog(onPass, 'ضع رمزًا جديدًا لولي الأمر (4 أرقام).'); }, 'استعادة رمز ولي الأمر.', 60); };
+  /* 9.42: استعادة الرمز تترك أثرًا يراه ولي الأمر في إعداداته، فإن فعلها الطفل لم تخفَ */
+  forgot.onclick = function(){ g.ov.remove(); arithmeticGate(function(){ pinSetupDialog(function(){ STATE.student.pinResetAt = new Date().toISOString(); save(); onPass(); }, 'ضع رمزًا جديدًا لولي الأمر (4 أرقام).'); }, 'استعادة رمز ولي الأمر.', 60); };
   inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') check(); });
   try { inp.focus(); } catch(e){}
 }
@@ -144,23 +159,32 @@ function openGuardianSettingsInner(){
   }
   var rows = Object.keys(STATE.studentAudios || {}).filter(function(k){ return STATE.studentAudios[k] && STATE.studentAudios[k].status !== undefined; }).map(function(k){
     var ex = !!(c.excludedRecordings && c.excludedRecordings[k]);
-    return '<label data-style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" class="gs-rec" data-id="'+k+'" '+(ex?'':'checked')+'> شارِك تسجيل: '+escapeHTML(itemLabelById(k))+'</label>';
+    return '<label data-style="display:flex;gap:10px;align-items:center;margin:6px 0"><input type="checkbox" class="gs-rec" data-style="width:24px;height:24px;flex:none" data-id="'+k+'" '+(ex?'':'checked')+'> شارِك تسجيل: '+escapeHTML(itemLabelById(k))+'</label>';
   }).join('') || '<p>لا توجد تسجيلات بعد.</p>';
   var card = document.createElement('div');
   card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
-  card.innerHTML = '<h3 data-style="margin:0 0 8px">⚙️ إعدادات ولي الأمر</h3>' +
-    '<label data-style="display:flex;gap:8px;align-items:center;margin:10px 0"><input id="gs-share" type="checkbox" '+(c.permissions && c.permissions.shareWithPeers ? 'checked' : '')+'> <b>السماح بمشاركة التسجيلات المعتمدة مع زملاء</b></label>' +
-    '<p data-style="margin:6px 0">يمكنك استبعاد أي تسجيل بعينه:</p>' + rows +
-    '<p data-style="font-size:.85rem;color:#555">تطبيق الإعدادات على الحزم المصدَّرة من الآن. الملفات التي نُسخت سابقًا لا تُسترجع.</p>' +
-    '<hr><p data-style="font-size:.85rem"><b>حذف البيانات:</b> يحذف تسجيلات الطفل وتقدمه وموافقته من هذا الجهاز. لا يحذف ملف الحزمة المحفوظ ولا ما أُرسل إلى المعلم أو الزملاء.</p>' +
+  /* 9.42: أربعة أقسام بترتيب الأمان: التقارير، ثم النسخ والاستعادة، ثم المشاركة، ثم الحذف وحده في الآخر (كان زر الحذف فوق النسخة الاحتياطية) */
+  var sec = function(t){ return '<h4 data-style="margin:14px 0 4px;color:#283593;font-size:.98rem;border-top:1px solid #e0e0e0;padding-top:10px">' + t + '</h4>'; };
+  card.innerHTML = '<h3 data-style="margin:0 0 4px">⚙️ إعدادات ولي الأمر</h3>' +
+    (STATE.student.pinResetAt ? '<p id="gs-pin-reset" data-style="margin:6px 0;padding:8px 10px;background:#fff3e0;border-radius:10px;font-size:.88rem">🔑 أُعيد ضبط رمز ولي الأمر بطريق «نسيت الرمز» بتاريخ ' + escapeHTML(String(STATE.student.pinResetAt).slice(0, 10)) + '. إن لم تفعل ذلك أنت فغيّر الرمز. <button type="button" id="gs-pin-reset-ok" class="btn sm">علمت</button></p>' : '') +
+    sec('📊 التقارير') +
     '<button type="button" id="gs-summary" class="btn">📄 ملخص لولي الأمر</button> ' +
     '<button type="button" id="gs-report" class="btn">🖨️ تقرير للطباعة</button> ' +
     '<button type="button" id="gs-archive" class="btn">💾 تصدير ذكرى العائلة</button> ' +
+    '<div id="gs-extras-slot"></div>' +
+    sec('🤝 المشاركة') +
+    '<label data-style="display:flex;gap:10px;align-items:center;margin:8px 0"><input id="gs-share" type="checkbox" data-style="width:24px;height:24px;flex:none" '+(c.permissions && c.permissions.shareWithPeers ? 'checked' : '')+'> <b>السماح بمشاركة التسجيلات المعتمدة مع زملاء</b></label>' +
+    '<p data-style="margin:6px 0">يمكنك استبعاد أي تسجيل بعينه:</p>' + rows +
+    '<p data-style="font-size:.85rem;color:#555">تطبيق الإعدادات على الحزم المصدَّرة من الآن. الملفات التي نُسخت سابقًا لا تُسترجع.</p>' +
+    '<div data-style="display:flex;justify-content:flex-end"><button type="button" id="gs-save" class="btn success">حفظ إعدادات المشاركة</button></div>' +
+    sec('🗑️ حذف البيانات') +
+    '<p data-style="font-size:.85rem"><b>حذف البيانات:</b> يحذف تسجيلات الطفل وتقدمه وموافقته من هذا الجهاز. لا يحذف ملف الحزمة المحفوظ ولا ما أُرسل إلى المعلم أو الزملاء. احفظ نسخة احتياطية أولًا.</p>' +
     '<button type="button" id="gs-delete" class="btn" data-style="background:#b3261e;color:#fff">🔄 تصفير: حذف بيانات الطالب من هذا الجهاز</button>' +
-    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="gs-close" class="btn">إغلاق</button><button type="button" id="gs-save" class="btn success">حفظ</button></div>';
+    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;position:sticky;bottom:-18px;background:#fff;padding:10px 0 14px;margin-bottom:-18px"><button type="button" id="gs-close" class="btn">إغلاق</button></div>';
   ov.appendChild(card); document.body.appendChild(ov);
   guardianExtras(card, ov); // 9.39.13 (D12، D7)
   $('gs-close').onclick = function(){ ov.remove(); };
+  if ($('gs-pin-reset-ok')) $('gs-pin-reset-ok').onclick = function(){ delete STATE.student.pinResetAt; save(); $('gs-pin-reset').remove(); };
   $('gs-delete').onclick = function(){ deleteChildDataOnDevice(); };
   $('gs-summary').onclick = function(){ showParentSummary(); };
   $('gs-archive').onclick = function(){ exportFamilyArchive(); };
@@ -191,10 +215,29 @@ function sharesWithPeers(){
   return !!(c && c.v === CONSENT_VERSION && c.permissions && c.permissions.shareWithPeers === true);
 }
 /* القرار DECISION-001: ثلاثة أذونات مستقلة، والمشاركة غير مفعّلة افتراضيًا */
+/* 9.42: نموذج الموافقة لا يُعرض على الطفل مباشرة (كان يغطي الخريطة فور إدخال الاسم، ويستطيع الطفل ملأه بنفسه).
+   أولًا بطاقة قصيرة بلغة الطفل، ثم بوابة ولي الأمر، ثم النموذج. */
 function ensureConsent(onAccept){
   if (hasConsent()){ onAccept(); return; }
+  var old = document.getElementById('consent-intro'); if (old) old.remove();
+  var ov = document.createElement('div'); ov.id = 'consent-intro'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'إذن ولي الأمر بالتسجيل');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:380px;width:100%;padding:20px;text-align:center;line-height:1.9';
+  var em = document.createElement('div'); em.style.cssText = 'font-size:2.6rem'; em.textContent = '🎙️';
+  var h = document.createElement('h3'); h.style.cssText = 'margin:4px 0 6px'; h.textContent = 'لتسجّل صوتك نحتاج إذن ولي أمرك';
+  var p = document.createElement('p'); p.style.cssText = 'margin:0 0 14px'; p.textContent = STATE.student && STATE.student.gender === 'girl' ? 'نادي ولي أمرك ليوافق. وتستطيعين أن تتعلّمي وتجيبي الآن دون تسجيل.' : 'نادِ ولي أمرك ليوافق. وتستطيع أن تتعلّم وتجيب الآن دون تسجيل.';
+  var yes = document.createElement('button'); yes.type = 'button'; yes.id = 'consent-intro-yes'; yes.className = 'btn success block'; yes.textContent = '👨‍👩‍👧 ولي أمري معي الآن';
+  var no = document.createElement('button'); no.type = 'button'; no.id = 'consent-intro-no'; no.className = 'btn ghost block'; no.style.marginTop = '8px'; no.textContent = 'لاحقًا';
+  [em, h, p, yes, no].forEach(function(e){ card.appendChild(e); }); ov.appendChild(card); document.body.appendChild(ov);
+  no.onclick = function(){ ov.remove(); };
+  yes.onclick = function(){ ov.remove(); parentalGate(function(){ showConsentForm(onAccept); }, 'موافقة ولي الأمر على تسجيل صوت الطفل.'); };
+  try { yes.focus(); } catch(e){}
+}
+function showConsentForm(onAccept){
+  if (hasConsent()){ onAccept(); return; }
   var ov = document.createElement('div');
-  ov.id = 'consent-overlay';
+  ov.id = 'consent-overlay'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'موافقة ولي الأمر');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box';
   var card = document.createElement('div');
   card.style.cssText = 'background:#fff;color:#222;border-radius:18px;max-width:440px;width:100%;padding:18px;font-size:1rem;line-height:1.8;max-height:92vh;overflow:auto';
@@ -205,11 +248,11 @@ function ensureConsent(onAccept){
     (guardianPinSet() ? '' : '<label data-style="display:block;margin:10px 0 4px">رمز ولي الأمر (4 أرقام) — يُطلب قبل الإعدادات والتصفير، فلا {تخبر|تخبري} به الطفل:</label>' +
       '<div data-style="display:flex;gap:8px"><input id="consent-pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="الرمز" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr">' +
       '<input id="consent-pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="4" placeholder="أعده" data-style="flex:1;min-width:0;box-sizing:border-box;padding:10px;border:2px solid #cfd8dc;border-radius:12px;font:inherit;text-align:center;direction:ltr"></div>') +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-record" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على تسجيل صوت الطفل وحفظه على هذا الجهاز للتعلم.</span></label>' +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input id="consent-review" type="checkbox" data-style="margin-top:6px"> <span><b>أوافق</b> على إرسال التسجيلات إلى المعلم للمراجعة التعليمية فقط.</span></label>' +
-    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;background:#f5f5f5;border-radius:10px;padding:8px"><input id="consent-share" type="checkbox" data-style="margin-top:6px"> <span><b>اختياري:</b> أوافق على أن تُضمَّن التسجيلات المعتمدة في حزم تصل إلى أطفال آخرين. يمكنني استبعاد أي تسجيل، وسحب هذه الموافقة في أي وقت (لا يسترجع ذلك ما سبق نسخه).</span></label>' +
+    '<label data-style="display:flex;gap:10px;align-items:flex-start;margin:12px 0"><input id="consent-record" type="checkbox" data-style="margin-top:4px;width:24px;height:24px;flex:none"> <span><b>أوافق</b> على تسجيل صوت الطفل وحفظه على هذا الجهاز للتعلم.</span></label>' +
+    '<label data-style="display:flex;gap:10px;align-items:flex-start;margin:12px 0"><input id="consent-review" type="checkbox" data-style="margin-top:4px;width:24px;height:24px;flex:none"> <span><b>أوافق</b> على إرسال التسجيلات إلى المعلم للمراجعة التعليمية فقط.</span></label>' +
+    '<label data-style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;background:#f5f5f5;border-radius:10px;padding:8px"><input id="consent-share" type="checkbox" data-style="margin-top:4px;width:24px;height:24px;flex:none"> <span><b>اختياري:</b> أوافق على أن تُضمَّن التسجيلات المعتمدة في حزم تصل إلى أطفال آخرين. يمكنني استبعاد أي تسجيل، وسحب هذه الموافقة في أي وقت (لا يسترجع ذلك ما سبق نسخه).</span></label>' +
     '<p id="consent-err" data-style="color:#b3261e;margin:4px 0;min-height:1.2em"></p>' +
-    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" id="consent-no" class="btn">لاحقًا</button><button type="button" id="consent-ok" class="btn success">حفظ وابدأ</button></div>';
+    '<div data-style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;position:sticky;bottom:-18px;background:#fff;padding:10px 0 14px;margin-bottom:-18px"><button type="button" id="consent-no" class="btn">لاحقًا</button><button type="button" id="consent-ok" class="btn success">حفظ وابدأ</button></div>'; // 9.42: الزران ظاهران دائمًا أسفل البطاقة
   ov.appendChild(card); document.body.appendChild(ov);
   $('consent-no').onclick = function(){ ov.remove(); };
   $('consent-ok').onclick = async function(){
@@ -226,7 +269,7 @@ function ensureConsent(onAccept){
     save(); ov.remove(); onAccept();
   };
 }
-/* ===== 9.35: موافقة ولي الأمر تُطلب عند حفظ بيانات الطالب، لا عند أول تسجيل (وقت الولي هنا) ===== */
+/* ===== 9.35: موافقة ولي الأمر تُطلب عند حفظ بيانات الطالب (وقت الولي هنا)؛ 9.42: ببطاقة الطفل والبوابة أولًا، لا بالنموذج مباشرة ===== */
 function askConsentAfterSetup(){
   setTimeout(function(){ if (STATE.student && STATE.student.name && !hasConsent()) ensureConsent(function(){}); }, 300);
 }

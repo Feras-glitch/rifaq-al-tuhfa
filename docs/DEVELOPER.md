@@ -60,6 +60,8 @@
    - `tools/verify_science.py` و`tests/test_science_engine.py` (الصحة العلمية، أدناه)
    - `tools/verify_exam_bank.py` و`tools/verify_s3_imlaei.py` و`tools/verify_lesson_items.py` و`tools/verify_qpc.py`
    - `tests/test_sheikh_review.py` و`tests/test_studio_team.py`
+   - `tests/test_profiles.py` (ملفات الأطفال على جهاز واحد) و`tests/test_data_safety.py` (النافذتان واللقطة الاحتياطية والحذف) و`tests/test_family_ux.py` (الموافقة والرمز والخريطة وقائمة المعلم المطوية والعمل دون إنترنت)
+   - فاحص الكود: `tools/lint/` (ESLint على السكربت المبني؛ يعمل في CI تقريرًا لا بوابة، وطريقته في أعلى `tools/lint/eslint.config.mjs`)
    - `tools/build_web.py _site --channel beta`، ثم `tests/test_host_playwright.py` و`test_channels.py` و`test_webkit_smoke.py` و`test_v939_playwright.py`
 5. الإصدار: `python3 -I tools/set_version.py X.Y.Z`
 6. النشر يكون من GitHub Actions بالإرسال اليدوي:

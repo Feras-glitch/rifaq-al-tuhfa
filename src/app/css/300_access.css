@@ -1,0 +1,31 @@
+/* ===== 9.42: وضوح النص وسهولة الوصول والخريطة ===== */
+.section-card .sec-meta{font-size:.86rem}
+.rec-status{font-size:.84rem}
+.question-badge{font-size:.82rem}
+.verse-source,.hifz-num{font-size:.82rem}
+.app-header .subtitle{font-size:.88rem}
+.qx-tok{min-width:44px;min-height:44px}
+:focus-visible{outline:3px solid #ffb300;outline-offset:2px}
+/* تكبير الخط: زر في «ملفي»، يُحفظ على الجهاز */
+html.big-text{font-size:118%}
+html.big-text .poem-verse .v-a,html.big-text .poem-verse .v-b{white-space:normal}
+/* «ملفي» و«شهادتي» ظاهران دائمًا أسفل الخريطة (كانا بعد 2.7 شاشة تمرير) */
+#view-home .top-actions{position:sticky;bottom:0;background:var(--bg);padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));z-index:5;margin-top:10px}
+.home-guardian{margin-inline-start:auto;font-size:.8rem;padding:8px 10px;white-space:nowrap;align-self:flex-start}
+#home-extras .notice{margin:10px 0;font-size:.9rem}
+#home-extras .btn{margin-top:10px}
+/* شاشة «من يتعلّم الآن؟» */
+#profile-chooser{position:fixed;inset:0;background:linear-gradient(135deg,#283593,#5c6bc0);z-index:9000;display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box;overflow:auto}
+#profile-chooser .pc-card{background:#fff;border-radius:22px;max-width:440px;width:100%;padding:20px;text-align:center}
+#profile-chooser .pc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0}
+#profile-chooser .pc-child{border:3px solid #c5cae9;border-radius:18px;background:#f5f7ff;padding:14px 8px;font:inherit;font-weight:900;color:#283593;cursor:pointer;min-height:120px}
+#profile-chooser .pc-child .pc-av{width:64px;height:64px;border-radius:50%;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;background:#fff;overflow:hidden;border:2px solid #c5cae9}
+#profile-chooser .pc-child .pc-av img{width:100%;height:100%;object-fit:cover}
+/* مراجعة المعلم: قائمة مطوية */
+.review-item.collapsed > :not(.head){display:none}
+.review-item.collapsed{padding-bottom:10px;cursor:pointer}
+.review-item .head{cursor:pointer}
+#review-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:6}
+#review-tools .btn{padding:8px 12px;font-size:.85rem}
+#review-tools .btn.on{background:var(--primary);color:#fff}
+#home-extras:not(:empty){margin-bottom:12px}

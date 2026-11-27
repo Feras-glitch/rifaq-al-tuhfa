@@ -67,6 +67,11 @@ async def main():
             await pg.goto(BASE + '/open.html?src=app'); fr = await appframe(pg)
             await ev(fr, "continueFromSplash()"); await fr.fill('#setup-name', 'دلال'); await fr.click('#setup-girl')
             await ev(fr, "saveSetup()"); await fr.wait_for_timeout(500)
+            await fr.wait_for_selector('#consent-intro-yes', timeout=8000); await fr.click('#consent-intro-yes')   # 9.42: بطاقة الطفل ثم بوابة ولي الأمر ثم النموذج
+            await fr.wait_for_selector('#parent-gate-q', timeout=5000)
+            import re as _re
+            _m = _re.findall(r'\d+', await fr.inner_text('#parent-gate-q')); await fr.fill('#parent-gate-answer', str(int(_m[0]) * int(_m[1]))); await fr.click('#parent-gate-ok')
+            await fr.wait_for_selector('#consent-name', timeout=5000)
             await fr.fill('#consent-name', 'ولي الأمر')
             if await ev(fr, "!!document.getElementById('consent-pin')"):  # 9.39.13 (D7)
                 await fr.fill('#consent-pin', '2580'); await fr.fill('#consent-pin2', '2580')

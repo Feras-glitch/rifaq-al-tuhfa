@@ -119,6 +119,7 @@ function renderHome(){
     sub = 'إهداء من ' + (PACK_DATA.sourceGiftStudentGender === 'girl' ? 'زميلتك ' : 'زميلك ') + (PACK_DATA.sourceGiftStudentName || PACK_DATA.studentName || '—') + ' • بإشراف ' + teacherByline();
   }
   $('home-sub').textContent = sub;
+  renderHomeExtras(); // 9.42
   var refB = document.getElementById('home-ref-banner'); // 9.39.11 (ق1-ب)
   if (REF_HIDDEN){
     if (!refB){ refB = document.createElement('div'); refB.id = 'home-ref-banner'; refB.className = 'notice warn'; refB.style.cssText = 'margin:10px 0;font-size:.88rem'; var sl0 = $('section-list'); if (sl0 && sl0.parentNode) sl0.parentNode.insertBefore(refB, sl0); }

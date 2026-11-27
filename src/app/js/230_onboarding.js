@@ -50,6 +50,8 @@ function buildSetup(){
   else $('setup-title').textContent = 'قبل أن نبدأ';
   /* 9.40: «طالب جديد / تبديل الطالب» لا معنى له في أول تشغيل، ولا لمستلم الإهداء */
   if ($('btn-new-student')) $('btn-new-student').classList.toggle('hidden', STATE.role === 'teacher' || isGiftRecipient || !String(STATE.student.name || '').trim());
+  /* 9.42: على جهاز جديد يستعيد ولي الأمر النسخة من هنا، بدل إنشاء طفل ثم البحث عن الإعدادات */
+  if ($('btn-have-backup')) $('btn-have-backup').classList.toggle('hidden', STATE.role === 'teacher' || !!String(STATE.student.name || '').trim());
 }
 var SETUP_NEW_STUDENT = false;
 function startNewStudent(){

@@ -1,5 +1,6 @@
 /* ===== الملف الشخصي ===== */
 function showProfile(){
+  applyBigText(); // 9.42
   var s = STATE.student;
   var av = $('profile-avatar');
   if (s.photo) av.innerHTML = '<img data-media="' + mediaRef('img', s.photo) + '" alt="">';

@@ -17,7 +17,9 @@ async function toggleTeacherFeedbackRecording(){
     teacherFeedbackStream = await navigator.mediaDevices.getUserMedia({audio:true});
     var fbMimes = ['audio/webm;codecs=opus','audio/webm','audio/mp4'];
     var fbMime = fbMimes.find(function(m){ return typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(m); });
-    teacherFeedbackRecorder = fbMime ? new MediaRecorder(teacherFeedbackStream,{mimeType:fbMime}) : new MediaRecorder(teacherFeedbackStream); teacherFeedbackChunks = [];
+    /* 9.42: الجودة نفسها التي يُسجَّل بها الطفل (24 كيلوبت/ث)، فلا يتضخم ملف الإعادة بتعليقات المعلم */
+    try { teacherFeedbackRecorder = fbMime ? new MediaRecorder(teacherFeedbackStream,{mimeType:fbMime,audioBitsPerSecond:24000}) : new MediaRecorder(teacherFeedbackStream,{audioBitsPerSecond:24000}); }
+    catch(_e){ teacherFeedbackRecorder = fbMime ? new MediaRecorder(teacherFeedbackStream,{mimeType:fbMime}) : new MediaRecorder(teacherFeedbackStream); } teacherFeedbackChunks = [];
     teacherFeedbackRecorder.ondataavailable = function(e){ if (e.data && e.data.size) teacherFeedbackChunks.push(e.data); };
     teacherFeedbackRecorder.onstop = async function(){
       teacherFeedbackStream.getTracks().forEach(function(t){t.stop();});
@@ -43,8 +45,9 @@ function confirmTeacherRejection(){
   else { delete rec.feedback; delete PACK_DATA.teacherFeedbacks[teacherFeedbackTarget]; }
   if (noteText) PACK_DATA.teacherNotes[teacherFeedbackTarget] = noteText; else delete PACK_DATA.teacherNotes[teacherFeedbackTarget];
   $('teacher-feedback-modal').classList.add('hidden');
+  reviewAdvance(teacherFeedbackTarget); var jumped = !!REVIEW_SCROLL_TO; // 9.42
   teacherFeedbackTarget = null; teacherFeedbackData = null; showTeacherReview();
-  requestAnimationFrame(function(){ window.scrollTo(0, reviewScroll); });
+  if (!jumped) requestAnimationFrame(function(){ window.scrollTo(0, reviewScroll); });
 }
 function cancelTeacherFeedback(){
   if (teacherFeedbackRecorder && teacherFeedbackRecorder.state === 'recording') teacherFeedbackRecorder.stop();
